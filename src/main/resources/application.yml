@@ -1,0 +1,66 @@
+spring:
+  # 데이터베이스 연결 설정
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver       # 사용하는 데이터베이스 드라이버
+    url: ${DATABASE_URL} # 데이터베이스 URL
+    username: ${DATABASE_USERNAME}                               # 데이터베이스 유저 이름
+    password: ${DATABASE_PASSWORD}                                 # 데이터베이스 유저의 비밀번호
+  # 스프링 JPA 설정
+  jpa:
+    hibernate:
+      ddl-auto: create                               # DB 테이블 생성 전략 설정
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQL8Dialect # MySQL 8.x용 Dialect
+        format_sql: true                             # 쿼리 로그를 정렬해서 출력한다
+        show_sql: true                               # 실행되는 SQL 쿼리를 콘솔에 출력한다. 프로덕션 환경에서는 false로 변경해야 함.
+    defer-datasource-initialization: true            # SQL 스크립트 초기화를 JPA 앤티티 매니저 초기화 이후로 지연시킨다. 이는 data.sql이 있어서 필요하다.
+  sql:
+    init:
+      mode: always                                    # SQL 초기화 스크립트를 언제 실행할지 결정한다.
+
+# Swagger 사용 설정
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html                      # 스웨거 접근 경로
+  api-docs:
+    path: /api-docs                             # openAPI 접근 경로. default 값은 /v3/api-docs 이다.
+  show-actuator: true                           # Spring Actuator의 endpoint까지 보여줄 것인지?
+  default-consumes-media-type: application/json # request media type 의 기본 값
+  default-produces-media-type: application/json # response media type 의 기본 값
+  paths-to-match:                               # 해당 패턴에 매칭되는 controller만 swagger-ui에 노출한다.
+    - /api/v1/**
+
+# ===================================================================
+# JWT (JSON Web Token) 관련 설정
+# JWTProperties.java 레코드에 바인딩됩니다.
+# ===================================================================
+# JWT 토큰 설정
+jwt:
+  secret: ${JWT_SECRET}                    # HS512 알고리즘을 사용할 것이기 때문에 512bit, 즉 64byte 이상의 secret key를 사용해야 한다.
+  access-token:
+    header: Authorization                  # 액세스 토큰 헤더
+    validity-in-minute: 15m                # 액세스 토큰 유효기간 (시간)
+  refresh-token:
+    cookie: ${JWT_REFRESH_TOKEN_COOKIE}    # 리프레시 토큰 쿠키 키
+    expiration-days: 60                    # 리프레시 토큰 유효기간 (일)
+    byte-length: 64
+  authority-key: auth                      # 액세스 토큰에서 권한을 가져올 키
+  allowed-clock-skew-seconds: 30
+
+# Redis
+redis:
+  prefix: runner                    # 레디스 저장에 필요한 키 값 중 접두어
+  suffix: token_rts                 # 레디스 저장에 필요한 키 값 중 접미어
+  max-token: 1                      # 최대로 발급 가능한 토큰의 수
+
+kakao:
+  auth:
+    client-id: ${KAKAO_CLIENT_ID}
+    redirect-uri: ${KAKAO_REDIRECT_URI}
+    auth-api: https://kauth.kakao.com
+    api: https://kapi.kakao.com
+    connect-timeout-millis: 5000
+    response-timeout-seconds: 5
+    time-out-seconds: 5
+  geocoding:
