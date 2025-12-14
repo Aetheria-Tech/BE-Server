@@ -1,5 +1,6 @@
 package com.serverbe.infrastructure.security;
 
+import com.serverbe.application.port.in.security.TokenResolver;
 import com.serverbe.infrastructure.error.BusinessException;
 import com.serverbe.infrastructure.error.ErrorMessage;
 import io.jsonwebtoken.Claims;
@@ -15,7 +16,7 @@ import java.util.List;
  */
 @Slf4j
 @Component
-public class JwtTokenResolver {
+public class JwtTokenResolver implements TokenResolver {
     private final JwtParser parser;
 
     public JwtTokenResolver(JwtKeyManager jwtKeyManager) {
@@ -26,6 +27,7 @@ public class JwtTokenResolver {
     /**
      * 토큰의 서명 및 구조적 유효성을 검증합니다.
      */
+    @Override
     public boolean validateToken(String token) {
         try {
             if (token == null || token.isBlank()) return false;
@@ -40,6 +42,7 @@ public class JwtTokenResolver {
     /**
      * 토큰에서 사용자 고유 식별자(ID)를 추출합니다.
      */
+    @Override
     public Long getIdFromToken(String token) {
         String sub = getClaims(token).getSubject();
         try {
@@ -55,6 +58,7 @@ public class JwtTokenResolver {
     /**
      * 토큰에서 권한 목록(roles)을 추출합니다.
      */
+    @Override
     public List<String> getRolesFromToken(String token) {
         List<?> roles = getClaims(token).get("roles", List.class);
 

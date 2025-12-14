@@ -1,5 +1,6 @@
 package com.serverbe.infrastructure.security;
 
+import com.serverbe.application.port.in.security.TokenProvider;
 import com.serverbe.application.port.in.dto.RefreshTokenIssueResult;
 import com.serverbe.infrastructure.config.properties.JwtProperties;
 import io.jsonwebtoken.Claims;
@@ -24,7 +25,7 @@ import java.util.List;
  */
 @Slf4j
 @Component
-public class JwtTokenProvider {
+public class JwtTokenProvider implements TokenProvider {
 
     private final SecureRandom secureRandom;
 
@@ -67,6 +68,7 @@ public class JwtTokenProvider {
      * @param authentication 토큰 생성에 사용될 사용자 인증 정보입니다.
      * @return 생성된 액세스 토큰 문자열입니다.
      */
+    @Override
     public String generateAccessToken(Authentication authentication) {
         // 사용자 이름(Principal, 여기서는 runner ID)을 토큰의 subject로 설정
         String subject = authentication.getName();
@@ -102,6 +104,7 @@ public class JwtTokenProvider {
      * @param authentication 토큰 생성에 사용될 사용자 인증 정보입니다.
      * @return 생성된 리프레시 토큰 문자열과 관련 정보를 담은 {@code RefreshTokenIssueResult}입니다.
      */
+    @Override
     public RefreshTokenIssueResult generateRefreshToken(Authentication authentication) {
         log.debug("[TokenProvider] createRefreshToken({})", authentication.getName());
 
