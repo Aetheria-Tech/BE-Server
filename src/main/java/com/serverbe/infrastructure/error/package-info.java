@@ -11,4 +11,4 @@
  * <li>ErrorResponse: 클라이언트에게 전달될 최종 에러 데이터 구조</li>
  * </ul>
  */
-package com.serverbe.global.error;
+package com.serverbe.infrastructure.error;

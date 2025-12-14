@@ -1,4 +1,4 @@
-package com.serverbe.global.error;
+package com.serverbe.infrastructure.error;
 
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -35,7 +35,8 @@ public enum ErrorMessage {
 
     // JWT
     JWT_SUBJECT_IS_NOT_NUMBER(HttpStatus.BAD_REQUEST, "JWT_001", "JWT 토큰 값이 유효하지 않습니다."),
-    JWT_TOKEN_IS_EMPTY(HttpStatus.BAD_REQUEST, "JWT_002", "JWT 토큰 값이 비어있습니다.")
+    JWT_TOKEN_IS_EMPTY(HttpStatus.BAD_REQUEST, "JWT_002", "JWT 토큰 값이 비어있습니다."),
+    JWT_TOKEN_IS_INVALID(HttpStatus.BAD_REQUEST, "JWT_003", "JWT 토큰이 유효하지 않습니다.")
     ;
 
 

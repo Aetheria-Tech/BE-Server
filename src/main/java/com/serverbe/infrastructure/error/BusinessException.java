@@ -1,4 +1,4 @@
-package com.serverbe.global.error;
+package com.serverbe.infrastructure.error;
 
 import lombok.Getter;
 

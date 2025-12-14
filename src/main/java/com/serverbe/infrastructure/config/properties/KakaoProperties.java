@@ -1,4 +1,4 @@
-package com.serverbe.global.config.properties;
+package com.serverbe.infrastructure.config.properties;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import java.time.Duration;

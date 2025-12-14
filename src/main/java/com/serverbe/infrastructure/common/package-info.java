@@ -11,4 +11,4 @@
  * <li>Constants, DateUtils 등 기술적 공통 도구</li>
  * </ul>
  */
-package com.serverbe.global.common;
+package com.serverbe.infrastructure.common;

@@ -1,7 +1,7 @@
-package com.serverbe.global.common;
+package com.serverbe.infrastructure.common;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.serverbe.global.error.ErrorMessage;
+import com.serverbe.infrastructure.error.ErrorMessage;
 
 /**
  * 전역 공통 응답 규격 (Record)

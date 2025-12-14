@@ -1,6 +1,6 @@
-package com.serverbe.global.error;
+package com.serverbe.infrastructure.error;
 
-import com.serverbe.global.common.ApiResponse;
+import com.serverbe.infrastructure.common.ApiResponse;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;

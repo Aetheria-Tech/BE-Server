@@ -12,4 +12,4 @@
  * <li>Bean Definition: 외부 라이브러리 빈 등록</li>
  * </ul>
  */
-package com.serverbe.global.config;
+package com.serverbe.infrastructure.config;
