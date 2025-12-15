@@ -1,4 +1,4 @@
-package com.serverbe.infrastructure.config;
+package com.serverbe.infrastructure.config.properties;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 

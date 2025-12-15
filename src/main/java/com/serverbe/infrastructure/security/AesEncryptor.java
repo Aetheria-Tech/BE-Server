@@ -1,6 +1,6 @@
 package com.serverbe.infrastructure.security;
 
-import com.serverbe.infrastructure.config.EncryptionProperties;
+import com.serverbe.infrastructure.config.properties.EncryptionProperties;
 import com.serverbe.infrastructure.error.BusinessException;
 import com.serverbe.infrastructure.error.ErrorMessage;
 import org.springframework.stereotype.Component;
