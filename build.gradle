@@ -85,6 +85,9 @@ dependencies {
     testImplementation 'org.springframework.security:spring-security-test'
     // JUnit Platform Launcher: 테스트 실행을 위한 JUnit 플랫폼 엔진
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+    // Swagger UI (SpringDoc OpenAPI 2.x)
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.3.0'
 }
 
 tasks.named('test') {
