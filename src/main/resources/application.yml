@@ -64,3 +64,11 @@ kakao:
     response-timeout-seconds: 5
     time-out-seconds: 5
   geocoding:
+
+# 암호화
+encryption:
+  algorithm: AES/GCM/NoPadding
+  secret-key: ${ENCRYPTION_SECRET_KEY} # 32자 이상의 보안키
+  tag-length-bit: 128
+  iv-length-byte: 12
+  key-algorithm: AES
