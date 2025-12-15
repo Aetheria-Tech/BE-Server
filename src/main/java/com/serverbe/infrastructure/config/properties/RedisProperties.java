@@ -3,15 +3,34 @@ package com.serverbe.infrastructure.config.properties;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * Redis 관련 설정 정보 객체 (Record)
- * @param prefix 레디스 키 접두어 (예: runner)
- * @param suffix 레디스 키 접미어 (예: token_rts)
- * @param maxToken 최대로 발급 가능한 토큰의 수
+ * @param host      레디스 호스트
+ * @param port      레디스 포트
+ * @param auth      인증 관련(Refresh Token) 설정
+ * @param blacklist 로그아웃 관련(Blacklist) 설정
  */
 @ConfigurationProperties(prefix = "redis")
 public record RedisProperties(
-    String prefix,
-    String suffix,
-    int maxToken
+        String host,
+        int port,
+        Auth auth,
+        Blacklist blacklist
 ) {
+    /**
+     * 리프레시 토큰(RT) 저장 설정
+     */
+    public record Auth(
+            String prefix,
+            String suffix,
+            int maxToken
+    ) {
+    }
+
+    /**
+     * 블랙리스트(BL) 저장 설정
+     */
+    public record Blacklist(
+            String prefix,
+            String suffix
+    ) {
+    }
 }

@@ -2,7 +2,10 @@ package com.serverbe.adapter.in.web.filter;
 
 
 import com.serverbe.application.port.in.security.TokenResolver;
+import com.serverbe.application.port.out.TokenPersistencePort;
 import com.serverbe.infrastructure.config.properties.JwtProperties;
+import com.serverbe.infrastructure.error.BusinessException;
+import com.serverbe.infrastructure.error.ErrorMessage;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -22,15 +25,18 @@ import org.springframework.web.servlet.HandlerExceptionResolver;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final TokenResolver tokenResolver;
+    private final TokenPersistencePort tokenPersistencePort;
     private final HandlerExceptionResolver handlerExceptionResolver;
     private final String ACCESS_TOKEN_HEADER;
 
     public JwtAuthenticationFilter(
             TokenResolver tokenResolver,
+            TokenPersistencePort tokenPersistencePort,
             HandlerExceptionResolver handlerExceptionResolver,
             JwtProperties jwtProperties
     ) {
         this.tokenResolver = tokenResolver;
+        this.tokenPersistencePort = tokenPersistencePort;
         this.handlerExceptionResolver = handlerExceptionResolver;
         this.ACCESS_TOKEN_HEADER = jwtProperties.accessToken().header();
     }
@@ -51,6 +57,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 // 토큰에서 인증 객체(Authentication) 생성 및 SecurityContext 등록
                 Authentication authentication = tokenResolver.getAuthentication(token);
                 SecurityContextHolder.getContext().setAuthentication(authentication);
+
+                if (tokenPersistencePort.isBlacklisted(token)) {
+                    throw new BusinessException(ErrorMessage.UNAUTHORIZED, "이미 로그아웃된 토큰입니다.");
+                }
             }
             // 다음 필터로 진행
             filterChain.doFilter(request, response);

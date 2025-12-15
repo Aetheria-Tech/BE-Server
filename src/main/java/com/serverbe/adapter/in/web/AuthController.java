@@ -3,10 +3,13 @@ package com.serverbe.adapter.in.web;
 import com.serverbe.adapter.out.external.google.GoogleAdapter;
 import com.serverbe.adapter.out.external.kakao.KakaoAdapter;
 import com.serverbe.application.port.in.dto.TokenResponse;
+import com.serverbe.application.port.in.oauth.LogoutUseCase;
 import com.serverbe.application.port.in.oauth.SocialLoginUseCase;
 import com.serverbe.application.port.in.oauth.WithdrawUseCase;
+import com.serverbe.application.port.in.security.TokenResolver;
 import com.serverbe.domain.model.vo.OAuthProvider;
 import com.serverbe.infrastructure.common.ApiResponse;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -21,8 +24,10 @@ public class AuthController {
 
     private final SocialLoginUseCase socialLoginUseCase;
     private final WithdrawUseCase withdrawUseCase;
+    private final LogoutUseCase logoutUseCase;
     private final GoogleAdapter googleAdapter;
     private final KakaoAdapter kakaoAdapter;
+    private final TokenResolver tokenResolver;
 
     /**
      * 소셜 로그인 페이지로 리다이렉트
@@ -57,6 +62,14 @@ public class AuthController {
     @DeleteMapping("/me")
     public ApiResponse<Void> withdraw(@AuthenticationPrincipal Long userId) {
         withdrawUseCase.withdraw(userId);
+        return ApiResponse.success(null);
+    }
+
+    @PostMapping("/logout")
+    public ApiResponse<Void> logout(HttpServletRequest request) {
+        // 헤더에서 토큰 추출 (resolveToken 메서드 활용)
+        String accessToken = resolveToken(request);
+        logoutUseCase.logout(accessToken);
         return ApiResponse.success(null);
     }
 
