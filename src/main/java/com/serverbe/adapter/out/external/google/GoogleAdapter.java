@@ -8,6 +8,7 @@ import com.serverbe.domain.model.vo.OAuthProvider;
 import com.serverbe.infrastructure.config.properties.GoogleProperties;
 import com.serverbe.infrastructure.error.BusinessException;
 import com.serverbe.infrastructure.error.ErrorMessage;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -17,6 +18,7 @@ import org.springframework.web.reactive.function.BodyInserters;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.util.UriComponentsBuilder;
 
+@Slf4j
 @Component
 public class GoogleAdapter implements OAuthClientPort {
 
@@ -91,5 +93,27 @@ public class GoogleAdapter implements OAuthClientPort {
                 .retrieve()
                 .bodyToMono(GoogleUserInfoResponse.class)
                 .block();
+    }
+
+    @Override
+    public void unlink(OAuthProvider provider, String oauthId, String oauthRefreshToken) {
+        if (oauthRefreshToken == null || oauthRefreshToken.isBlank()) {
+            throw new BusinessException(ErrorMessage.INVALID_REFRESH_TOKEN, "구글 리프레시 토큰이 없어 연동 해제가 불가능합니다.");
+        }
+
+        webClient.post()
+                .uri(uriBuilder -> uriBuilder
+                        .path("https://oauth2.googleapis.com/revoke")
+                        .queryParam("token", oauthRefreshToken)
+                        .build())
+                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .retrieve()
+                .onStatus(HttpStatusCode::isError, res -> res.bodyToMono(String.class)
+                        .map(body -> {
+                            log.error("[Google Revoke Error] -> {}", body);
+                            return new BusinessException(ErrorMessage.FAILED_KAKAO_API, "Google Revoke Failed");
+                        }))
+                .bodyToMono(Void.class)
+                .block(); // 탈퇴 로직의 정합성을 위해 동기 처리
     }
 }

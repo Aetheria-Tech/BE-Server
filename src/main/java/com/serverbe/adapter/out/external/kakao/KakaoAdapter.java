@@ -9,12 +9,14 @@ import com.serverbe.domain.model.vo.OAuthProvider;
 import com.serverbe.infrastructure.config.properties.KakaoProperties;
 import com.serverbe.infrastructure.error.BusinessException;
 import com.serverbe.infrastructure.error.ErrorMessage;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.reactive.function.BodyInserters;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.util.UriComponentsBuilder;
 
 @Component
 public class KakaoAdapter implements OAuthClientPort {
@@ -30,6 +32,18 @@ public class KakaoAdapter implements OAuthClientPort {
                 .baseUrl(kakaoProperties.auth().api()) // 기본 API 경로 설정
                 .build();
     }
+
+    public String getKakaoRedirectUrl() {
+        return UriComponentsBuilder.fromHttpUrl(kakaoProperties.auth().authApi() + "/oauth/authorize")
+                .queryParam("client_id", kakaoProperties.auth().clientId())
+                .queryParam("redirect_uri", kakaoProperties.auth().redirectUri())
+                .queryParam("response_type", "code")
+                // .queryParam("scope", "account_email,profile_nickname") // 필요 시 동의 항목 지정
+                // .queryParam("prompt", "login") // 매번 카카오 계정 로그인을 요구할 경우 추가
+                .build()
+                .toUriString();
+    }
+
 
     @Override
     public OAuthUserInfo getUserInfo(String code, OAuthProvider provider) {
@@ -83,5 +97,21 @@ public class KakaoAdapter implements OAuthClientPort {
                 response.kakaoAccount().profile().nickname(),
                 null // 카카오 리프레시 토큰이 필요하다면 getKakaoAccessToken에서 받아와 전달
         );
+    }
+
+    @Override
+    public void unlink(OAuthProvider provider, String oauthId, String oauthRefreshToken) {
+        // 카카오 어드민 키 방식 (사용자 동의 없이도 서버에서 강제 해제 가능)
+        webClient.post()
+                .uri(kakaoProperties.auth().api() + "/v1/user/unlink")
+                .header("Authorization", "KakaoAK " + kakaoProperties.adminKey()) // Admin Key 사용
+                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .body(BodyInserters.fromFormData("target_id_type", "user_id")
+                        .with("target_id", oauthId)) // 이제 오류 없이 사용 가능
+                .retrieve()
+                .onStatus(HttpStatusCode::isError, res -> res.bodyToMono(String.class)
+                        .map(body -> new BusinessException(ErrorMessage.FAILED_KAKAO_API, "Kakao Unlink Failed: " + body)))
+                .bodyToMono(Void.class)
+                .block();
     }
 }

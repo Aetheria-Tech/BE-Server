@@ -9,4 +9,9 @@ public interface OAuthClientPort {
      * 인가 코드로 해당 플랫폼의 토큰 및 유저 정보를 가져옵니다.
      */
     OAuthUserInfo getUserInfo(String code, OAuthProvider provider);
+
+    /**
+     * 소셜 서비스와 우리 앱의 연동을 해제합니다.
+     */
+    void unlink(OAuthProvider provider, String oauthId, String oauthRefreshToken);
 }

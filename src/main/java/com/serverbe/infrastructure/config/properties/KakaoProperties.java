@@ -11,6 +11,7 @@ import java.time.Duration;
 @ConfigurationProperties(prefix = "kakao")
 public record KakaoProperties(
     Auth auth,
+    String adminKey,
     Geocoding geocoding
 ) {
     /**
