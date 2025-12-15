@@ -30,8 +30,8 @@ public class JwtTokenProvider implements TokenProvider {
     private final SecureRandom secureRandom;
 
     private final SecretKey KEY;
-    private final Duration ACCESS_TOKEN_VALIDITY_IN_HOUR;
-    private final long REFRESH_TOKEN_VALIDATE_DAY;
+    private final Duration ACCESS_TOKEN_VALIDITY_IN_MINUTE;
+    private final Duration REFRESH_TOKEN_VALIDATE_DAY;
     private final int REFRESH_TOKEN_LENGTH;
 
     /**
@@ -47,7 +47,7 @@ public class JwtTokenProvider implements TokenProvider {
     ) {
         this.secureRandom = secureRandom;
 
-        this.ACCESS_TOKEN_VALIDITY_IN_HOUR = jwtProperties.accessToken().validityInMinute();
+        this.ACCESS_TOKEN_VALIDITY_IN_MINUTE = jwtProperties.accessToken().validityInMinute();
         this.REFRESH_TOKEN_VALIDATE_DAY = jwtProperties.refreshToken().expirationDays();
         this.REFRESH_TOKEN_LENGTH = jwtProperties.refreshToken().byteLength();
         // 서명 키를 KeyManager로부터 가져옵니다.
@@ -79,7 +79,7 @@ public class JwtTokenProvider implements TokenProvider {
                 .toList();
 
         Instant now = Instant.now();
-        Instant expiration = now.plus(ACCESS_TOKEN_VALIDITY_IN_HOUR);
+        Instant expiration = now.plus(ACCESS_TOKEN_VALIDITY_IN_MINUTE);
 
         return Jwts.builder()
                 .setSubject(subject)
@@ -109,7 +109,7 @@ public class JwtTokenProvider implements TokenProvider {
         log.debug("[TokenProvider] createRefreshToken({})", authentication.getName());
 
         String opaqueToken = generateOpaqueToken();
-        Instant expire = Instant.now().plus(Duration.ofDays(REFRESH_TOKEN_VALIDATE_DAY));
+        Instant expire = Instant.now().plus(REFRESH_TOKEN_VALIDATE_DAY);
 
         log.info("[TokenProvider] Refresh Token created for username: {}. Token length: {}", authentication.getName(), opaqueToken.length());
 

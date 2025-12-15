@@ -37,7 +37,7 @@ public record JwtProperties(
      */
     public record RefreshToken(
         String cookie,
-        int expirationDays,
+        Duration expirationDays,
         int byteLength
     ) { }
 }
