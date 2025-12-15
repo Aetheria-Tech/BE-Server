@@ -47,26 +47,25 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             HttpServletResponse response,
             FilterChain filterChain
     ) {
-
-        // 요청 헤더에서 토큰 추출
         String token = resolveToken(request);
 
         try {
-            // 토큰 유효성 검사
             if (StringUtils.hasText(token) && tokenResolver.validateToken(token)) {
-                // 토큰에서 인증 객체(Authentication) 생성 및 SecurityContext 등록
-                Authentication authentication = tokenResolver.getAuthentication(token);
-                SecurityContextHolder.getContext().setAuthentication(authentication);
 
+                // 1. 블랙리스트 확인을 인증 객체 등록보다 먼저 수행 (Fail-Fast)
                 if (tokenPersistencePort.isBlacklisted(token)) {
+                    log.warn("[JWT Filter] 로그아웃된 토큰으로 접근 시도: {}", token);
                     throw new BusinessException(ErrorMessage.UNAUTHORIZED, "이미 로그아웃된 토큰입니다.");
                 }
+
+                // 2. 모든 검증을 마친 후 인증 객체 등록
+                Authentication authentication = tokenResolver.getAuthentication(token);
+                SecurityContextHolder.getContext().setAuthentication(authentication);
             }
-            // 다음 필터로 진행
+
             filterChain.doFilter(request, response);
 
         } catch (Exception e) {
-            // 필터 내 예외 발생 시 HandlerExceptionResolver를 통해 GlobalExceptionHandler로 전달
             log.error("[JWT Filter Exception] -> ", e);
             handlerExceptionResolver.resolveException(request, response, null, e);
         }

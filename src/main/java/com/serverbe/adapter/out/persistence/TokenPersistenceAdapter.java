@@ -26,6 +26,13 @@ public class TokenPersistenceAdapter implements TokenPersistencePort {
     }
 
     @Override
+    public void saveRefreshToken(Long userId, String refreshToken, Duration expiry) {
+        // 키 예: user:123:rt
+        String key = createRefreshTokenKey(userId);
+        redisTemplate.opsForValue().set(key, refreshToken, expiry);
+    }
+
+    @Override
     public void deleteRefreshToken(Long userId) {
         redisTemplate.delete(createRefreshTokenKey(userId));
     }

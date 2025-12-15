@@ -3,15 +3,15 @@ package com.serverbe.infrastructure.security;
 import com.serverbe.application.port.in.security.TokenResolver;
 import com.serverbe.infrastructure.error.BusinessException;
 import com.serverbe.infrastructure.error.ErrorMessage;
-import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.JwtException;
-import io.jsonwebtoken.JwtParser;
+import io.jsonwebtoken.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.stereotype.Component;
 
+import javax.crypto.SecretKey;
+import java.time.Instant;
 import java.util.List;
 
 /**
@@ -21,10 +21,12 @@ import java.util.List;
 @Component
 public class JwtTokenResolver implements TokenResolver {
     private final JwtParser parser;
+    private final SecretKey KEY;
 
     public JwtTokenResolver(JwtKeyManager jwtKeyManager) {
         // JwtKeyManager로부터 서명 키가 설정된 JwtParser를 주입받아 공유합니다.
         this.parser = jwtKeyManager.getParser();
+        this.KEY = jwtKeyManager.getKey();
     }
 
     @Override
@@ -95,6 +97,27 @@ public class JwtTokenResolver implements TokenResolver {
         } catch (JwtException e) {
             // 상세한 예외 처리가 필요하다면 여기서 ExpiredJwtException 등을 분기 처리할 수 있습니다.
             throw new BusinessException(ErrorMessage.JWT_TOKEN_IS_INVALID, e.getMessage());
+        }
+    }
+
+    /**
+     * 토큰으로부터 만료 시간을 추출합니다.
+     * * @param token JWT 토큰
+     * @return 만료 시간 (Instant)
+     */
+    @Override
+    public Instant getExpirationFromToken(String token) {
+        try {
+            Claims claims = Jwts.parserBuilder()
+                    .setSigningKey(KEY)
+                    .build()
+                    .parseClaimsJws(token)
+                    .getBody();
+
+            return claims.getExpiration().toInstant();
+        } catch (ExpiredJwtException e) {
+            // 이미 만료된 토큰의 경우 예외 객체에서 Claims를 추출할 수 있습니다.
+            return e.getClaims().getExpiration().toInstant();
         }
     }
 }

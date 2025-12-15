@@ -4,31 +4,49 @@ package com.serverbe.application.service;
 import com.serverbe.adapter.out.external.google.GoogleAdapter;
 import com.serverbe.adapter.out.external.kakao.KakaoAdapter;
 import com.serverbe.application.port.in.dto.OAuthUserInfo;
+import com.serverbe.application.port.in.dto.RefreshTokenIssueResult;
 import com.serverbe.application.port.in.dto.TokenResponse;
 import com.serverbe.application.port.in.oauth.OAuthClientPort;
 import com.serverbe.application.port.in.oauth.SocialLoginUseCase;
 import com.serverbe.application.port.in.security.TokenProvider;
+import com.serverbe.application.port.out.TokenPersistencePort;
 import com.serverbe.application.port.out.UserRepositoryPort;
 import com.serverbe.domain.model.User;
 import com.serverbe.domain.model.vo.OAuthProvider;
+import com.serverbe.infrastructure.config.properties.JwtProperties;
 import com.serverbe.infrastructure.error.BusinessException;
 import com.serverbe.infrastructure.error.ErrorMessage;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.util.List;
 
 
 @Service
-@RequiredArgsConstructor
 @Transactional
 public class SocialLoginService implements SocialLoginUseCase {
 
     // 모든 OAuthClientPort 구현체를 주입받아 Map으로 관리
     private final List<OAuthClientPort> oAuthClients;
     private final UserRepositoryPort userRepositoryPort;
+    private final TokenPersistencePort tokenPersistencePort; // 추가
     private final TokenProvider tokenProvider;
+    private final Duration REFRESH_TOKEN_EXPIRATION_DAYS;
+
+    public SocialLoginService(
+            List<OAuthClientPort> oAuthClients,
+            UserRepositoryPort userRepositoryPort,
+            TokenPersistencePort tokenPersistencePort,
+            TokenProvider tokenProvider,
+            JwtProperties jwtProperties
+    ) {
+        this.oAuthClients = oAuthClients;
+        this.userRepositoryPort = userRepositoryPort;
+        this.tokenPersistencePort = tokenPersistencePort;
+        this.tokenProvider = tokenProvider;
+        REFRESH_TOKEN_EXPIRATION_DAYS = jwtProperties.refreshToken().expirationDays();
+    }
 
     @Override
     public TokenResponse login(String code, OAuthProvider provider) {
@@ -52,10 +70,17 @@ public class SocialLoginService implements SocialLoginUseCase {
                 .orElseGet(() -> userRepositoryPort.save(User.createNew(oauthInfo, provider)));
 
         // 3. 우리 서비스 전용 JWT 발급 (로그인 로직)
-        return TokenResponse.of(
-                tokenProvider.generateAccessToken(user.id(), user.role()),
-                tokenProvider.generateRefreshToken(user.id(), user.role()),
-                user.role()
+        String accessToken = tokenProvider.generateAccessToken(user.id(), user.role());
+        RefreshTokenIssueResult refreshTokenIssueResult = tokenProvider.generateRefreshToken(user.id(), user.role());
+
+        // 4. 60일 유효기간(Duration)을 적용하여 Redis에 리프레시 토큰 저장
+        // jwtProperties에서 설정된 60일치 Duration 값을 가져옵니다.
+        tokenPersistencePort.saveRefreshToken(
+                user.id(),
+                refreshTokenIssueResult.opaqueToken(),
+                REFRESH_TOKEN_EXPIRATION_DAYS
         );
+
+        return TokenResponse.of(accessToken, refreshTokenIssueResult, user.role());
     }
 }
