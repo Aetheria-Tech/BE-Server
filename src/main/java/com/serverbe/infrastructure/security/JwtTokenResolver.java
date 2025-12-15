@@ -1,6 +1,8 @@
 package com.serverbe.infrastructure.security;
 
 import com.serverbe.application.port.in.security.TokenResolver;
+import com.serverbe.domain.model.vo.Role;
+import com.serverbe.infrastructure.config.properties.JwtProperties;
 import com.serverbe.infrastructure.error.BusinessException;
 import com.serverbe.infrastructure.error.ErrorMessage;
 import io.jsonwebtoken.*;
@@ -22,21 +24,23 @@ import java.util.List;
 public class JwtTokenResolver implements TokenResolver {
     private final JwtParser parser;
     private final SecretKey KEY;
+    private final String ROLES;
 
-    public JwtTokenResolver(JwtKeyManager jwtKeyManager) {
+    public JwtTokenResolver(JwtKeyManager jwtKeyManager, JwtProperties jwtProperties) {
         // JwtKeyManager로부터 서명 키가 설정된 JwtParser를 주입받아 공유합니다.
         this.parser = jwtKeyManager.getParser();
         this.KEY = jwtKeyManager.getKey();
+        this.ROLES = jwtProperties.authorityKey();
     }
 
     @Override
     public Authentication getAuthentication(String token) {
         Long userId = this.getIdFromToken(token);
-        List<String> roles = this.getRolesFromToken(token);
+        Role role = this.getRoleFromToken(token);
 
-        List<SimpleGrantedAuthority> authorities = roles.stream()
-                .map(SimpleGrantedAuthority::new)
-                .toList();
+        List<SimpleGrantedAuthority> authorities = List.of(
+                new SimpleGrantedAuthority(role.name())
+        );
 
         return new UsernamePasswordAuthenticationToken(userId, null, authorities);
     }
@@ -75,13 +79,14 @@ public class JwtTokenResolver implements TokenResolver {
     /**
      * 토큰에서 권한 목록(roles)을 추출합니다.
      */
-    @Override
-    public List<String> getRolesFromToken(String token) {
-        List<?> roles = getClaims(token).get("roles", List.class);
+    public Role getRoleFromToken(String token) {
+        Claims claims = getClaims(token);
 
-        return roles == null ?
-                List.of() :
-                roles.stream().map(String::valueOf).toList();
+        // JwtProperties에 정의된 authorityKey(예: "auth")로 값을 가져옴
+        String roleStr = claims.get(ROLES, String.class);
+
+        // 문자열을 Role Enum으로 변환 (예: "USER" -> Role.USER)
+        return Role.valueOf(roleStr);
     }
 
     /**
@@ -94,8 +99,9 @@ public class JwtTokenResolver implements TokenResolver {
                 throw new BusinessException(ErrorMessage.JWT_TOKEN_IS_EMPTY);
             }
             return parser.parseClaimsJws(token).getBody();
+        } catch (ExpiredJwtException e) {
+            throw new BusinessException(ErrorMessage.JWT_TOKEN_EXPIRED, "토큰이 만료되었습니다.");
         } catch (JwtException e) {
-            // 상세한 예외 처리가 필요하다면 여기서 ExpiredJwtException 등을 분기 처리할 수 있습니다.
             throw new BusinessException(ErrorMessage.JWT_TOKEN_IS_INVALID, e.getMessage());
         }
     }
@@ -108,16 +114,13 @@ public class JwtTokenResolver implements TokenResolver {
     @Override
     public Instant getExpirationFromToken(String token) {
         try {
-            Claims claims = Jwts.parserBuilder()
-                    .setSigningKey(KEY)
-                    .build()
-                    .parseClaimsJws(token)
-                    .getBody();
-
-            return claims.getExpiration().toInstant();
+            // 새로 빌드하지 않고 주입받은 parser를 그대로 사용합니다.
+            return parser.parseClaimsJws(token).getBody().getExpiration().toInstant();
         } catch (ExpiredJwtException e) {
-            // 이미 만료된 토큰의 경우 예외 객체에서 Claims를 추출할 수 있습니다.
+            // 이미 만료된 경우에도 Redis 블랙리스트 TTL 설정을 위해 만료 시점을 추출합니다.
             return e.getClaims().getExpiration().toInstant();
+        } catch (JwtException e) {
+            throw new BusinessException(ErrorMessage.JWT_TOKEN_IS_INVALID, e.getMessage());
         }
     }
 }

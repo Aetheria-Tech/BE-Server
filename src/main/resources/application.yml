@@ -55,7 +55,7 @@ redis:
   auth:
     prefix: user                      # 레디스 저장에 필요한 키 값 중 접두어
     suffix: rt                        # 레디스 저장에 필요한 키 값 중 접미어
-    max-token: 1                      # 최대로 발급 가능한 토큰의 수
+    max-token: 3                      # 최대로 발급 가능한 토큰의 수
   blacklist:
     prefix: bl
     suffix: at

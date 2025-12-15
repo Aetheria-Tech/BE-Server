@@ -6,20 +6,24 @@ import com.serverbe.application.port.in.dto.TokenResponse;
 import com.serverbe.application.port.in.oauth.LogoutUseCase;
 import com.serverbe.application.port.in.oauth.SocialLoginUseCase;
 import com.serverbe.application.port.in.oauth.WithdrawUseCase;
+import com.serverbe.application.port.in.security.ReissueUseCase;
 import com.serverbe.application.port.in.security.TokenResolver;
 import com.serverbe.domain.model.vo.OAuthProvider;
 import com.serverbe.infrastructure.common.ApiResponse;
+import com.serverbe.infrastructure.config.properties.JwtProperties;
+import com.serverbe.infrastructure.error.BusinessException;
+import com.serverbe.infrastructure.error.ErrorMessage;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
 
 @RestController
 @RequestMapping("/api/v1/auth")
-@RequiredArgsConstructor
 public class AuthController {
 
     private final SocialLoginUseCase socialLoginUseCase;
@@ -27,7 +31,27 @@ public class AuthController {
     private final LogoutUseCase logoutUseCase;
     private final GoogleAdapter googleAdapter;
     private final KakaoAdapter kakaoAdapter;
-    private final TokenResolver tokenResolver;
+    private final ReissueUseCase reissueUseCase;
+    private final String ACCESS_TOKEN_HEADER;
+
+    public AuthController(
+            SocialLoginUseCase socialLoginUseCase,
+            WithdrawUseCase withdrawUseCase,
+            LogoutUseCase logoutUseCase,
+            GoogleAdapter googleAdapter,
+            KakaoAdapter kakaoAdapter,
+            ReissueUseCase reissueUseCase,
+            JwtProperties jwtProperties
+    ) {
+        this.socialLoginUseCase = socialLoginUseCase;
+        this.withdrawUseCase = withdrawUseCase;
+        this.logoutUseCase = logoutUseCase;
+        this.googleAdapter = googleAdapter;
+        this.kakaoAdapter = kakaoAdapter;
+        this.reissueUseCase = reissueUseCase;
+        ACCESS_TOKEN_HEADER = jwtProperties.accessToken().header();
+    }
+
 
     /**
      * 소셜 로그인 페이지로 리다이렉트
@@ -73,4 +97,25 @@ public class AuthController {
         return ApiResponse.success(null);
     }
 
+    @PostMapping("/reissue")
+    public ApiResponse<TokenResponse> reissue(HttpServletRequest request) {
+        // 보통 리프레시 토큰은 전용 헤더나 쿠키에서 추출합니다.
+        String refreshToken = request.getHeader("X-Refresh-Token");
+
+        if (!StringUtils.hasText(refreshToken)) {
+            throw new BusinessException(ErrorMessage.JWT_TOKEN_IS_EMPTY);
+        }
+
+        TokenResponse response = reissueUseCase.reissue(refreshToken);
+        return ApiResponse.success(response);
+    }
+
+    // 필터에 있던 로직을 가져옵니다.
+    private String resolveToken(HttpServletRequest request) {
+        String bearerToken = request.getHeader(ACCESS_TOKEN_HEADER);
+        if (StringUtils.hasText(bearerToken) && bearerToken.startsWith("Bearer ")) {
+            return bearerToken.substring(7);
+        }
+        return null;
+    }
 }
