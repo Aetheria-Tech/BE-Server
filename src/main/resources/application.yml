@@ -89,3 +89,10 @@ encryption:
   tag-length-bit: 128
   iv-length-byte: 12
   key-algorithm: AES
+
+# CORS
+cors:
+  allowed-origins:
+    - ${FRONTEND_DOMAIN}          # 프론트엔드 로컬 개발 환경
+    - ${DEVELOP_SERVER_DOMAIN}    # 개발 서버 도메인
+    - ${PROD_SERVER_DOMAIN}   # 운영 서버 도메인
