@@ -6,14 +6,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException; // 수정됨
 import org.springframework.security.authentication.InsufficientAuthenticationException;
+import org.springframework.security.core.AuthenticationException; // 수정됨
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-import javax.naming.AuthenticationException;
-import java.nio.file.AccessDeniedException;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -136,7 +136,10 @@ public class BusinessExceptionHandler {
                 .body(ApiResponse.fail(ErrorMessage.INTERNAL_SERVER_ERROR));
     }
 
-    // BusinessExceptionHandler 내부에 추가
+    /**
+     * Spring Security 인증 실패 처리 (401 Unauthorized)
+     * JwtAuthenticationFilter에서 handlerExceptionResolver.resolveException()을 통해 전달된 예외도 여기서 처리됩니다.
+     */
     @ExceptionHandler({AuthenticationException.class, InsufficientAuthenticationException.class})
     public ResponseEntity<ApiResponse<Void>> handleAuthenticationException(Exception e) {
         log.warn("[WARN] Unauthorized -> {}", e.getMessage());
@@ -144,6 +147,10 @@ public class BusinessExceptionHandler {
                 .body(ApiResponse.fail(ErrorMessage.UNAUTHORIZED));
     }
 
+    /**
+     * Spring Security 인가 실패 처리 (403 Forbidden)
+     * 권한이 없는 사용자가 특정 API에 접근할 때 발생합니다.
+     */
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ApiResponse<Void>> handleAccessDeniedException(AccessDeniedException e) {
         log.warn("[WARN] Access Denied -> {}", e.getMessage());
