@@ -6,5 +6,4 @@ import org.springframework.security.core.Authentication;
 public interface TokenProvider {
     String generateAccessToken(Authentication authentication);
     RefreshTokenIssueResult generateRefreshToken(Authentication authentication);
-
 }

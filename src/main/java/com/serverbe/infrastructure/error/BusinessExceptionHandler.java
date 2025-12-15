@@ -3,13 +3,17 @@ package com.serverbe.infrastructure.error;
 import com.serverbe.infrastructure.common.ApiResponse;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.authentication.InsufficientAuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import javax.naming.AuthenticationException;
+import java.nio.file.AccessDeniedException;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -130,5 +134,20 @@ public class BusinessExceptionHandler {
 
         return ResponseEntity.status(ErrorMessage.INTERNAL_SERVER_ERROR.getStatus())
                 .body(ApiResponse.fail(ErrorMessage.INTERNAL_SERVER_ERROR));
+    }
+
+    // BusinessExceptionHandler 내부에 추가
+    @ExceptionHandler({AuthenticationException.class, InsufficientAuthenticationException.class})
+    public ResponseEntity<ApiResponse<Void>> handleAuthenticationException(Exception e) {
+        log.warn("[WARN] Unauthorized -> {}", e.getMessage());
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(ApiResponse.fail(ErrorMessage.UNAUTHORIZED));
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleAccessDeniedException(AccessDeniedException e) {
+        log.warn("[WARN] Access Denied -> {}", e.getMessage());
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(ApiResponse.fail(ErrorMessage.ACCESS_DENIED));
     }
 }

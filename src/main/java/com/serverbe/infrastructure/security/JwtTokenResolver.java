@@ -7,6 +7,9 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.JwtParser;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -22,6 +25,18 @@ public class JwtTokenResolver implements TokenResolver {
     public JwtTokenResolver(JwtKeyManager jwtKeyManager) {
         // JwtKeyManager로부터 서명 키가 설정된 JwtParser를 주입받아 공유합니다.
         this.parser = jwtKeyManager.getParser();
+    }
+
+    @Override
+    public Authentication getAuthentication(String token) {
+        Long userId = this.getIdFromToken(token);
+        List<String> roles = this.getRolesFromToken(token);
+
+        List<SimpleGrantedAuthority> authorities = roles.stream()
+                .map(SimpleGrantedAuthority::new)
+                .toList();
+
+        return new UsernamePasswordAuthenticationToken(userId, null, authorities);
     }
 
     /**
