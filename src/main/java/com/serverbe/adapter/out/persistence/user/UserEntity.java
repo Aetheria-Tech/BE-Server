@@ -1,4 +1,4 @@
-package com.serverbe.adapter.out.persistence;
+package com.serverbe.adapter.out.persistence.user;
 
 import com.serverbe.adapter.out.persistence.converter.CryptoConverter;
 import com.serverbe.domain.model.vo.OAuthProvider;

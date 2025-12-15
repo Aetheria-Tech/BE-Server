@@ -29,6 +29,9 @@ public enum ErrorMessage {
     NOT_FOUND_KAKAO_TOKEN(HttpStatus.NOT_FOUND, "KAKAO_TOKEN_001", "카카오 토큰을 찾을 수 없습니다."),
     FAILED_KAKAO_API(HttpStatus.BAD_GATEWAY, "KAKAO_002", "카카오 API 호출에 실패했습니다."),
 
+    // GOOGLE /API
+    FAILED_GOOGLE_API(HttpStatus.BAD_GATEWAY, "GOOGLE_001", "구글 API 호출에 실패했습니다."),
+
     // RUNNER
     DUPLICATE_KAKAO_ID(HttpStatus.BAD_REQUEST, "RUNNER_001", "이미 존재하는 카카오 ID입니다."),
     NOT_FOUND_RUNNER(HttpStatus.NOT_FOUND, "RUNNER_002", "사용자를 찾을 수 없습니다."),

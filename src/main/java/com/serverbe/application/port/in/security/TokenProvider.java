@@ -1,9 +1,9 @@
 package com.serverbe.application.port.in.security;
 
 import com.serverbe.application.port.in.dto.RefreshTokenIssueResult;
-import org.springframework.security.core.Authentication;
+import com.serverbe.domain.model.vo.Role;
 
 public interface TokenProvider {
-    String generateAccessToken(Authentication authentication);
-    RefreshTokenIssueResult generateRefreshToken(Authentication authentication);
+    String generateAccessToken(Long id, Role role);
+    RefreshTokenIssueResult generateRefreshToken(Long id, Role role);
 }

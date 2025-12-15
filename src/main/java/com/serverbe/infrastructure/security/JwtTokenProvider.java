@@ -2,6 +2,7 @@ package com.serverbe.infrastructure.security;
 
 import com.serverbe.application.port.in.dto.RefreshTokenIssueResult;
 import com.serverbe.application.port.in.security.TokenProvider;
+import com.serverbe.domain.model.vo.Role;
 import com.serverbe.infrastructure.config.properties.JwtProperties;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
@@ -33,6 +34,7 @@ public class JwtTokenProvider implements TokenProvider {
     private final Duration ACCESS_TOKEN_VALIDITY_IN_MINUTE;
     private final Duration REFRESH_TOKEN_VALIDATE_DAY;
     private final int REFRESH_TOKEN_LENGTH;
+    private final String AUTHORITY_KEY;
 
     /**
      * {@code JwtTokenProvider}의 생성자입니다.
@@ -50,6 +52,7 @@ public class JwtTokenProvider implements TokenProvider {
         this.ACCESS_TOKEN_VALIDITY_IN_MINUTE = jwtProperties.accessToken().validityInMinute();
         this.REFRESH_TOKEN_VALIDATE_DAY = jwtProperties.refreshToken().expirationDays();
         this.REFRESH_TOKEN_LENGTH = jwtProperties.refreshToken().byteLength();
+        this.AUTHORITY_KEY = jwtProperties.authorityKey();
         // 서명 키를 KeyManager로부터 가져옵니다.
         KEY = jwtKeyManager.getKey();
     }
@@ -65,33 +68,23 @@ public class JwtTokenProvider implements TokenProvider {
      * <li>Custom Claim: "roles" (사용자의 권한 목록)</li>
      * </ul>
      *
-     * @param authentication 토큰 생성에 사용될 사용자 인증 정보입니다.
      * @return 생성된 액세스 토큰 문자열입니다.
      */
     @Override
-    public String generateAccessToken(Authentication authentication) {
-        // 사용자 이름(Principal, 여기서는 runner ID)을 토큰의 subject로 설정
-        String subject = authentication.getName();
-
-        // 사용자의 권한(역할) 목록 추출
-        List<String> roles = authentication.getAuthorities().stream()
-                .map(GrantedAuthority::getAuthority)
-                .toList();
-
-        Instant now = Instant.now();
-        Instant expiration = now.plus(ACCESS_TOKEN_VALIDITY_IN_MINUTE);
+    public String generateAccessToken(Long id, Role role) {
+        Date now = new Date();
+        Date validity = new Date(now.getTime() + ACCESS_TOKEN_VALIDITY_IN_MINUTE.toMillis());
 
         return Jwts.builder()
-                .setSubject(subject)
-                .setIssuedAt(Date.from(now))
-                .claim("roles", roles) // Custom Claim으로 역할 목록 추가
-                .setExpiration(Date.from(expiration))
-                .signWith(KEY, SignatureAlgorithm.HS256)
+                .setSubject(String.valueOf(id)) // 유저 ID
+                .claim(AUTHORITY_KEY, role.name()) // 권한 (예: "USER")
+                .setIssuedAt(now)
+                .setExpiration(validity)
+                .signWith(KEY, SignatureAlgorithm.HS512)
                 .compact();
     }
 
     /**
-     * 주어진 {@link Authentication} 객체를 사용하여 **리프레시 토큰**을 생성합니다.
      *
      * <p>리프레시 토큰에는 다음 정보가 포함됩니다:</p>
      * <ul>
@@ -101,32 +94,14 @@ public class JwtTokenProvider implements TokenProvider {
      * <li>Custom Claim: "jti" (JWT ID, 토큰의 고유 식별자)</li>
      * </ul>
      *
-     * @param authentication 토큰 생성에 사용될 사용자 인증 정보입니다.
      * @return 생성된 리프레시 토큰 문자열과 관련 정보를 담은 {@code RefreshTokenIssueResult}입니다.
      */
     @Override
-    public RefreshTokenIssueResult generateRefreshToken(Authentication authentication) {
-        log.debug("[TokenProvider] createRefreshToken({})", authentication.getName());
-
+    public RefreshTokenIssueResult generateRefreshToken(Long id, Role role) {
         String opaqueToken = generateOpaqueToken();
         Instant expire = Instant.now().plus(REFRESH_TOKEN_VALIDATE_DAY);
 
-        log.info("[TokenProvider] Refresh Token created for username: {}. Token length: {}", authentication.getName(), opaqueToken.length());
-
-        return RefreshTokenIssueResult.of(opaqueToken, authentication.getName(), expire);
-    }
-
-    /**
-     * 리프레시 토큰에 필요한 클레임({@code Claims}) 객체를 생성합니다.
-     *
-     * @param username 토큰의 subject에 들어갈 사용자 이름(ID)입니다.
-     * @param jti 토큰의 고유 ID(JWT ID)입니다.
-     * @return 생성된 {@code Claims} 객체입니다.
-     */
-    private Claims createRefreshTokenClaims(String username, String jti) {
-        Claims claims = Jwts.claims().setSubject(String.valueOf(username));
-        claims.put("jti", jti); // JWT ID 클레임 추가
-        return claims;
+        return RefreshTokenIssueResult.of(opaqueToken, String.valueOf(id), expire);
     }
 
     private String generateOpaqueToken() {
