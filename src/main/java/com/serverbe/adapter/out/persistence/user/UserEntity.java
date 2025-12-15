@@ -42,6 +42,9 @@ public class UserEntity {
     @Column(nullable = false)
     private Role role;
 
+    @Column(nullable = true)
+    private String statusMessage;
+
     // 추가: OAuth 제공자로부터 받은 리프레시 토큰
     // 토큰이 매우 길 수 있으므로 TEXT 타입을 사용하거나 길이를 넉넉하게 설정합니다.
     @Column(name = "oauth_refresh_token", columnDefinition = "TEXT")
@@ -56,18 +59,32 @@ public class UserEntity {
     private LocalDateTime updatedAt;
 
     @Builder
-    private UserEntity(String oauthId, OAuthProvider provider, String email,
-                       String nickname, Role role, String oauthRefreshToken) {
+    private UserEntity(
+            String oauthId,
+            OAuthProvider provider,
+            String email,
+            String nickname,
+            Role role,
+            String statusMessage,
+            String oauthRefreshToken
+    ) {
         this.oauthId = oauthId;
         this.provider = provider;
         this.email = email;
         this.nickname = nickname;
         this.role = role;
+        this.statusMessage = statusMessage;
         this.oauthRefreshToken = oauthRefreshToken;
     }
 
     // 비즈니스 로직: OAuth 리프레시 토큰 갱신
     public void updateOauthRefreshToken(String newToken) {
         this.oauthRefreshToken = newToken;
+    }
+
+    // UserEntity 내부에 추가 제안
+    public void updateProfile(String nickname, String statusMessage) {
+        this.nickname = nickname;
+        this.statusMessage = statusMessage;
     }
 }

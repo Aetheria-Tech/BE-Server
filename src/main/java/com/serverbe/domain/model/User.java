@@ -13,14 +13,9 @@ public record User(
         String email,
         String nickname,
         Role role,
+        String statusMessage,
         String oauthRefreshToken // 추가
 ) {
-    /**
-     * OAuth 리프레시 토큰 갱신 (불변 객체이므로 새 객체 반환)
-     */
-    public User renewOauthRefreshToken(String newToken) {
-        return new User(id, oauthId, provider, email, nickname, role, newToken);
-    }
 
     public List<String> getRoleList() {
         return List.of(role.name());
@@ -38,6 +33,7 @@ public record User(
                 oauthInfo.email(),
                 oauthInfo.nickname(),
                 Role.USER, // 기본 권한 설정
+                null,
                 oauthInfo.oauthRefreshToken()
         );
     }
@@ -54,7 +50,24 @@ public record User(
                 oauthInfo.email(),           // 갱신 (이메일은 바뀔 수 있음)
                 oauthInfo.nickname(),        // 갱신 (닉네임은 바뀔 수 있음)
                 this.role,                   // 유지 (권한은 서버에서 관리)
+                this.statusMessage,
                 oauthInfo.oauthRefreshToken() // 갱신 (새로 발급된 소셜 리프레시 토큰)
+        );
+    }
+
+    /**
+     * 프로필 정보 수정 (닉네임, 상태 메시지)
+     */
+    public User updateProfile(String nickname, String statusMessage) {
+        return new User(
+                this.id,
+                this.oauthId,
+                this.provider,
+                this.email,
+                nickname,
+                this.role,
+                statusMessage,
+                this.oauthRefreshToken
         );
     }
 }
