@@ -18,6 +18,9 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.web.reactive.function.BodyInserters;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.util.UriComponentsBuilder;
+import reactor.core.publisher.Mono;
+
+import java.net.URI;
 
 @Slf4j
 @Component
@@ -103,19 +106,14 @@ public class GoogleAdapter implements OAuthClientPort {
         }
 
         webClient.post()
-                .uri(uriBuilder -> uriBuilder
-                        .path("https://oauth2.googleapis.com/revoke")
-                        .queryParam("token", oauthRefreshToken)
-                        .build())
+                .uri(URI.create("https://oauth2.googleapis.com/revoke"))
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .body(BodyInserters.fromFormData("token", oauthRefreshToken)) // 리프레시 토큰 전송
                 .retrieve()
-                .onStatus(HttpStatusCode::isError, res -> res.bodyToMono(String.class)
-                        .map(body -> {
-                            log.error("[Google Revoke Error] -> {}", body);
-                            return new BusinessException(ErrorMessage.FAILED_KAKAO_API, "Google Revoke Failed");
-                        }))
+                .onStatus(HttpStatusCode::isError, response -> response.bodyToMono(String.class)
+                        .flatMap(error -> Mono.error(new BusinessException(ErrorMessage.FAILED_GOOGLE_API, error))))
                 .bodyToMono(Void.class)
-                .block(); // 탈퇴 로직의 정합성을 위해 동기 처리
+                .block();
     }
 
     @Override
@@ -140,5 +138,17 @@ public class GoogleAdapter implements OAuthClientPort {
     @Override
     public boolean supports(OAuthProvider provider) {
         return provider == OAuthProvider.GOOGLE;
+    }
+
+    @Override
+    public String getLoginUrl() {
+        // access_type=offline, prompt=consent 포함 필수
+        return "https://accounts.google.com/o/oauth2/v2/auth?" +
+                "client_id=" + googleProperties.auth().clientId() +
+                "&redirect_uri=" + googleProperties.auth().redirectUri() +
+                "&response_type=code" +
+                "&scope=email%20profile" +
+                "&access_type=offline" +
+                "&prompt=consent";
     }
 }
