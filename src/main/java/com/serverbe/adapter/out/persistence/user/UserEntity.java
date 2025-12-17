@@ -60,6 +60,7 @@ public class UserEntity {
 
     @Builder
     private UserEntity(
+            Long id,
             String oauthId,
             OAuthProvider provider,
             String email,
@@ -68,6 +69,7 @@ public class UserEntity {
             String statusMessage,
             String oauthRefreshToken
     ) {
+        this.id = id;
         this.oauthId = oauthId;
         this.provider = provider;
         this.email = email;

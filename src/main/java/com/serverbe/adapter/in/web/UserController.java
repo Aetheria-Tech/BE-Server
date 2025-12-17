@@ -3,7 +3,6 @@ package com.serverbe.adapter.in.web;
 import com.serverbe.application.port.in.dto.UserProfileResponse;
 import com.serverbe.application.port.in.dto.UserUpdateCommand;
 import com.serverbe.application.port.in.me.UserUseCase;
-import com.serverbe.application.port.in.oauth.WithdrawUseCase;
 import com.serverbe.infrastructure.common.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;

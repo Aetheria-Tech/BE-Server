@@ -28,6 +28,7 @@ public class UserPersistenceAdapter implements UserRepositoryPort {
                 .map(userMapper::toDomain);
     }
 
+
     @Override
     public User save(User user) {
         // 도메인 모델을 엔티티로 변환 후 저장 (이때 CryptoConverter에 의해 암호화 실행됨)
@@ -39,5 +40,10 @@ public class UserPersistenceAdapter implements UserRepositoryPort {
     @Override
     public boolean existsByEmail(String email) {
         return jpaUserRepository.existsByEmail(email);
+    }
+
+    @Override
+    public void deleteById(Long id) {
+        jpaUserRepository.deleteById(id);
     }
 }

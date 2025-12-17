@@ -22,6 +22,7 @@ public interface UserRepositoryPort {
      */
     Optional<User> findById(Long id);
 
+
     /**
      * 사용자 정보를 저장하거나 업데이트합니다.
      * @param user 저장할 도메인 모델

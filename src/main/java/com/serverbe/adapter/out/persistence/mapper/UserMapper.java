@@ -9,6 +9,7 @@ public class UserMapper {
 
     public UserEntity toEntity(User user) {
         return UserEntity.builder()
+                .id(user.id())
                 .oauthId(user.oauthId())
                 .provider(user.provider())
                 .email(user.email())
