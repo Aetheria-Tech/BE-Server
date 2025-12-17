@@ -13,13 +13,14 @@ import com.serverbe.domain.model.vo.OAuthProvider;
 import com.serverbe.infrastructure.config.properties.JwtProperties;
 import com.serverbe.infrastructure.error.BusinessException;
 import com.serverbe.infrastructure.error.ErrorMessage;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.util.List;
 
-
+@Slf4j
 @Service
 @Transactional
 public class SocialLoginService implements SocialLoginUseCase {
@@ -79,5 +80,10 @@ public class SocialLoginService implements SocialLoginUseCase {
                 .filter(client -> client.supports(provider))
                 .findFirst()
                 .orElseThrow(() -> new BusinessException(ErrorMessage.INTERNAL_SERVER_ERROR, "지원하지 않는 소셜 로그인입니다."));
+    }
+
+    @Override
+    public String getSocialLoginUrl(OAuthProvider provider) {
+        return getClient(provider).getLoginUrl();
     }
 }

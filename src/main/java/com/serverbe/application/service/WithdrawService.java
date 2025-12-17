@@ -8,11 +8,13 @@ import com.serverbe.domain.model.vo.OAuthProvider;
 import com.serverbe.infrastructure.error.BusinessException;
 import com.serverbe.infrastructure.error.ErrorMessage;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class WithdrawService implements WithdrawUseCase {
@@ -27,6 +29,7 @@ public class WithdrawService implements WithdrawUseCase {
         // 사용자 조회
         User user = userRepositoryPort.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorMessage.NOT_FOUND_RUNNER));
+        log.info(user.toString());
 
         // 적절한 OAuthClient 찾기
         OAuthClientPort client = getClient(user.provider());
@@ -36,7 +39,7 @@ public class WithdrawService implements WithdrawUseCase {
         String accessToken = socialTokenService.getFreshAccessToken(userId);
 
         // 소셜 서비스 연동 해제 요청 (unlink)
-        client.unlink(user.provider(), user.oauthId(), user.oauthRefreshToken());
+        client.unlink(user.provider(), user.oauthId(), accessToken);
 
         // 우리 DB에서 사용자 삭제 (Hard Delete)
         userRepositoryPort.deleteById(userId);

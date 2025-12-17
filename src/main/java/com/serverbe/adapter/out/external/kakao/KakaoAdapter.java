@@ -10,6 +10,7 @@ import com.serverbe.domain.model.vo.OAuthProvider;
 import com.serverbe.infrastructure.config.properties.KakaoProperties;
 import com.serverbe.infrastructure.error.BusinessException;
 import com.serverbe.infrastructure.error.ErrorMessage;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -19,6 +20,7 @@ import org.springframework.web.reactive.function.BodyInserters;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.util.UriComponentsBuilder;
 
+@Slf4j
 @Component
 public class KakaoAdapter implements OAuthClientPort {
 
@@ -53,20 +55,20 @@ public class KakaoAdapter implements OAuthClientPort {
         }
 
         // 1. 인가 코드로 카카오 액세스/리프레시 토큰 받기
-        String accessToken = getKakaoAccessToken(code);
+        KakaoTokenResponse accessToken = getKakaoAccessToken(code);
 
         // 2. 액세스 토큰으로 카카오 유저 정보 받기
-        return fetchUserInfo(accessToken);
+        return fetchUserInfo(accessToken.accessToken(), accessToken.refreshToken());
     }
 
-    private String getKakaoAccessToken(String code) {
+    private KakaoTokenResponse getKakaoAccessToken(String code) {
         MultiValueMap<String, String> formData = new LinkedMultiValueMap<>();
         formData.add("grant_type", "authorization_code");
         formData.add("client_id", kakaoProperties.auth().clientId());
         formData.add("redirect_uri", kakaoProperties.auth().redirectUri());
         formData.add("code", code);
 
-        KakaoTokenResponse response = webClient.post()
+        return webClient.post()
                 .uri(kakaoProperties.auth().authApi() + "/oauth/token")
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .body(BodyInserters.fromFormData(formData))
@@ -76,11 +78,9 @@ public class KakaoAdapter implements OAuthClientPort {
                                 .map(body -> new BusinessException(ErrorMessage.FAILED_KAKAO_API, body)))
                 .bodyToMono(KakaoTokenResponse.class)
                 .block(); // 유스케이스 흐름을 위해 동기 방식으로 처리
-
-        return response.accessToken();
     }
 
-    private OAuthUserInfo fetchUserInfo(String accessToken) {
+    private OAuthUserInfo fetchUserInfo(String accessToken, String refreshToken) {
         KakaoUserInfoResponse response = webClient.get()
                 .uri(kakaoProperties.auth().api() + "/v2/user/me")
                 .header("Authorization", "Bearer " + accessToken)
@@ -96,7 +96,7 @@ public class KakaoAdapter implements OAuthClientPort {
                 OAuthProvider.KAKAO,
                 response.kakaoAccount().email(),
                 response.kakaoAccount().profile().nickname(),
-                null // 카카오 리프레시 토큰이 필요하다면 getKakaoAccessToken에서 받아와 전달
+                refreshToken
         );
     }
 
@@ -104,11 +104,11 @@ public class KakaoAdapter implements OAuthClientPort {
     public void unlink(OAuthProvider provider, String oauthId, String oauthRefreshToken) {
         // 카카오 어드민 키 방식 (사용자 동의 없이도 서버에서 강제 해제 가능)
         webClient.post()
-                .uri(kakaoProperties.auth().api() + "/v1/user/unlink")
-                .header("Authorization", "KakaoAK " + kakaoProperties.adminKey()) // Admin Key 사용
+                .uri("https://kapi.kakao.com/v1/user/unlink") // API 도메인 확인 (kapi.kakao.com)
+                .header("Authorization", "KakaoAK " + kakaoProperties.adminKey())
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .body(BodyInserters.fromFormData("target_id_type", "user_id")
-                        .with("target_id", oauthId)) // 이제 오류 없이 사용 가능
+                        .with("target_id", oauthId)) // oauthId는 숫자(Long) 형태의 카카오 회원번호여야 함
                 .retrieve()
                 .onStatus(HttpStatusCode::isError, res -> res.bodyToMono(String.class)
                         .map(body -> new BusinessException(ErrorMessage.FAILED_KAKAO_API, "Kakao Unlink Failed: " + body)))
@@ -124,7 +124,7 @@ public class KakaoAdapter implements OAuthClientPort {
         formData.add("refresh_token", refreshToken);
 
         return webClient.post()
-                .uri(kakaoProperties.auth().api() + "/oauth/token")
+                .uri(kakaoProperties.auth().authApi() + "/oauth/token")
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .body(BodyInserters.fromFormData(formData))
                 .retrieve()
@@ -137,5 +137,13 @@ public class KakaoAdapter implements OAuthClientPort {
     @Override
     public boolean supports(OAuthProvider provider) {
         return provider == OAuthProvider.KAKAO;
+    }
+
+    @Override
+    public String getLoginUrl() {
+        return kakaoProperties.auth().authApi() + "/oauth/authorize?" +
+                "client_id=" + kakaoProperties.auth().clientId() +
+                "&redirect_uri=" + kakaoProperties.auth().redirectUri() +
+                "&response_type=code";
     }
 }

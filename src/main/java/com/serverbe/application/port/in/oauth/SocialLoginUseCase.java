@@ -11,4 +11,5 @@ public interface SocialLoginUseCase {
      * @return 우리 서버가 발급한 JWT 토큰 세트
      */
     TokenResponse login(String code, OAuthProvider provider);
+    String getSocialLoginUrl(OAuthProvider provider);
 }

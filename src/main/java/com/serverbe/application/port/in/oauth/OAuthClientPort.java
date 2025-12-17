@@ -23,4 +23,9 @@ public interface OAuthClientPort {
 
     // 이 어댑터가 해당 provider를 지원하는지 확인
     boolean supports(OAuthProvider provider);
+
+    /**
+     * 각 소셜 플랫폼의 로그인 페이지 URL을 반환합니다.
+     */
+    String getLoginUrl();
 }

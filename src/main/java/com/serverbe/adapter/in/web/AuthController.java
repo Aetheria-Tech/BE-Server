@@ -1,7 +1,5 @@
 package com.serverbe.adapter.in.web;
 
-import com.serverbe.adapter.out.external.google.GoogleAdapter;
-import com.serverbe.adapter.out.external.kakao.KakaoAdapter;
 import com.serverbe.application.port.in.dto.TokenResponse;
 import com.serverbe.application.port.in.oauth.LogoutUseCase;
 import com.serverbe.application.port.in.oauth.SocialLoginUseCase;
@@ -34,8 +32,6 @@ public class AuthController {
     private final SocialLoginUseCase socialLoginUseCase;
     private final WithdrawUseCase withdrawUseCase;
     private final LogoutUseCase logoutUseCase;
-    private final GoogleAdapter googleAdapter;
-    private final KakaoAdapter kakaoAdapter;
     private final ReissueUseCase reissueUseCase;
     private final String ACCESS_TOKEN_HEADER;
     private final String REFRESH_TOKEN_COOKIE;
@@ -44,16 +40,12 @@ public class AuthController {
             SocialLoginUseCase socialLoginUseCase,
             WithdrawUseCase withdrawUseCase,
             LogoutUseCase logoutUseCase,
-            GoogleAdapter googleAdapter,
-            KakaoAdapter kakaoAdapter,
             ReissueUseCase reissueUseCase,
             JwtProperties jwtProperties
     ) {
         this.socialLoginUseCase = socialLoginUseCase;
         this.withdrawUseCase = withdrawUseCase;
         this.logoutUseCase = logoutUseCase;
-        this.googleAdapter = googleAdapter;
-        this.kakaoAdapter = kakaoAdapter;
         this.reissueUseCase = reissueUseCase;
         this.ACCESS_TOKEN_HEADER = jwtProperties.accessToken().header();
         this.REFRESH_TOKEN_COOKIE = jwtProperties.refreshToken().cookie();
@@ -68,10 +60,7 @@ public class AuthController {
      */
     @GetMapping("/login/{provider}")
     public void redirectToSocial(@PathVariable OAuthProvider provider, HttpServletResponse response) throws IOException {
-        String redirectUrl = switch (provider) {
-            case KAKAO -> kakaoAdapter.getKakaoRedirectUrl();
-            case GOOGLE -> googleAdapter.getGoogleRedirectUrl();
-        };
+        String redirectUrl = socialLoginUseCase.getSocialLoginUrl(provider);
         response.sendRedirect(redirectUrl);
     }
 
