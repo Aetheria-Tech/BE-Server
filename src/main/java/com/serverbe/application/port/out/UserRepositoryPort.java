@@ -33,4 +33,9 @@ public interface UserRepositoryPort {
      * 이메일 중복 체크 등을 위해 사용될 수 있습니다.
      */
     boolean existsByEmail(String email);
+
+    /**
+     * 사용자 고유 ID(PK)로 사용자를 삭제.
+     * */
+    void deleteById(Long id);
 }

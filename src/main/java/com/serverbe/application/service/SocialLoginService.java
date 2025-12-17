@@ -1,8 +1,5 @@
 package com.serverbe.application.service;
 
-
-import com.serverbe.adapter.out.external.google.GoogleAdapter;
-import com.serverbe.adapter.out.external.kakao.KakaoAdapter;
 import com.serverbe.application.port.in.dto.OAuthUserInfo;
 import com.serverbe.application.port.in.dto.RefreshTokenIssueResult;
 import com.serverbe.application.port.in.dto.TokenResponse;
@@ -27,10 +24,9 @@ import java.util.List;
 @Transactional
 public class SocialLoginService implements SocialLoginUseCase {
 
-    // 모든 OAuthClientPort 구현체를 주입받아 Map으로 관리
     private final List<OAuthClientPort> oAuthClients;
     private final UserRepositoryPort userRepositoryPort;
-    private final TokenPersistencePort tokenPersistencePort; // 추가
+    private final TokenPersistencePort tokenPersistencePort;
     private final TokenProvider tokenProvider;
     private final Duration REFRESH_TOKEN_EXPIRATION_DAYS;
 
@@ -50,21 +46,13 @@ public class SocialLoginService implements SocialLoginUseCase {
 
     @Override
     public TokenResponse login(String code, OAuthProvider provider) {
-        // 1. 외부 소셜 서버(카카오/구글)에서 유저 정보 가져오기
-        OAuthClientPort client = oAuthClients.stream()
-                .filter(c -> {
-                    // 어댑터 내부에 "나는 KAKAO를 지원해"라는 메서드가 있으면 좋습니다.
-                    // 여기선 단순히 클래스 이름으로 구분하거나 별도 메서드를 포트에 추가할 수 있습니다.
-                    if (provider == OAuthProvider.KAKAO) return c instanceof KakaoAdapter;
-                    if (provider == OAuthProvider.GOOGLE) return c instanceof GoogleAdapter;
-                    return false;
-                })
-                .findFirst()
-                .orElseThrow(() -> new BusinessException(ErrorMessage.INTERNAL_SERVER_ERROR));
+        // 1. 외부 소셜 서버(카카오/구글) 어댑터 선택 (Strategy Pattern 적용)
+        OAuthClientPort client = getClient(provider);
 
         OAuthUserInfo oauthInfo = client.getUserInfo(code, provider);
 
         // 2. DB에서 기존 유저인지 확인 (Upsert 로직)
+        // Record의 불변성을 활용하여 새로운 객체를 저장
         User user = userRepositoryPort.findByOauthId(oauthInfo.oauthId(), provider)
                 .map(existingUser -> userRepositoryPort.save(existingUser.updateFromOAuth(oauthInfo)))
                 .orElseGet(() -> userRepositoryPort.save(User.createNew(oauthInfo, provider)));
@@ -73,8 +61,7 @@ public class SocialLoginService implements SocialLoginUseCase {
         String accessToken = tokenProvider.generateAccessToken(user.id(), user.role());
         RefreshTokenIssueResult refreshTokenIssueResult = tokenProvider.generateRefreshToken(user.id(), user.role());
 
-        // 4. 60일 유효기간(Duration)을 적용하여 Redis에 리프레시 토큰 저장
-        // jwtProperties에서 설정된 60일치 Duration 값을 가져옵니다.
+        // 4. Redis에 리프레시 토큰 저장
         tokenPersistencePort.saveRefreshToken(
                 user.id(),
                 refreshTokenIssueResult.opaqueToken(),
@@ -82,5 +69,15 @@ public class SocialLoginService implements SocialLoginUseCase {
         );
 
         return TokenResponse.of(accessToken, refreshTokenIssueResult, user.role());
+    }
+
+    /**
+     * Provider(KAKAO, GOOGLE)에 맞는 구현체를 List에서 찾아 반환합니다.
+     */
+    private OAuthClientPort getClient(OAuthProvider provider) {
+        return oAuthClients.stream()
+                .filter(client -> client.supports(provider))
+                .findFirst()
+                .orElseThrow(() -> new BusinessException(ErrorMessage.INTERNAL_SERVER_ERROR, "지원하지 않는 소셜 로그인입니다."));
     }
 }

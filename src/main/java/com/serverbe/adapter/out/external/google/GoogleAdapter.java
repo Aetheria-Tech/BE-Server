@@ -3,6 +3,7 @@ package com.serverbe.adapter.out.external.google;
 import com.serverbe.adapter.out.external.google.dto.GoogleTokenResponse;
 import com.serverbe.adapter.out.external.google.dto.GoogleUserInfoResponse;
 import com.serverbe.application.port.in.dto.OAuthUserInfo;
+import com.serverbe.application.port.in.dto.SocialTokenRefreshResponse;
 import com.serverbe.application.port.in.oauth.OAuthClientPort;
 import com.serverbe.domain.model.vo.OAuthProvider;
 import com.serverbe.infrastructure.config.properties.GoogleProperties;
@@ -115,5 +116,29 @@ public class GoogleAdapter implements OAuthClientPort {
                         }))
                 .bodyToMono(Void.class)
                 .block(); // 탈퇴 로직의 정합성을 위해 동기 처리
+    }
+
+    @Override
+    public SocialTokenRefreshResponse refreshSocialToken(OAuthProvider provider, String refreshToken) {
+        MultiValueMap<String, String> formData = new LinkedMultiValueMap<>();
+        formData.add("grant_type", "refresh_token");
+        formData.add("client_id", googleProperties.auth().clientId());
+        formData.add("client_secret", googleProperties.auth().clientSecret());
+        formData.add("refresh_token", refreshToken);
+
+        return webClient.post()
+                .uri(googleProperties.auth().authApi() + "/token")
+                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .body(BodyInserters.fromFormData(formData))
+                .retrieve()
+                .onStatus(HttpStatusCode::isError, res -> res.bodyToMono(String.class)
+                        .map(body -> new BusinessException(ErrorMessage.FAILED_KAKAO_API, "Google Refresh Error: " + body)))
+                .bodyToMono(SocialTokenRefreshResponse.class)
+                .block();
+    }
+
+    @Override
+    public boolean supports(OAuthProvider provider) {
+        return provider == OAuthProvider.GOOGLE;
     }
 }

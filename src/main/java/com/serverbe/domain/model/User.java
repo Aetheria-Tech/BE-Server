@@ -16,6 +16,18 @@ public record User(
         String statusMessage,
         String oauthRefreshToken // 추가
 ) {
+    public User renewOauthRefreshToken(String newToken) {
+        return new User(
+                this.id,
+                this.oauthId,
+                this.provider,
+                this.email,
+                this.nickname,
+                this.role,
+                this.statusMessage,
+                newToken // 새로운 소셜 리프레시 토큰으로 교체
+        );
+    }
 
     public List<String> getRoleList() {
         return List.of(role.name());
