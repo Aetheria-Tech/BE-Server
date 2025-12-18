@@ -18,11 +18,29 @@ public class LogoutService implements LogoutUseCase {
     private final TokenResolver tokenResolver;
 
     @Override
-    public void logout(String accessToken) {
+    public void logout(String accessToken, String refreshToken) {
         // 1. 토큰에서 사용자 ID 추출
         Long userId = tokenResolver.getIdFromToken(accessToken);
 
         // 2. Redis에서 리프레시 토큰 삭제 (더 이상 재발급 불가)
+        tokenPersistencePort.removeSpecificRefreshToken(userId, refreshToken);
+
+        // 3. 액세스 토큰의 남은 유효 시간 계산
+        Instant expiration = tokenResolver.getExpirationFromToken(accessToken);
+        Duration remainingTime = Duration.between(Instant.now(), expiration);
+
+        // 4. 액세스 토큰 블랙리스트 등록 (남은 시간 동안만)
+        if (!remainingTime.isNegative()) {
+            tokenPersistencePort.blacklistAccessToken(accessToken, remainingTime);
+        }
+    }
+
+    @Override
+    public void globalLogout(String accessToken) {
+        // 1. 토큰에서 사용자 ID 추출
+        Long userId = tokenResolver.getIdFromToken(accessToken);
+
+        // 2. 모든 리프레쉬 토큰 삭제
         tokenPersistencePort.deleteRefreshToken(userId);
 
         // 3. 액세스 토큰의 남은 유효 시간 계산

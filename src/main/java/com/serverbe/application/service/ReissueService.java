@@ -1,6 +1,7 @@
 package com.serverbe.application.service;
 
-import com.serverbe.application.port.in.dto.RefreshTokenIssueResult;
+import com.serverbe.application.port.in.dto.AccessTokenResponse;
+import com.serverbe.application.port.in.dto.RefreshTokenResponse;
 import com.serverbe.application.port.in.dto.TokenResponse;
 import com.serverbe.application.port.in.security.ReissueUseCase;
 import com.serverbe.application.port.in.security.TokenProvider;
@@ -50,8 +51,8 @@ public class ReissueService implements ReissueUseCase {
         }
 
         // 3. 새로운 토큰 한 쌍 생성
-        String newAccessToken = tokenProvider.generateAccessToken(userId, role);
-        RefreshTokenIssueResult newRefreshTokenResult = tokenProvider.generateRefreshToken(userId, role);
+        AccessTokenResponse newAccessToken = tokenProvider.generateAccessToken(userId, role);
+        RefreshTokenResponse newRefreshTokenResult = tokenProvider.generateRefreshToken(userId, role);
 
         // 4. [RTR 핵심] 기존 토큰은 제거하고 새 토큰 저장
         // 사용된 기존 토큰만 리스트에서 삭제

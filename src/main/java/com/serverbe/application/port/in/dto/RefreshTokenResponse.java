@@ -8,12 +8,12 @@ import java.time.Instant;
  * @param name 새로 발급된 리프레시 토큰
  * @param expiredAt    리프레시 토큰의 만료 시점
  */
-public record RefreshTokenIssueResult(
+public record RefreshTokenResponse(
     String opaqueToken,
     String name,
     Instant expiredAt
 ) {
-    public static RefreshTokenIssueResult of(String opaqueToken, String name, Instant expiredAt) {
-        return new RefreshTokenIssueResult(opaqueToken, name, expiredAt);
+    public static RefreshTokenResponse of(String opaqueToken, String name, Instant expiredAt) {
+        return new RefreshTokenResponse(opaqueToken, name, expiredAt);
     }
 }

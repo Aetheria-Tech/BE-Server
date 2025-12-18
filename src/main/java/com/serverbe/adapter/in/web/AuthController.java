@@ -1,5 +1,6 @@
 package com.serverbe.adapter.in.web;
 
+import com.serverbe.application.port.in.dto.AccessTokenResponse;
 import com.serverbe.application.port.in.dto.TokenResponse;
 import com.serverbe.application.port.in.oauth.LogoutUseCase;
 import com.serverbe.application.port.in.oauth.SocialLoginUseCase;
@@ -72,7 +73,7 @@ public class AuthController {
      * @return 발급된 서비스 전용 JWT (Access, Refresh)
      */
     @GetMapping("/callback/{provider}")
-    public ApiResponse<TokenResponse> loginCallback(
+    public ApiResponse<AccessTokenResponse> loginCallback(
             @PathVariable OAuthProvider provider,
             @RequestParam("code") String code,
             HttpServletResponse response
@@ -83,7 +84,7 @@ public class AuthController {
         TokenResponse tokenResponse = socialLoginUseCase.login(code, provider);
 
         // 리프레시 토큰을 쿠키로 생성
-        ResponseCookie refreshTokenCookie = ResponseCookie.from(REFRESH_TOKEN_COOKIE, tokenResponse.refreshTokenIssueResult().opaqueToken())
+        ResponseCookie refreshTokenCookie = ResponseCookie.from(REFRESH_TOKEN_COOKIE, tokenResponse.refreshTokenResponse().opaqueToken())
                 .httpOnly(true)    // 자바스크립트 접근 차단 (XSS 방지)
                 .secure(true)      // HTTPS 환경에서만 전송
                 .path("/")         // 모든 경로에서 쿠키 유효
@@ -93,7 +94,7 @@ public class AuthController {
 
         response.addHeader("Set-Cookie", refreshTokenCookie.toString());
 
-        return ApiResponse.success(tokenResponse);
+        return ApiResponse.success(tokenResponse.accessTokenResponse());
     }
 
     /**
@@ -115,7 +116,8 @@ public class AuthController {
     public ApiResponse<Void> logout(HttpServletRequest request, HttpServletResponse response) {
         // 헤더에서 토큰 추출 (resolveToken 메서드 활용)
         String accessToken = resolveToken(request);
-        logoutUseCase.logout(accessToken);
+        String refreshToken = resolveRefreshToken(request);
+        logoutUseCase.logout(accessToken, refreshToken);
 
         // 쿠키 무효화 (Max-Age를 0으로 설정)
         ResponseCookie cookie = ResponseCookie.from(REFRESH_TOKEN_COOKIE, "")
@@ -123,6 +125,22 @@ public class AuthController {
                 .maxAge(0) // 즉시 만료
                 .build();
 
+        response.addHeader("Set-Cookie", cookie.toString());
+
+        return ApiResponse.success(null);
+    }
+
+    /**
+     * 전역 로그아웃: 모든 계정을 비활성화한다. 그리고 현재 사용 중인 토큰을 무효화한다.
+     * */
+    @PostMapping("/logout/all")
+    public ApiResponse<Void> globalLogout(HttpServletRequest request, HttpServletResponse response) {
+        logoutUseCase.globalLogout(resolveToken(request));
+
+        ResponseCookie cookie = ResponseCookie.from(REFRESH_TOKEN_COOKIE, "")
+                .path("/")
+                .maxAge(0) // 즉시 만료
+                .build();
         response.addHeader("Set-Cookie", cookie.toString());
 
         return ApiResponse.success(null);

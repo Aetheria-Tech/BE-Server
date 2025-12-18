@@ -1,15 +1,14 @@
 package com.serverbe.infrastructure.security;
 
-import com.serverbe.application.port.in.dto.RefreshTokenIssueResult;
+import com.serverbe.application.port.in.dto.AccessTokenResponse;
+import com.serverbe.application.port.in.dto.RefreshTokenResponse;
 import com.serverbe.application.port.in.security.TokenProvider;
 import com.serverbe.domain.model.vo.Role;
 import com.serverbe.infrastructure.config.properties.JwtProperties;
-import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.GrantedAuthority;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
@@ -18,7 +17,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.Date;
-import java.util.List;
 
 /**
  * 이 클래스는 Spring Security의 {@link Authentication} 정보를 기반으로
@@ -71,21 +69,21 @@ public class JwtTokenProvider implements TokenProvider {
      * @return 생성된 액세스 토큰 문자열입니다.
      */
     @Override
-    public String generateAccessToken(Long id, Role role) {
+    public AccessTokenResponse generateAccessToken(Long id, Role role) {
         Date now = new Date();
         Date validity = new Date(now.getTime() + ACCESS_TOKEN_VALIDITY_IN_MINUTE.toMillis());
 
-        return Jwts.builder()
+        String compact = Jwts.builder()
                 .setSubject(String.valueOf(id)) // 유저 ID
                 .claim(AUTHORITY_KEY, role.name()) // 권한 (예: "USER")
                 .setIssuedAt(now)
                 .setExpiration(validity)
                 .signWith(KEY, SignatureAlgorithm.HS512)
                 .compact();
+        return AccessTokenResponse.of(compact, validity.toInstant().toEpochMilli());
     }
 
     /**
-     *
      * <p>리프레시 토큰에는 다음 정보가 포함됩니다:</p>
      * <ul>
      * <li>Subject (sub): 사용자 ID ({@code authentication.getName()})</li>
@@ -97,11 +95,11 @@ public class JwtTokenProvider implements TokenProvider {
      * @return 생성된 리프레시 토큰 문자열과 관련 정보를 담은 {@code RefreshTokenIssueResult}입니다.
      */
     @Override
-    public RefreshTokenIssueResult generateRefreshToken(Long id, Role role) {
+    public RefreshTokenResponse generateRefreshToken(Long id, Role role) {
         String opaqueToken = generateOpaqueToken();
         Instant expire = Instant.now().plus(REFRESH_TOKEN_VALIDATE_DAY);
 
-        return RefreshTokenIssueResult.of(opaqueToken, String.valueOf(id), expire);
+        return RefreshTokenResponse.of(opaqueToken, String.valueOf(id), expire);
     }
 
     private String generateOpaqueToken() {
