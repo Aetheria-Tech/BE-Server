@@ -39,19 +39,15 @@ public class GoogleAdapter implements OAuthClientPort {
     @Override
     public Mono<OAuthUserInfo> getUserInfo(String code, OAuthProvider provider) {
         // 1. 토큰 교환 (액세스 토큰과 리프레시 토큰을 모두 받아옴)
-        GoogleTokenResponse tokenResponse = getGoogleTokenResponse(code);
-
-        // 2. 액세스 토큰으로 유저 정보 조회
-        GoogleUserInfoResponse userInfo = fetchUserInfo(tokenResponse.accessToken());
-
-        // 3. 응답 객체 생성 (받아온 refresh_token을 포함)
-        return Mono.just(new OAuthUserInfo(
-                userInfo.sub(),
-                OAuthProvider.GOOGLE,
-                userInfo.email(),
-                userInfo.name(),
-                tokenResponse.refreshToken() // 여기서 매번 받은 리프레시 토큰을 넘깁니다.
-        ));
+        return getGoogleTokenResponse(code)
+                .flatMap(response -> this.fetchUserInfo(response.accessToken())
+                        .map(userInfo -> new OAuthUserInfo(
+                                userInfo.sub(),
+                                OAuthProvider.GOOGLE,
+                                userInfo.email(),
+                                userInfo.name(),
+                                response.refreshToken() // 여기서 매번 받은 리프레시 토큰을 넘깁니다.
+                        )));
     }
 
     public String getGoogleRedirectUrl() {
@@ -66,7 +62,7 @@ public class GoogleAdapter implements OAuthClientPort {
                 .toUriString();
     }
 
-    private GoogleTokenResponse getGoogleTokenResponse(String code) {
+    private Mono<GoogleTokenResponse> getGoogleTokenResponse(String code) {
         MultiValueMap<String, String> formData = new LinkedMultiValueMap<>();
         formData.add("code", code);
         formData.add("client_id", googleProperties.auth().clientId());
@@ -86,17 +82,15 @@ public class GoogleAdapter implements OAuthClientPort {
                 .retrieve()
                 .onStatus(HttpStatusCode::isError, res -> res.bodyToMono(String.class)
                         .map(body -> new BusinessException(ErrorMessage.FAILED_GOOGLE_API, "Google Token Error: " + body)))
-                .bodyToMono(GoogleTokenResponse.class)
-                .block();
+                .bodyToMono(GoogleTokenResponse.class);
     }
 
-    private GoogleUserInfoResponse fetchUserInfo(String accessToken) {
+    private Mono<GoogleUserInfoResponse> fetchUserInfo(String accessToken) {
         return webClient.get()
                 .uri("/oauth2/v3/userinfo")
                 .header("Authorization", "Bearer " + accessToken)
                 .retrieve()
-                .bodyToMono(GoogleUserInfoResponse.class)
-                .block();
+                .bodyToMono(GoogleUserInfoResponse.class);
     }
 
     @Override
@@ -133,7 +127,7 @@ public class GoogleAdapter implements OAuthClientPort {
                 .body(BodyInserters.fromFormData(formData))
                 .retrieve()
                 .onStatus(HttpStatusCode::isError, res -> res.bodyToMono(String.class)
-                        .map(body -> new BusinessException(ErrorMessage.FAILED_KAKAO_API, "Google Refresh Error: " + body)))
+                        .map(body -> new BusinessException(ErrorMessage.FAILED_GOOGLE_API, "Google Refresh Error: " + body)))
                 .bodyToMono(SocialTokenRefreshResponse.class);
     }
 

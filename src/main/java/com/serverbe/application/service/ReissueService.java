@@ -33,14 +33,14 @@ public class ReissueService implements ReissueUseCase {
     }
 
     @Override
-    public TokenResponse reissue(String refreshToken) {
+    public TokenResponse reissue(String accessToken, String refreshToken) {
         // 1. 리프레시 토큰 자체의 유효성 검증
-        if (tokenResolver.validateRefreshToken(refreshToken)) {
+        if (!tokenResolver.validateRefreshToken(refreshToken)) {
             throw new BusinessException(ErrorMessage.REFRESH_TOKEN_NOT_EXIST);
         }
 
-        Long userId = tokenResolver.getIdFromToken(refreshToken);
-        Role role = tokenResolver.getRoleFromToken(refreshToken);
+        Long userId = tokenResolver.getIdFromToken(accessToken);
+        Role role = tokenResolver.getRoleFromToken(accessToken);
 
         // 2. [보안 핵심] 리스트 내 존재 여부 확인 (재사용 감지)
         // 리스트에 토큰이 없다는 것은 이미 사용되었거나(RTR), 만료되어 밀려난 토큰임

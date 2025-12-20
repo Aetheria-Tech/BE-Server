@@ -85,19 +85,18 @@ public class AuthController {
         // 1. 인가 코드로 소셜 서버와 통신하여 유저 정보 획득
         // 2. 신규 유저면 가입, 기존 유저면 정보 업데이트(Upsert)
         // 3. 우리 서비스 전용 액세스/리프레시 토큰 발급 및 리프레시 토큰 Redis 저장
-        return socialLoginUseCase.login(code, provider).map(tokenResponse -> {
-            ResponseCookie refreshTokenCookie = ResponseCookie.from(REFRESH_TOKEN_COOKIE, tokenResponse.refreshTokenResponse().opaqueToken())
-                    .httpOnly(true)    // 자바스크립트 접근 차단 (XSS 방지)
-                    .secure(true)      // HTTPS 환경에서만 전송
-                    .path("/")         // 모든 경로에서 쿠키 유효
-                    .maxAge(60 * 24 * 60 * 60) // 60일 (Duration을 초 단위로 변환)
-                    .sameSite("Lax")   // CSRF 어느 정도 방지
-                    .build();
-
-            response.addHeader("Set-Cookie", refreshTokenCookie.toString());
-
-            return ApiResponse.success(tokenResponse.accessTokenResponse());
-        });
+        return socialLoginUseCase.login(code, provider)
+                .doOnSuccess(tokenResponse -> {
+                    ResponseCookie refreshTokenCookie = ResponseCookie.from(REFRESH_TOKEN_COOKIE, tokenResponse.refreshTokenResponse().opaqueToken())
+                            .httpOnly(true)    // 자바스크립트 접근 차단 (XSS 방지)
+                            .secure(true)      // HTTPS 환경에서만 전송
+                            .path("/")         // 모든 경로에서 쿠키 유효
+                            .maxAge(60 * 24 * 60 * 60) // 60일 (Duration을 초 단위로 변환)
+                            .sameSite("Lax")   // CSRF 어느 정도 방지
+                            .build();
+                    response.addHeader("Set-Cookie", refreshTokenCookie.toString());
+                })
+                .map(tokenResponse -> ApiResponse.success(tokenResponse.accessTokenResponse()));
     }
 
     /**
@@ -156,6 +155,7 @@ public class AuthController {
     @PostMapping("/reissue")
     public ApiResponse<TokenResponse> reissue(HttpServletRequest request) {
         // 클라이언트로부터 전달받은 리프레시 토큰 추출
+        String accessToken = tokenExtractionUtils.extractAccessToken(request);
         String refreshToken = tokenExtractionUtils.extractRefreshToken(request);
 
         if (!StringUtils.hasText(refreshToken)) {
@@ -163,7 +163,7 @@ public class AuthController {
         }
 
         // 리프레시 토큰의 유효성과 Redis 존재 여부를 확인 후 토큰 세트(AT, RT) 재발급
-        TokenResponse response = reissueUseCase.reissue(refreshToken);
+        TokenResponse response = reissueUseCase.reissue(accessToken, refreshToken);
         return ApiResponse.success(response);
     }
 }

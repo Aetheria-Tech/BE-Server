@@ -18,10 +18,12 @@ public class AesEncryptor {
 
     private final SecretKeySpec keySpec;
     private final String ALGORITHM;
+    private final SecureRandom secureRandom;
     private final int TAG_LENGTH_BIT;
     private final int IV_LEVEL_BYTE;
 
-    public AesEncryptor(EncryptionProperties encryptionProperties) {
+    public AesEncryptor(SecureRandom secureRandom, EncryptionProperties encryptionProperties) {
+        this.secureRandom = secureRandom;
         this.keySpec = new SecretKeySpec(
                 encryptionProperties.secretKey().getBytes(StandardCharsets.UTF_8), encryptionProperties.keyAlgorithm()
         );
@@ -34,7 +36,7 @@ public class AesEncryptor {
         if (plainText == null) return null;
         try {
             byte[] iv = new byte[IV_LEVEL_BYTE];
-            new SecureRandom().nextBytes(iv);
+            this.secureRandom.nextBytes(iv);
 
             Cipher cipher = Cipher.getInstance(ALGORITHM);
             GCMParameterSpec spec = new GCMParameterSpec(TAG_LENGTH_BIT, iv);

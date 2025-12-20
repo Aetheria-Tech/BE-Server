@@ -78,15 +78,4 @@ public class UserEntity {
         this.statusMessage = statusMessage;
         this.oauthRefreshToken = oauthRefreshToken;
     }
-
-    // 비즈니스 로직: OAuth 리프레시 토큰 갱신
-    public void updateOauthRefreshToken(String newToken) {
-        this.oauthRefreshToken = newToken;
-    }
-
-    // UserEntity 내부에 추가 제안
-    public void updateProfile(String nickname, String statusMessage) {
-        this.nickname = nickname;
-        this.statusMessage = statusMessage;
-    }
 }
