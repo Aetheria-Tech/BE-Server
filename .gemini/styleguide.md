@@ -1,63 +1,53 @@
-# 프로젝트 스타일 가이드: Semi-Reactive Hybrid Architecture
+# Spring Boot Hybrid Architecture Guide
 
-이 문서는 Gemini Code Assist가 본 프로젝트의 코드를 생성하거나 리뷰할 때 준수해야 할 원칙을 정의합니다. 본 프로젝트는 **Semi-Reactive(Hybrid)** 모델을 채택하고 있습니다.
+이 가이드는 **Spring MVC(Servlet)** 기반 위에 **Project Reactor(Mono/Flux)**를 부분적으로 도입한 하이브리드 아키텍처를 위한 코드 리뷰 및 작성 원칙을 정의한다.
 
-## 1. 핵심 아키텍처 원칙 (Semi-Reactive)
+## 1. 핵심 철학 (Core Philosophy)
 
-### 1.1 하이브리드 스레드 모델 및 반환 타입
+- **실용주의(Pragmatism)**: 비동기(Mono)는 목적이 아니라 수단이다. 효율성이 필요한 곳에는 비동기를, 복잡성을 낮춰야 하는 곳에는 동기 방식을 선택한다.
+- **스레드 효율성**: 외부 I/O 대기 시간이 긴 작업은 `Mono`를 통해 서블릿 스레드를 점유하지 않도록 한다.
+- **안정성**: 보안(SecurityContext), 트랜잭션 관리가 복잡해지는 지점에서는 전통적인 동기 방식(MVC)을 우선한다.
 
-- **엔드투엔드 비동기 체인**: 모든 Controller, Service, Port는 원칙적으로 `Mono<T>` 또는 `Flux<T>`를 반환하여 Netty 이벤트 루프의 효율성을 극대화합니다.
-- **외부 I/O (WebClient)**: 논블로킹(Non-blocking) 방식으로 처리하며 이벤트를 기다리는 동안 쓰레드를 점유하지 않습니다.
-- **내부 로직 & DB (JPA/Redis)**: JDBC 기반의 JPA와 같은 동기식(Blocking) 라이브러리를 사용합니다.
-- **스레드 전환 (CRITICAL)**: 비동기 체인 내부에서 JPA 등 동기식 라이브러리를 호출할 경우, **반드시** `publishOn(Schedulers.boundedElastic())` 또는 `subscribeOn(Schedulers.boundedElastic())`을 사용하여 작업 스레드를 이벤트 루프에서 블로킹 전용 스레드 풀로 전환해야 합니다.
+## 2. 반환 타입 선택 기준 (Synchronous vs. Asynchronous)
 
-### 1.2 .block() 사용 금지
+### A. 일반 동기 방식 (Object/ResponseEntity) 추천 상황
 
-- 어떠한 계층에서도 `.block()` 또는 `.blockFirst()`를 호출하여 스레드를 강제로 대기시키지 않습니다.
-- 모든 흐름은 비동기 파이프라인으로 연결되어 최종적으로 프레임워크가 처리하도록 합니다.
+- **보안 제어 로직**: 로그아웃(Logout), 세션 무효화 등 SecurityContext와 직접적으로 상호작용하며 즉각적인 상태 파괴가 필요한 경우.
+- **단순 CRUD**: 비즈니스 로직이 단순하고 DB 응답 속도가 충분히 빠른 경우.
+- **복잡한 트랜잭션**: 여러 단계의 DB 쓰기 작업이 얽혀 있어 비동기 흐름에서 트랜잭션 전파를 추적하기 어려운 경우.
 
-## 2. 코드 구현 가이드라인
+### B. 비동기 방식 (Mono/Flux) 추천 상황
 
-### 2.1 WebClient 사용 (외부 연동)
+- **외부 API 호출**: `WebClient`를 사용하여 타사 서비스(카카오, 구글 로그인 등)와 통신할 때.
+- **고부하 조회 작업**: 대량의 데이터를 가공하거나 여러 소스에서 데이터를 합쳐야 하는 경우.
+- **병렬 처리**: 서로 연관 없는 여러 작업을 동시에 실행하여 전체 응답 시간을 줄여야 할 때.
 
-- 외부 API 호출 시 `WebClient`를 사용하며, 결과는 `Mono<T>` 등으로 반환합니다.
-- 비즈니스 에러 발생 시 `Mono.error(new BusinessException(...))`를 반환하여 체인 내에서 예외가 흐르도록 합니다.
+## 3. 구현 규칙 (Implementation Rules)
 
-### 2.2 동기 라이브러리 연동 패턴 (MANDATORY)
+### 컨트롤러 (Controller)
 
-비동기 흐름 중에 JPA와 같은 블로킹 작업이 필요할 경우 아래 패턴을 엄격히 준수합니다.
+- 한 컨트롤러 내에서 동기 메서드와 비동기 메서드를 혼용하는 것을 허용한다.
+- `Mono`를 반환할 때는 반드시 `subscribeOn(Schedulers.boundedElastic())`을 사용하여 블로킹 작업(JPA, JDBC 등)이 서블릿 스레드를 차단하지 않도록 격리한다.
+- 로그아웃과 같이 비동기 재디스패치(Async Dispatch) 시 인증 문제가 발생할 가능성이 있는 로직은 일반 동기 방식으로 구현하는 것을 권장한다.
 
-```
-public Mono<Entity> someServiceMethod(Long id) {
-    return adapter.asyncCall(id) // 1. 외부 API 호출 (비동기)
-        .publishOn(Schedulers.boundedElastic()) // 2. 블로킹 작업을 위한 스레드 전환
-        .map(result -> {
-            // 3. 여기서부터 JPA 등 블로킹 작업 수행 (안전함)
-            return repository.save(new Entity(result));
-        }); // 4. 결과를 Mono로 유지하여 반환
-}
+### 보안 (Security)
 
-```
+- MVC 환경이므로 `SecurityContextHolder.getContext()`를 기본으로 사용한다.
+- 비동기 스레드 내에서 인증 정보가 필요할 경우, `SecurityContextHolder.setStrategyName(SecurityContextHolder.MODE_INHERITABLETHREADLOCAL)` 설정을 고려하거나 `@AuthenticationPrincipal`을 통해 파라미터로 명시적으로 전달받는다.
 
-### 2.3 데이터베이스 계층 (JPA)
+### 예외 처리 (Exception Handling)
 
-- `UserRepositoryPort` 등 레포지토리 포트는 표준 JPA 인터페이스를 사용합니다.
-- 이벤트 루프 스레드(`reactor-http-nio-*`)에서 직접 JPA 메서드를 호출하는 것은 시스템 전체의 성능 마비를 초래하므로 절대 금지합니다.
+- `@RestControllerAdvice`를 통해 전역 예외 처리를 수행한다.
+- `Mono` 파이프라인 내부의 예외는 `Mono.error()`를 통해 전파하며, 최종적으로 Spring MVC의 ExceptionHandler가 처리하도록 한다.
 
-## 3. 도메인 및 예외 처리
+### 쿠키 및 헤더 (Cookies & Headers)
 
-### 3.1 에러 핸들링
+- `ResponseCookie` 빌더를 사용하여 `SameSite`, `HttpOnly`, `Secure` 옵션을 명시적으로 관리한다.
+- `HttpServletResponse`에 직접 헤더를 추가하는 방식과 `ResponseEntity`를 반환하는 방식 중 상황에 맞는 것을 선택하되, 비동기 흐름에서는 `ResponseEntity`를 더 권장한다.
 
-- `BusinessException`과 `ErrorMessage`를 사용하여 예외를 관리합니다.
-- 비동기 체인 내부의 예외는 `onErrorResume` 또는 `switchIfEmpty` 등을 사용하여 우아하게 처리합니다.
+## 4. 코드 리뷰 체크리스트 (Review Checklist)
 
-### 3.2 JWT 및 보안
-
-- 만료된 토큰에서도 정보를 추출해야 하는 reissue 로직의 경우, `ExpiredJwtException`에서 `Claims`를 추출하는 방식을 사용합니다.
-- 일반 인가 로직에서는 토큰 만료 시 즉시 에러를 발생시킵니다.
-
-## 4. Gemini Code Assist를 위한 지시사항 (Prompt Context)
-
-- **리뷰 시**: 코드가 WebFlux의 이벤트 루프 스레드에서 블로킹 작업(JPA, Thread.sleep 등)을 수행하고 있는지 최우선으로 검토하십시오.
-- **생성 시**: 헥사고날 아키텍처를 준수하며, 모든 API의 끝점까지 `Mono/Flux`가 유지되도록 코드를 작성하십시오.
-- **수정 시**: `.block()`이 포함된 기존 코드를 발견하면, 이를 제거하고 `publishOn`과 `flatMap/map`을 이용한 비동기 체인으로 변환할 것을 제안하십시오.
+1. **과잉 엔지니어링**: 단순한 로직인데 불필요하게 `Mono`를 사용하여 가독성을 해치지 않는가?
+2. **스레드 격리**: `Mono` 내부에서 블로킹 I/O가 발생하는데 `boundedElastic` 스케줄러를 누락하지 않았는가?
+3. **보안 맥락**: 비동기 전환 지점에서 `SecurityContext` 유실로 인한 401/403 에러 가능성은 없는가?
+4. **일관성**: 공통 응답 규격인 `ApiResponse<T>`를 모든 메서드에서 일관되게 반환하는가?

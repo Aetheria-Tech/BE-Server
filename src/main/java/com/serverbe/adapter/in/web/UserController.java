@@ -23,8 +23,9 @@ public class UserController {
     @Operation(summary = "내 프로필 조회")
     @GetMapping("/me")
     public Mono<ApiResponse<UserProfileResponse>> getMyProfile(@AuthenticationPrincipal Long userId) {
-        return Mono.fromCallable(() -> ApiResponse.success(userUseCase.getMyProfile(userId)))
-                .subscribeOn(Schedulers.boundedElastic());
+        return Mono.fromCallable(() -> userUseCase.getMyProfile(userId)) // 데이터 가져오기 (Blocking)
+                .subscribeOn(Schedulers.boundedElastic())
+                .map(ApiResponse::success); // 결과 포맷팅
     }
 
     @Operation(summary = "내 프로필 수정")
@@ -33,7 +34,8 @@ public class UserController {
             @AuthenticationPrincipal Long userId,
             @RequestBody UserUpdateCommand command
     ) {
-        return Mono.fromCallable(() -> ApiResponse.success(userUseCase.updateMyProfile(userId, command)))
-                .subscribeOn(Schedulers.boundedElastic());
+        return Mono.fromCallable(() -> userUseCase.updateMyProfile(userId, command))
+                .subscribeOn(Schedulers.boundedElastic())
+                .map(ApiResponse::success);
     }
 }

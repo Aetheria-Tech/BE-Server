@@ -43,8 +43,10 @@ public class SecurityConfig {
                         .accessDeniedHandler(accessDeniedHandler)           // 403 에러 핸들링
                 )
 
+
                 // HTTP 요청 권한 설정
                 .authorizeHttpRequests(auth -> auth
+                        .dispatcherTypeMatchers(jakarta.servlet.DispatcherType.ASYNC).permitAll()
                         // 인증 없이 접근 가능한 경로
                         .requestMatchers(
                                 "/api/v1/auth/login/**",

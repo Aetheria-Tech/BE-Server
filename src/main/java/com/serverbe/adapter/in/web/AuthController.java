@@ -14,6 +14,8 @@ import com.serverbe.infrastructure.error.ErrorMessage;
 import com.serverbe.infrastructure.util.TokenExtractionUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.util.StringUtils;
@@ -27,6 +29,7 @@ import java.io.IOException;
  * 인증 및 권한 관련 HTTP 요청을 처리하는 웹 어댑터입니다.
  * 소셜 로그인 시작, 콜백 처리, 토큰 재발급, 로그아웃, 회원 탈퇴를 담당합니다.
  */
+@Slf4j
 @RestController
 @RequestMapping("/api/v1/auth")
 public class AuthController {
@@ -67,14 +70,14 @@ public class AuthController {
             HttpServletResponse response
     ) {
         return Mono.fromCallable(() -> socialLoginUseCase.getSocialLoginUrl(provider))
-                .publishOn(Schedulers.boundedElastic())
+                .subscribeOn(Schedulers.boundedElastic())
                 .flatMap(redirectUrl -> {
                     try {
                         response.sendRedirect(redirectUrl);
+                        return Mono.empty();
                     } catch (IOException e) {
-                        return Mono.error(new RuntimeException(e));
+                        return Mono.error(new RuntimeException("리다이렉트 처리 중 오류가 발생했습니다.", e));
                     }
-                    return Mono.empty();
                 });
     }
 
@@ -96,15 +99,7 @@ public class AuthController {
         // 3. 우리 서비스 전용 액세스/리프레시 토큰 발급 및 리프레시 토큰 Redis 저장
         return socialLoginUseCase.login(code, provider)
                 .map(tokenResponse -> {
-                    ResponseCookie refreshTokenCookie = ResponseCookie.from(REFRESH_TOKEN_COOKIE, tokenResponse.refreshTokenResponse().opaqueToken())
-                            .httpOnly(true)    // 자바스크립트 접근 차단 (XSS 방지)
-                            .secure(true)      // HTTPS 환경에서만 전송
-                            .path("/")         // 모든 경로에서 쿠키 유효
-                            .maxAge(60 * 24 * 60 * 60) // 60일 (Duration을 초 단위로 변환)
-                            .sameSite("Lax")   // CSRF 어느 정도 방지
-                            .build();
-                    response.addHeader("Set-Cookie", refreshTokenCookie.toString());
-
+                    addCookieToResponse(response, tokenResponse.refreshTokenResponse().opaqueToken(), 60 * 24 * 60 * 60);
                     return ApiResponse.success(tokenResponse.accessTokenResponse());
                 });
     }
@@ -115,39 +110,38 @@ public class AuthController {
      * @param userId JwtAuthenticationFilter에 의해 SecurityContext에 담긴 현재 로그인 유저 PK
      */
     @DeleteMapping("/me")
-    public Mono<ApiResponse<Boolean>> withdraw(@AuthenticationPrincipal Long userId) {
+    public Mono<ApiResponse<Void>> withdraw(@AuthenticationPrincipal Long userId) {
         // DB 삭제 + 소셜 연동 해제(Unlink) + Redis 세션 삭제를 수행
-        return withdrawUseCase.withdraw(userId).map(ApiResponse::success);
+        return withdrawUseCase.withdraw(userId).map(success -> {
+            if (success) return ApiResponse.noContent();
+            return ApiResponse.fail(ErrorMessage.WITHDRAWAL_FAILED);
+        });
     }
 
     /**
      * 로그아웃: 현재 사용 중인 토큰을 무효화합니다.
      */
     @PostMapping("/logout")
-    public Mono<ApiResponse<Void>> logout(HttpServletRequest request, HttpServletResponse response) {
-        return Mono.fromCallable(() -> {
-            String accessToken = tokenExtractionUtils.extractAccessToken(request);
-            String refreshToken = tokenExtractionUtils.extractRefreshToken(request);
+    public ApiResponse<Object> logout(HttpServletRequest request, HttpServletResponse response) {
 
-            logoutUseCase.logout(accessToken, refreshToken);
+        String accessToken = tokenExtractionUtils.extractAccessToken(request);
+        String refreshToken = tokenExtractionUtils.extractRefreshToken(request);
+        logoutUseCase.logout(accessToken, refreshToken);
 
-            response.addHeader("Set-Cookie", revokeCookie().toString());
-            return ApiResponse.success(null);
-        });
+        addCookieToResponse(response, "", 0);
+        return ApiResponse.success(null);
     }
 
     /**
      * 전역 로그아웃: 모든 계정을 비활성화한다. 그리고 현재 사용 중인 토큰을 무효화한다.
      */
     @PostMapping("/logout/all")
-    public Mono<ApiResponse<Void>> globalLogout(HttpServletRequest request, HttpServletResponse response) {
-        return Mono.fromCallable(() -> {
-            logoutUseCase.globalLogout(tokenExtractionUtils.extractAccessToken(request));
+    public ApiResponse<Void> globalLogout(HttpServletRequest request, HttpServletResponse response) {
 
-            response.addHeader("Set-Cookie", revokeCookie().toString());
-
-            return ApiResponse.success(null);
-        });
+        String accessToken = tokenExtractionUtils.extractAccessToken(request);
+        logoutUseCase.globalLogout(accessToken);
+        addCookieToResponse(response, "", 0);
+        return ApiResponse.success(null);
     }
 
     /**
@@ -156,35 +150,30 @@ public class AuthController {
      */
     @PostMapping("/reissue")
     public Mono<ApiResponse<TokenResponse>> reissue(HttpServletRequest request, HttpServletResponse response) {
-        // 클라이언트로부터 전달받은 리프레시 토큰 추출
         String accessToken = tokenExtractionUtils.extractAccessToken(request);
         String refreshToken = tokenExtractionUtils.extractRefreshToken(request);
 
         if (!StringUtils.hasText(refreshToken)) {
-            throw new BusinessException(ErrorMessage.JWT_TOKEN_IS_EMPTY);
+            // 파이프라인 내부 에러 처리를 위해 Mono.error 사용 권장
+            return Mono.error(new BusinessException(ErrorMessage.JWT_TOKEN_IS_EMPTY));
         }
 
-        // 리프레시 토큰의 유효성과 Redis 존재 여부를 확인 후 토큰 세트(AT, RT) 재발급
-        TokenResponse tokenResponse = reissueUseCase.reissue(accessToken, refreshToken);
+        return Mono.fromCallable(() -> reissueUseCase.reissue(accessToken, refreshToken))
+                .subscribeOn(Schedulers.boundedElastic())
+                .map(tokenResponse -> {
+                    addCookieToResponse(response, tokenResponse.refreshTokenResponse().opaqueToken(), 60 * 24 * 60 * 60);
+                    return ApiResponse.success(tokenResponse);
+                });
+    }
 
-        ResponseCookie refreshTokenCookie = ResponseCookie.from(REFRESH_TOKEN_COOKIE, tokenResponse.refreshTokenResponse().opaqueToken())
+    private void addCookieToResponse(HttpServletResponse response, String token, long maxAgeSeconds) {
+        ResponseCookie cookie = ResponseCookie.from(REFRESH_TOKEN_COOKIE, token)
                 .httpOnly(true)
                 .secure(true)
                 .path("/")
-                .maxAge(60 * 24 * 60 * 60) // 60일
+                .maxAge(maxAgeSeconds)
                 .sameSite("Lax")
                 .build();
-        response.addHeader("Set-Cookie", refreshTokenCookie.toString());
-        return Mono.just(ApiResponse.success(tokenResponse));
-    }
-
-    /**
-     * 무효화 쿠키 생성 메소드
-     */
-    private ResponseCookie revokeCookie() {
-        return ResponseCookie.from(REFRESH_TOKEN_COOKIE, "")
-                .path("/")
-                .maxAge(0) // 즉시 만료
-                .build();
+        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
     }
 }

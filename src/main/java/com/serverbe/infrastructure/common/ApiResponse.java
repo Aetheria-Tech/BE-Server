@@ -2,15 +2,20 @@ package com.serverbe.infrastructure.common;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.serverbe.infrastructure.error.ErrorMessage;
+import org.springframework.http.HttpStatus;
 
 /**
  * 전역 공통 응답 규격 (Record)
- * @param success 성공 여부
- * @param data    성공 시 반환할 데이터 (성공 시에만 JSON에 포함)
- * @param error   실패 시 반환할 에러 정보 (실패 시에만 JSON에 포함)
+ *
+ * @param success    성공 여부
+ * @param httpStatus 상태 코드
+ * @param data       성공 시 반환할 데이터 (성공 시에만 JSON에 포함)
+ * @param error      실패 시 반환할 에러 정보 (실패 시에만 JSON에 포함)
  */
 public record ApiResponse<T>(
         boolean success,
+
+        HttpStatus httpStatus,
 
         @JsonInclude(JsonInclude.Include.NON_NULL)
         T data,
@@ -22,15 +27,17 @@ public record ApiResponse<T>(
      * 성공 응답 - 데이터를 포함하는 경우 (200 OK)
      */
     public static <T> ApiResponse<T> success(T data) {
-        return new ApiResponse<>(true, data, null);
+        return new ApiResponse<>(true, HttpStatus.OK, data, null);
     }
+
 
     /**
      * 실패 응답 - ErrorMessage Enum의 기본 메시지 사용
      */
-    public static ApiResponse<Void> fail(ErrorMessage errorMessage) {
+    public static <T> ApiResponse<Void> fail(ErrorMessage errorMessage) {
         return new ApiResponse<>(
                 false,
+                errorMessage.getStatus(),
                 null,
                 new ApiError(errorMessage.getCode(), errorMessage.getMessage())
         );
@@ -43,8 +50,18 @@ public record ApiResponse<T>(
     public static ApiResponse<Void> fail(ErrorMessage errorMessage, String reason) {
         return new ApiResponse<>(
                 false,
+                errorMessage.getStatus(),
                 null,
                 new ApiError(errorMessage.getCode(), reason)
+        );
+    }
+
+    public static ApiResponse<Void> noContent() {
+        return new ApiResponse<>(
+                true,
+                HttpStatus.NO_CONTENT,
+                null,
+                null
         );
     }
 
@@ -54,5 +71,6 @@ public record ApiResponse<T>(
     public record ApiError(
             String code,
             String message
-    ) { }
+    ) {
+    }
 }

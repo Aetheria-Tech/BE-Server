@@ -3,7 +3,6 @@ package com.serverbe.adapter.in.web.filter;
 
 import com.serverbe.application.port.in.security.TokenResolver;
 import com.serverbe.application.port.out.TokenPersistencePort;
-import com.serverbe.infrastructure.config.properties.JwtProperties;
 import com.serverbe.infrastructure.error.BusinessException;
 import com.serverbe.infrastructure.error.ErrorMessage;
 import com.serverbe.infrastructure.util.TokenExtractionUtils;
@@ -28,14 +27,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final TokenResolver tokenResolver;
     private final TokenPersistencePort tokenPersistencePort;
-    private final HandlerExceptionResolver handlerExceptionResolver;
     private final TokenExtractionUtils tokenExtractionUtils;
+    private final HandlerExceptionResolver handlerExceptionResolver;
 
     public JwtAuthenticationFilter(
             TokenResolver tokenResolver,
             TokenPersistencePort tokenPersistencePort,
-            @Qualifier("handlerExceptionResolver") HandlerExceptionResolver handlerExceptionResolver,
-            TokenExtractionUtils tokenExtractionUtils
+            TokenExtractionUtils tokenExtractionUtils,
+            @Qualifier("handlerExceptionResolver") HandlerExceptionResolver handlerExceptionResolver
     ) {
         this.tokenResolver = tokenResolver;
         this.tokenPersistencePort = tokenPersistencePort;

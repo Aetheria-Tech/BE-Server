@@ -3,6 +3,7 @@ package com.serverbe.infrastructure.util;
 import com.serverbe.infrastructure.config.properties.JwtProperties;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -15,6 +16,7 @@ import java.util.Arrays;
  * JwtProperties 설정을 참조하여 토큰을 추출하며,
  * 스프링 빈으로 관리되므로 필요한 곳에서 의존성 주입을 받아 사용합니다.
  */
+@Slf4j
 @Component
 public class TokenExtractionUtils {
     private final String BEARER_PREFIX;
