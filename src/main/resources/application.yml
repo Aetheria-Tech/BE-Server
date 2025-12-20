@@ -39,6 +39,7 @@ springdoc:
 jwt:
   secret: ${JWT_SECRET}                    # HS512 알고리즘을 사용할 것이기 때문에 512bit, 즉 64byte 이상의 secret key를 사용해야 한다.
   access-token:
+    prefix: "Bearer "
     header: Authorization                  # 액세스 토큰 헤더
     validity-in-minute: 15m                # 액세스 토큰 유효기간 (시간)
   refresh-token:

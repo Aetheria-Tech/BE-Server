@@ -11,6 +11,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
 import javax.crypto.SecretKey;
 import java.time.Instant;
@@ -23,14 +24,14 @@ import java.util.List;
 @Component
 public class JwtTokenResolver implements TokenResolver {
     private final JwtParser parser;
-    private final SecretKey KEY;
     private final String ROLES;
+    private final int REFRESH_TOKEN_LENGTH;
 
     public JwtTokenResolver(JwtKeyManager jwtKeyManager, JwtProperties jwtProperties) {
         // JwtKeyManager로부터 서명 키가 설정된 JwtParser를 주입받아 공유합니다.
         this.parser = jwtKeyManager.getParser();
-        this.KEY = jwtKeyManager.getKey();
         this.ROLES = jwtProperties.authorityKey();
+        this.REFRESH_TOKEN_LENGTH = jwtProperties.refreshToken().byteLength();
     }
 
     @Override
@@ -49,15 +50,20 @@ public class JwtTokenResolver implements TokenResolver {
      * 토큰의 서명 및 구조적 유효성을 검증합니다.
      */
     @Override
-    public boolean validateToken(String token) {
+    public boolean validateAccessToken(String accessToken) {
         try {
-            if (token == null || token.isBlank()) return false;
-            parser.parseClaimsJws(token);
+            if (accessToken == null || accessToken.isBlank()) return false;
+            parser.parseClaimsJws(accessToken);
             return true;
         } catch (JwtException | IllegalArgumentException e) {
             log.warn("[JWT Validation Failed] -> {}", e.getMessage());
             return false;
         }
+    }
+
+    @Override
+    public boolean validateRefreshToken(String refreshToken) {
+            return StringUtils.hasText(refreshToken) && refreshToken.length() == REFRESH_TOKEN_LENGTH;
     }
 
     /**

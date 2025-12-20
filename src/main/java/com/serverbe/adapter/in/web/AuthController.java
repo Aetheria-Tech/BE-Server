@@ -11,14 +11,13 @@ import com.serverbe.infrastructure.common.ApiResponse;
 import com.serverbe.infrastructure.config.properties.JwtProperties;
 import com.serverbe.infrastructure.error.BusinessException;
 import com.serverbe.infrastructure.error.ErrorMessage;
-import jakarta.servlet.http.Cookie;
+import com.serverbe.infrastructure.util.TokenExtractionUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.ResponseCookie;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.util.WebUtils;
 
 import java.io.IOException;
 
@@ -34,7 +33,7 @@ public class AuthController {
     private final WithdrawUseCase withdrawUseCase;
     private final LogoutUseCase logoutUseCase;
     private final ReissueUseCase reissueUseCase;
-    private final String ACCESS_TOKEN_HEADER;
+    private final TokenExtractionUtils tokenExtractionUtils;
     private final String REFRESH_TOKEN_COOKIE;
 
     public AuthController(
@@ -42,13 +41,14 @@ public class AuthController {
             WithdrawUseCase withdrawUseCase,
             LogoutUseCase logoutUseCase,
             ReissueUseCase reissueUseCase,
+            TokenExtractionUtils tokenExtractionUtils,
             JwtProperties jwtProperties
     ) {
         this.socialLoginUseCase = socialLoginUseCase;
         this.withdrawUseCase = withdrawUseCase;
         this.logoutUseCase = logoutUseCase;
         this.reissueUseCase = reissueUseCase;
-        this.ACCESS_TOKEN_HEADER = jwtProperties.accessToken().header();
+        this.tokenExtractionUtils = tokenExtractionUtils;
         this.REFRESH_TOKEN_COOKIE = jwtProperties.refreshToken().cookie();
     }
 
@@ -60,7 +60,10 @@ public class AuthController {
      * @param response 리다이렉션을 위한 응답 객체
      */
     @GetMapping("/login/{provider}")
-    public void redirectToSocial(@PathVariable(value = "provider") OAuthProvider provider, HttpServletResponse response) throws IOException {
+    public void redirectToSocial(
+            @PathVariable(value = "provider") OAuthProvider provider,
+            HttpServletResponse response
+    ) throws IOException {
         String redirectUrl = socialLoginUseCase.getSocialLoginUrl(provider);
         response.sendRedirect(redirectUrl);
     }
@@ -115,8 +118,8 @@ public class AuthController {
     @PostMapping("/logout")
     public ApiResponse<Void> logout(HttpServletRequest request, HttpServletResponse response) {
         // 헤더에서 토큰 추출 (resolveToken 메서드 활용)
-        String accessToken = resolveToken(request);
-        String refreshToken = resolveRefreshToken(request);
+        String accessToken = tokenExtractionUtils.extractAccessToken(request);
+        String refreshToken = tokenExtractionUtils.extractRefreshToken(request);
 
         logoutUseCase.logout(accessToken, refreshToken);
 
@@ -136,7 +139,7 @@ public class AuthController {
      */
     @PostMapping("/logout/all")
     public ApiResponse<Void> globalLogout(HttpServletRequest request, HttpServletResponse response) {
-        logoutUseCase.globalLogout(resolveToken(request));
+        logoutUseCase.globalLogout(tokenExtractionUtils.extractAccessToken(request));
 
         ResponseCookie cookie = ResponseCookie.from(REFRESH_TOKEN_COOKIE, "")
                 .path("/")
@@ -154,7 +157,7 @@ public class AuthController {
     @PostMapping("/reissue")
     public ApiResponse<TokenResponse> reissue(HttpServletRequest request) {
         // 클라이언트로부터 전달받은 리프레시 토큰 추출
-        String refreshToken = resolveRefreshToken(request);
+        String refreshToken = tokenExtractionUtils.extractRefreshToken(request);
 
         if (!StringUtils.hasText(refreshToken)) {
             throw new BusinessException(ErrorMessage.JWT_TOKEN_IS_EMPTY);
@@ -163,26 +166,5 @@ public class AuthController {
         // 리프레시 토큰의 유효성과 Redis 존재 여부를 확인 후 토큰 세트(AT, RT) 재발급
         TokenResponse response = reissueUseCase.reissue(refreshToken);
         return ApiResponse.success(response);
-    }
-
-    /**
-     * 유틸리티 메서드: Authorization 헤더에서 'Bearer ' 접두사를 제거하고 순수 토큰 값만 추출합니다.
-     */
-    private String resolveToken(HttpServletRequest request) {
-        String bearerToken = request.getHeader(ACCESS_TOKEN_HEADER);
-        if (StringUtils.hasText(bearerToken) && bearerToken.startsWith("Bearer ")) {
-            return bearerToken.substring(7);
-        }
-        throw new BusinessException(ErrorMessage.ACCESS_TOKEN_NOT_EXIST, "액세스 토큰이 존재하지 않습니다");
-    }
-
-    /**
-     * 설정된 헤더(쿠키) 이름으로 리프레시 토큰을 추출합니다.
-     */
-    private String resolveRefreshToken(HttpServletRequest request) {
-        // Spring의 WebUtils를 사용하면 쿠키 찾기가 매우 쉽습니다.
-        Cookie cookie = WebUtils.getCookie(request, REFRESH_TOKEN_COOKIE);
-        if (cookie == null) throw new BusinessException(ErrorMessage.REFRESH_TOKEN_NOT_EXIST, "액세스 토큰이 존재하지 않습니다");
-        return cookie.getValue();
     }
 }

@@ -34,9 +34,9 @@ public class ReissueService implements ReissueUseCase {
 
     @Override
     public TokenResponse reissue(String refreshToken) {
-        // 1. 리프레시 토큰 자체의 유효성 검증 (서명, 만료 여부)
-        if (!tokenResolver.validateToken(refreshToken)) {
-            throw new BusinessException(ErrorMessage.JWT_TOKEN_IS_INVALID);
+        // 1. 리프레시 토큰 자체의 유효성 검증
+        if (tokenResolver.validateRefreshToken(refreshToken)) {
+            throw new BusinessException(ErrorMessage.REFRESH_TOKEN_NOT_EXIST);
         }
 
         Long userId = tokenResolver.getIdFromToken(refreshToken);

@@ -51,7 +51,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String token = resolveToken(request);
 
         try {
-            if (StringUtils.hasText(token) && tokenResolver.validateToken(token)) {
+            if (StringUtils.hasText(token) && tokenResolver.validateAccessToken(token)) {
 
                 // 1. 블랙리스트 확인을 인증 객체 등록보다 먼저 수행 (Fail-Fast)
                 if (tokenPersistencePort.isBlacklisted(token)) {
