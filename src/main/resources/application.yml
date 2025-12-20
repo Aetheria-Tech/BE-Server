@@ -8,7 +8,7 @@ spring:
   # 스프링 JPA 설정
   jpa:
     hibernate:
-      ddl-auto: create                               # DB 테이블 생성 전략 설정
+      ddl-auto: update                             # DB 테이블 생성 전략 설정
     properties:
       hibernate:
         dialect: org.hibernate.dialect.MySQL8Dialect # MySQL 8.x용 Dialect
@@ -24,7 +24,7 @@ springdoc:
   swagger-ui:
     path: /swagger-ui.html                      # 스웨거 접근 경로
   api-docs:
-    path: /api-docs                             # openAPI 접근 경로. default 값은 /v3/api-docs 이다.
+    path: /api-docs                             # openAPI 접근 경로. default 값은 /v3/kapi-docs 이다.
   show-actuator: true                           # Spring Actuator의 endpoint까지 보여줄 것인지?
   default-consumes-media-type: application/json # request media type 의 기본 값
   default-produces-media-type: application/json # response media type 의 기본 값
@@ -39,28 +39,61 @@ springdoc:
 jwt:
   secret: ${JWT_SECRET}                    # HS512 알고리즘을 사용할 것이기 때문에 512bit, 즉 64byte 이상의 secret key를 사용해야 한다.
   access-token:
+    prefix: "Bearer "
     header: Authorization                  # 액세스 토큰 헤더
     validity-in-minute: 15m                # 액세스 토큰 유효기간 (시간)
   refresh-token:
     cookie: ${JWT_REFRESH_TOKEN_COOKIE}    # 리프레시 토큰 쿠키 키
-    expiration-days: 60                    # 리프레시 토큰 유효기간 (일)
+    expiration-days: 60d                    # 리프레시 토큰 유효기간 (일)
     byte-length: 64
-  authority-key: auth                      # 액세스 토큰에서 권한을 가져올 키
+  authority-key: roles                      # 액세스 토큰에서 권한을 가져올 키
   allowed-clock-skew-seconds: 30
 
 # Redis
 redis:
-  prefix: runner                    # 레디스 저장에 필요한 키 값 중 접두어
-  suffix: token_rts                 # 레디스 저장에 필요한 키 값 중 접미어
-  max-token: 1                      # 최대로 발급 가능한 토큰의 수
+  port: 6379
+  host: localhost
+  auth:
+    prefix: user                      # 레디스 저장에 필요한 키 값 중 접두어
+    suffix: rt                        # 레디스 저장에 필요한 키 값 중 접미어
+    max-token: 3                      # 최대로 발급 가능한 토큰의 수
+  blacklist:
+    prefix: bl
+    suffix: at
 
 kakao:
+  admin-key: ${KAKAO_ADMIN_KEY}
   auth:
     client-id: ${KAKAO_CLIENT_ID}
     redirect-uri: ${KAKAO_REDIRECT_URI}
-    auth-api: https://kauth.kakao.com
-    api: https://kapi.kakao.com
+    kauth: https://kauth.kakao.com
+    kapi: https://kapi.kakao.com
     connect-timeout-millis: 5000
     response-timeout-seconds: 5
     time-out-seconds: 5
-  geocoding:
+  #geocoding:
+
+google:
+  auth:
+    client-id: ${GOOGLE_CLIENT_ID}                                  # 구글 클라우드 콘솔에서 발급받은 클라이언트 ID
+    client-secret: ${GOOGLE_CLIENT_SECRET}                          # 구글 클라우드 콘솔에서 발급받은 클라이언트 보안 비밀번호
+    redirect-uri: http://localhost:8080/api/v1/auth/callback/google # AuthController의 callback 엔드포인트와 일치해야 함
+    oauth-api: https://oauth2.googleapis.com                         # 토큰 발급 및 인증 관련 API 주소
+    api: https://www.googleapis.com                                 # 유저 정보 조회 관련 API 주소
+
+
+
+# 암호화
+encryption:
+  algorithm: ${ENCRYPTION_ALGORITHM}
+  secret-key: ${ENCRYPTION_SECRET_KEY} # 32자 이상의 보안키
+  tag-length-bit: 128
+  iv-length-byte: 12
+  key-algorithm: AES
+
+# CORS
+cors:
+  allowed-origins:
+    - ${FRONTEND_DOMAIN}          # 프론트엔드 로컬 개발 환경
+    - ${DEVELOP_SERVER_DOMAIN}    # 개발 서버 도메인
+    - ${PROD_SERVER_DOMAIN}   # 운영 서버 도메인

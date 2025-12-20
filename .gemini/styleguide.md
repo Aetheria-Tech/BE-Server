@@ -1,113 +1,53 @@
-# Java & Spring Boot WebFlux 스타일 가이드
+# Spring Boot Hybrid Architecture Guide
 
-# 소개
-이 문서는 Java와 Spring Boot WebFlux를 사용하는 프로젝트의 코딩 표준 및 아키텍처 원칙을 정의합니다.
-리액티브 프로그래밍의 이점(고성능, 비동기 처리)을 극대화하고, 흔한 실수(Blocking Call 등)를 방지하는 것을 목표로 합니다.
+이 가이드는 **Spring MVC(Servlet)** 기반 위에 **Project Reactor(Mono/Flux)**를 부분적으로 도입한 하이브리드 아키텍처를 위한 코드 리뷰 및 작성 원칙을 정의한다.
 
-# 핵심 원칙 (Core Principles)
-* **Non-blocking I/O:** 메인 스레드나 이벤트 루프를 차단(Block)하는 코드는 절대 작성하지 않습니다.
-* **불변성 (Immutability):** 데이터 객체는 불변으로 설계하며, 상태 변경 대신 새로운 객체를 반환하는 방식을 선호합니다.
-* **선언적 스타일:** 명령형 프로그래밍(for, if 등)보다는 리액티브 연산자(`map`, `filter`, `flatMap` 등)를 사용합니다.
-* **Null Safety:** WebFlux 스트림 내에서는 `null`을 절대 사용하지 않습니다. 값이 없음을 표현할 때는 `Mono.empty()`를 사용합니다.
+## 1. 핵심 철학 (Core Philosophy)
 
----
+- **실용주의(Pragmatism)**: 비동기(Mono)는 목적이 아니라 수단이다. 효율성이 필요한 곳에는 비동기를, 복잡성을 낮춰야 하는 곳에는 동기 방식을 선택한다.
+- **스레드 효율성**: 외부 I/O 대기 시간이 긴 작업은 `Mono`를 통해 서블릿 스레드를 점유하지 않도록 한다.
+- **안정성**: 보안(SecurityContext), 트랜잭션 관리가 복잡해지는 지점에서는 전통적인 동기 방식(MVC)을 우선한다.
 
-# 아키텍처 및 레이어링 (Architecture)
+## 2. 반환 타입 선택 기준 (Synchronous vs. Asynchronous)
 
-## 1. Controller (Web Layer)
-* **역할:** HTTP 요청/응답 처리 및 파라미터 검증만 담당합니다. 비즈니스 로직을 포함하지 않습니다.
-* **반환 타입:** 항상 `Mono<T>` 또는 `Flux<T>`를 반환해야 합니다. `ResponseEntity`를 감쌀 때도 `Mono<ResponseEntity<T>>` 형식을 유지합니다.
-* **구독 금지:** 컨트롤러에서 `.subscribe()`를 명시적으로 호출하지 않습니다. 구독은 프레임워크(WebFlux)가 처리하도록 위임합니다.
+### A. 일반 동기 방식 (Object/ResponseEntity) 추천 상황
 
-## 2. Service (Business Layer)
-* **역할:** 핵심 비즈니스 로직, 트랜잭션 관리, 여러 도메인 간의 조율을 담당합니다.
-* **단일 책임:** 각 서비스 메서드는 하나의 명확한 작업만 수행해야 합니다.
-* **비동기 흐름 유지:** 리턴 타입은 항상 Publisher(`Mono`, `Flux`)여야 하며, 중간에 `block()`을 호출하여 흐름을 끊지 않습니다.
+- **보안 제어 로직**: 로그아웃(Logout), 세션 무효화 등 SecurityContext와 직접적으로 상호작용하며 즉각적인 상태 파괴가 필요한 경우.
+- **단순 CRUD**: 비즈니스 로직이 단순하고 DB 응답 속도가 충분히 빠른 경우.
+- **복잡한 트랜잭션**: 여러 단계의 DB 쓰기 작업이 얽혀 있어 비동기 흐름에서 트랜잭션 전파를 추적하기 어려운 경우.
 
-## 3. Repository (Data Layer)
-* **Reactive Repository:** R2DBC 또는 Reactive Mongo와 같은 리액티브 드라이버를 사용해야 합니다.
-* **Blocking 호출 금지:** JDBC와 같은 블로킹 드라이버나 메서드를 사용해야 할 경우, 반드시 `Schedulers.boundedElastic()`을 사용하여 별도 스레드로 격리해야 합니다.
+### B. 비동기 방식 (Mono/Flux) 추천 상황
 
----
+- **외부 API 호출**: `WebClient`를 사용하여 타사 서비스(카카오, 구글 로그인 등)와 통신할 때.
+- **고부하 조회 작업**: 대량의 데이터를 가공하거나 여러 소스에서 데이터를 합쳐야 하는 경우.
+- **병렬 처리**: 서로 연관 없는 여러 작업을 동시에 실행하여 전체 응답 시간을 줄여야 할 때.
 
-# 코딩 규칙 (Coding Conventions)
+## 3. 구현 규칙 (Implementation Rules)
 
-## 1. 명명 규칙 (Naming)
-* **클래스/인터페이스:** PascalCase (예: `UserHandler`, `PaymentService`)
-* **메서드/변수:** camelCase (예: `findUserById`, `processPayment`)
-* **테스트:** `대상_상황_기대결과` 형식을 권장합니다. (예: `createUser_WithValidData_ReturnsMonoUser`)
+### 컨트롤러 (Controller)
 
-## 2. 리액티브 연산자 사용 (Operators)
-* **Map vs FlatMap:**
-    * 동기적인 변환(단순 값 변경)에는 `map`을 사용합니다.
-    * 비동기 호출(DB 조회, 외부 API 호출)이 포함된 변환에는 `flatMap`을 사용합니다.
-* **Nesting 방지:** 콜백 지옥처럼 중첩된 `flatMap`은 피하고, 메서드 체이닝(Chaining)이나 `zip`, `zipWith`를 활용하여 가독성을 높입니다.
+- 한 컨트롤러 내에서 동기 메서드와 비동기 메서드를 혼용하는 것을 허용한다.
+- `Mono`를 반환할 때는 반드시 `subscribeOn(Schedulers.boundedElastic())`을 사용하여 블로킹 작업(JPA, JDBC 등)이 서블릿 스레드를 차단하지 않도록 격리한다.
+- 로그아웃과 같이 비동기 재디스패치(Async Dispatch) 시 인증 문제가 발생할 가능성이 있는 로직은 일반 동기 방식으로 구현하는 것을 권장한다.
 
-## 3. 블로킹 호출 금지 (NO Blocking)
-* **엄격 금지:** `.block()`, `.blockFirst()`, `.blockLast()`는 테스트 코드를 제외하고는 절대 사용하지 않습니다.
-* **Thread Sleep 금지:** `Thread.sleep()` 대신 `Duration`과 함께 `delayElement` 등을 사용합니다.
+### 보안 (Security)
 
----
+- MVC 환경이므로 `SecurityContextHolder.getContext()`를 기본으로 사용한다.
+- 비동기 스레드 내에서 인증 정보가 필요할 경우, `SecurityContextHolder.setStrategyName(SecurityContextHolder.MODE_INHERITABLETHREADLOCAL)` 설정을 고려하거나 `@AuthenticationPrincipal`을 통해 파라미터로 명시적으로 전달받는다.
 
-# 에러 처리 (Error Handling)
+### 예외 처리 (Exception Handling)
 
-* **Try-Catch 지양:** 리액티브 체인 내부에서 전통적인 `try-catch` 블록 사용을 피합니다.
-* **리액티브 에러 연산자 사용:**
-    * 에러 발생 시 대체 값을 반환하려면: `onErrorResume` 또는 `onErrorReturn`
-    * 에러를 다른 에러로 변환하려면: `onErrorMap`
-* **Global Exception Handling:** 비즈니스 예외는 `@RestControllerAdvice`와 `ExceptionHandler`를 통해 전역적으로 처리하여 일관된 에러 응답 포맷을 유지합니다.
+- `@RestControllerAdvice`를 통해 전역 예외 처리를 수행한다.
+- `Mono` 파이프라인 내부의 예외는 `Mono.error()`를 통해 전파하며, 최종적으로 Spring MVC의 ExceptionHandler가 처리하도록 한다.
 
----
+### 쿠키 및 헤더 (Cookies & Headers)
 
-# 로깅 (Logging)
+- `ResponseCookie` 빌더를 사용하여 `SameSite`, `HttpOnly`, `Secure` 옵션을 명시적으로 관리한다.
+- `HttpServletResponse`에 직접 헤더를 추가하는 방식과 `ResponseEntity`를 반환하는 방식 중 상황에 맞는 것을 선택하되, 비동기 흐름에서는 `ResponseEntity`를 더 권장한다.
 
-* **위치:** 로깅은 사이드 이펙트(Side-effect)이므로 `doOnNext`, `doOnError`, `doOnSubscribe` 등의 연산자 내부에서 수행합니다.
-* **적절성:**
-    * `DEBUG`: 개발 단계의 상세 흐름.
-    * `INFO`: 주요 비즈니스 이벤트 성공 (예: 결제 완료).
-    * `ERROR`: 예외 발생 및 스택트레이스. (`doOnError` 활용)
-* **Slf4j 사용:** `System.out.println` 대신 Slf4j(`@Slf4j`)를 사용합니다.
+## 4. 코드 리뷰 체크리스트 (Review Checklist)
 
----
-
-# 예시 코드 (Example)
-
-```java
-@Service
-@RequiredArgsConstructor
-@Slf4j
-public class UserService {
-
-    private final UserRepository userRepository;
-
-    // 좋은 예: Non-blocking, 메서드 체이닝, 명확한 에러 처리
-    public Mono<UserDto> updateUser(String id, UserUpdateDto updateDto) {
-        return userRepository.findById(id)
-            .switchIfEmpty(Mono.error(new UserNotFoundException(id))) // 데이터 없음 처리
-            .flatMap(user -> {
-                user.updateInfo(updateDto.getName(), updateDto.getEmail());
-                return userRepository.save(user); // DB 저장 (비동기)
-            })
-            .map(UserMapper::toDto) // 동기 변환은 map 사용
-            .doOnSuccess(dto -> log.info("User updated successfully: {}", dto.getId())) // 로깅
-            .doOnError(ex -> log.error("Failed to update user: {}", id, ex)); // 에러 로깅
-    }
-
-    // 나쁜 예: block() 사용, try-catch 혼용
-    /*
-    public UserDto updateUserBad(String id, UserUpdateDto updateDto) {
-        try {
-            User user = userRepository.findById(id).block(); // 절대 금지!
-            if (user == null) throw new RuntimeException("User not found");
-            
-            user.setName(updateDto.getName());
-            userRepository.save(user).block(); // 절대 금지!
-            return UserMapper.toDto(user);
-        } catch (Exception e) {
-            log.error(e.getMessage());
-            return null;
-        }
-    }
-    */
-}
-```
+1. **과잉 엔지니어링**: 단순한 로직인데 불필요하게 `Mono`를 사용하여 가독성을 해치지 않는가?
+2. **스레드 격리**: `Mono` 내부에서 블로킹 I/O가 발생하는데 `boundedElastic` 스케줄러를 누락하지 않았는가?
+3. **보안 맥락**: 비동기 전환 지점에서 `SecurityContext` 유실로 인한 401/403 에러 가능성은 없는가?
+4. **일관성**: 공통 응답 규격인 `ApiResponse<T>`를 모든 메서드에서 일관되게 반환하는가?
