@@ -25,27 +25,23 @@ import reactor.core.publisher.Mono;
 @Component
 public class KakaoAdapter implements OAuthClientPort {
 
-    private final KakaoProperties kakaoProperties;
     private final WebClient webClient;
+    private final String KAUTH_URL;
+    private final String KAPI_URL;
+    private final String CLIENT_ID;
+    private final String ADMIN_KEY;
+    private final String REDIRECT_URI;
 
     public KakaoAdapter(KakaoProperties kakaoProperties, WebClient.Builder webClientBuilder) {
-        this.kakaoProperties = kakaoProperties;
+        this.KAUTH_URL = kakaoProperties.auth().kauth();
+        this.KAPI_URL = kakaoProperties.auth().kapi();
+        this.CLIENT_ID = kakaoProperties.auth().clientId();
+        this.ADMIN_KEY = kakaoProperties.adminKey();
+        this.REDIRECT_URI = kakaoProperties.auth().redirectUri();
 
         // 주입받은 Builder를 사용하여 카카오 API 전용 설정을 입힌 WebClient 생성
         this.webClient = webClientBuilder
-                .baseUrl(kakaoProperties.auth().api()) // 기본 API 경로 설정
                 .build();
-    }
-
-    public String getKakaoRedirectUrl() {
-        return UriComponentsBuilder.fromHttpUrl(kakaoProperties.auth().authApi() + "/oauth/authorize")
-                .queryParam("client_id", kakaoProperties.auth().clientId())
-                .queryParam("redirect_uri", kakaoProperties.auth().redirectUri())
-                .queryParam("response_type", "code")
-                // .queryParam("scope", "account_email,profile_nickname") // 필요 시 동의 항목 지정
-                // .queryParam("prompt", "login") // 매번 카카오 계정 로그인을 요구할 경우 추가
-                .build()
-                .toUriString();
     }
 
 
@@ -63,12 +59,12 @@ public class KakaoAdapter implements OAuthClientPort {
     private Mono<KakaoTokenResponse> getKakaoAccessToken(String code) {
         MultiValueMap<String, String> formData = new LinkedMultiValueMap<>();
         formData.add("grant_type", "authorization_code");
-        formData.add("client_id", kakaoProperties.auth().clientId());
-        formData.add("redirect_uri", kakaoProperties.auth().redirectUri());
+        formData.add("client_id", CLIENT_ID);
+        formData.add("redirect_uri", REDIRECT_URI);
         formData.add("code", code);
 
         return webClient.post()
-                .uri(kakaoProperties.auth().authApi() + "/oauth/token")
+                .uri(KAUTH_URL + "/oauth/token")
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .body(BodyInserters.fromFormData(formData))
                 .retrieve()
@@ -80,7 +76,7 @@ public class KakaoAdapter implements OAuthClientPort {
 
     private Mono<OAuthUserInfo> fetchUserInfo(String accessToken, String refreshToken) {
         return webClient.get()
-                .uri(kakaoProperties.auth().api() + "/v2/user/me")
+                .uri(KAPI_URL + "/v2/user/me")
                 .header("Authorization", "Bearer " + accessToken)
                 .retrieve()
                 .onStatus(status -> status.is4xxClientError() || status.is5xxServerError(),
@@ -100,8 +96,8 @@ public class KakaoAdapter implements OAuthClientPort {
     public Mono<Boolean> unlink(OAuthProvider provider, String oauthId, String oauthRefreshToken) {
         // 카카오 어드민 키 방식 (사용자 동의 없이도 서버에서 강제 해제 가능)
         return webClient.post()
-                .uri("https://kapi.kakao.com/v1/user/unlink") // API 도메인 확인 (kapi.kakao.com)
-                .header("Authorization", "KakaoAK " + kakaoProperties.adminKey())
+                .uri(KAPI_URL + "/v1/user/unlink") // API 도메인 확인 (kapi.kakao.com)
+                .header("Authorization", "KakaoAK " + ADMIN_KEY)
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .body(BodyInserters.fromFormData("target_id_type", "user_id")
                         .with("target_id", oauthId)) // oauthId는 숫자(Long) 형태의 카카오 회원번호여야 함
@@ -119,11 +115,11 @@ public class KakaoAdapter implements OAuthClientPort {
     public Mono<SocialTokenRefreshResponse> refreshSocialToken(OAuthProvider provider, String refreshToken) {
         MultiValueMap<String, String> formData = new LinkedMultiValueMap<>();
         formData.add("grant_type", "refresh_token");
-        formData.add("client_id", kakaoProperties.auth().clientId());
+        formData.add("client_id", CLIENT_ID);
         formData.add("refresh_token", refreshToken);
 
         return webClient.post()
-                .uri(kakaoProperties.auth().authApi() + "/oauth/token")
+                .uri(KAUTH_URL + "/oauth/token")
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .body(BodyInserters.fromFormData(formData))
                 .retrieve()
@@ -139,9 +135,13 @@ public class KakaoAdapter implements OAuthClientPort {
 
     @Override
     public String getLoginUrl() {
-        return kakaoProperties.auth().authApi() + "/oauth/authorize?" +
-                "client_id=" + kakaoProperties.auth().clientId() +
-                "&redirect_uri=" + kakaoProperties.auth().redirectUri() +
-                "&response_type=code";
+        return UriComponentsBuilder.fromHttpUrl(KAUTH_URL + "/oauth/authorize")
+                .queryParam("client_id", CLIENT_ID)
+                .queryParam("redirect_uri", REDIRECT_URI)
+                .queryParam("response_type", "code")
+                // .queryParam("scope", "account_email,profile_nickname") // 필요 시 동의 항목 지정
+                // .queryParam("prompt", "login") // 매번 카카오 계정 로그인을 요구할 경우 추가
+                .build()
+                .toUriString();
     }
 }

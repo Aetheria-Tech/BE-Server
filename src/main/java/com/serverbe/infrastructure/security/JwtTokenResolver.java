@@ -71,7 +71,22 @@ public class JwtTokenResolver implements TokenResolver {
      */
     @Override
     public Long getIdFromToken(String token) {
-        String sub = getClaims(token).getSubject();
+        try {
+            // 1. 일반적인 파싱 시도 (만료되지 않은 경우)
+            return Long.valueOf(getClaims(token).getSubject());
+        } catch (ExpiredJwtException e) {
+            // 2. 만료된 경우 ExpiredJwtException 내부의 Claims에서 Subject 추출
+            log.info("만료된 토큰에서 ID 추출 시도: {}", e.getClaims().getSubject());
+            String sub = e.getClaims().getSubject();
+            return parseId(sub);
+        } catch (Exception e) {
+            // 3. 서명 오류나 잘못된 형식 등은 예외 처리
+            log.error("토큰 파싱 중 오류 발생: {}", e.getMessage());
+            throw new BusinessException(ErrorMessage.JWT_TOKEN_IS_INVALID, "유효하지 않은 토큰입니다.");
+        }
+    }
+
+    private Long parseId(String sub) {
         try {
             return Long.valueOf(sub);
         } catch (NumberFormatException e) {

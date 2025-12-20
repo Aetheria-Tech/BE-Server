@@ -24,7 +24,7 @@ public record JwtProperties(
     /**
      * 액세스 토큰 관련 설정
      *
-     * @param prefix                  액세스 토큰 접두사
+     * @param prefix           액세스 토큰 접두사
      * @param header           인증 헤더명 (Authorization)
      * @param validityInMinute 유효 기간 (Spring이 15m 형식을 Duration으로 자동 변환)
      */

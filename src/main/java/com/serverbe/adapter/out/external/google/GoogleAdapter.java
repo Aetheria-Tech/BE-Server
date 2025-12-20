@@ -27,12 +27,18 @@ import java.net.URI;
 public class GoogleAdapter implements OAuthClientPort {
 
     private final GoogleProperties googleProperties;
+
+    private final String OAUTH_URL;
+    private final String API_URL;
+
+
     private final WebClient webClient;
 
     public GoogleAdapter(GoogleProperties googleProperties, WebClient.Builder webClientBuilder) {
+        this.OAUTH_URL = googleProperties.auth().oauthApi();
+        this.API_URL = googleProperties.auth().api();
         this.googleProperties = googleProperties;
         this.webClient = webClientBuilder
-                .baseUrl(googleProperties.auth().api())
                 .build();
     }
 
@@ -50,18 +56,6 @@ public class GoogleAdapter implements OAuthClientPort {
                         )));
     }
 
-    public String getGoogleRedirectUrl() {
-        return UriComponentsBuilder.fromHttpUrl("https://accounts.google.com/o/oauth2/v2/auth")
-                .queryParam("client_id", googleProperties.auth().clientId())
-                .queryParam("redirect_uri", googleProperties.auth().redirectUri())
-                .queryParam("response_type", "code")
-                .queryParam("scope", "email profile")
-                .queryParam("access_type", "offline") // 리프레시 토큰 발급을 위해 필수
-                .queryParam("prompt", "consent")      // 매번 동의창을 띄워 새 리프레시 토큰 강제
-                .build()
-                .toUriString();
-    }
-
     private Mono<GoogleTokenResponse> getGoogleTokenResponse(String code) {
         MultiValueMap<String, String> formData = new LinkedMultiValueMap<>();
         formData.add("code", code);
@@ -76,7 +70,7 @@ public class GoogleAdapter implements OAuthClientPort {
         // prompt=consent
 
         return webClient.post()
-                .uri(googleProperties.auth().authApi() + "/token")
+                .uri(OAUTH_URL + "/token")
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .body(BodyInserters.fromFormData(formData))
                 .retrieve()
@@ -87,7 +81,7 @@ public class GoogleAdapter implements OAuthClientPort {
 
     private Mono<GoogleUserInfoResponse> fetchUserInfo(String accessToken) {
         return webClient.get()
-                .uri("/oauth2/v3/userinfo")
+                .uri(API_URL + "/oauth2/v3/userinfo")
                 .header("Authorization", "Bearer " + accessToken)
                 .retrieve()
                 .bodyToMono(GoogleUserInfoResponse.class);
@@ -100,7 +94,7 @@ public class GoogleAdapter implements OAuthClientPort {
         }
 
         return webClient.post()
-                .uri(URI.create("https://oauth2.googleapis.com/revoke"))
+                .uri(URI.create(API_URL + "/revoke"))
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .body(BodyInserters.fromFormData("token", oauthRefreshToken)) // 리프레시 토큰 전송
                 .retrieve()
@@ -122,7 +116,7 @@ public class GoogleAdapter implements OAuthClientPort {
         formData.add("refresh_token", refreshToken);
 
         return webClient.post()
-                .uri(googleProperties.auth().authApi() + "/token")
+                .uri(OAUTH_URL + "/token")
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .body(BodyInserters.fromFormData(formData))
                 .retrieve()
@@ -138,13 +132,14 @@ public class GoogleAdapter implements OAuthClientPort {
 
     @Override
     public String getLoginUrl() {
-        // access_type=offline, prompt=consent 포함 필수
-        return "https://accounts.google.com/o/oauth2/v2/auth?" +
-                "client_id=" + googleProperties.auth().clientId() +
-                "&redirect_uri=" + googleProperties.auth().redirectUri() +
-                "&response_type=code" +
-                "&scope=email%20profile" +
-                "&access_type=offline" +
-                "&prompt=consent";
+        return UriComponentsBuilder.fromHttpUrl("https://accounts.google.com/o/oauth2/v2/auth")
+                .queryParam("client_id", googleProperties.auth().clientId())
+                .queryParam("redirect_uri", googleProperties.auth().redirectUri())
+                .queryParam("response_type", "code")
+                .queryParam("scope", "email profile")
+                .queryParam("access_type", "offline") // 리프레시 토큰 발급을 위해 필수
+                .queryParam("prompt", "consent")      // 매번 동의창을 띄워 새 리프레시 토큰 강제
+                .build()
+                .toUriString();
     }
 }

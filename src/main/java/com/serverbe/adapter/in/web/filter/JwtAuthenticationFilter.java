@@ -6,6 +6,7 @@ import com.serverbe.application.port.out.TokenPersistencePort;
 import com.serverbe.infrastructure.config.properties.JwtProperties;
 import com.serverbe.infrastructure.error.BusinessException;
 import com.serverbe.infrastructure.error.ErrorMessage;
+import com.serverbe.infrastructure.util.TokenExtractionUtils;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -28,18 +29,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final TokenResolver tokenResolver;
     private final TokenPersistencePort tokenPersistencePort;
     private final HandlerExceptionResolver handlerExceptionResolver;
-    private final String ACCESS_TOKEN_HEADER;
+    private final TokenExtractionUtils tokenExtractionUtils;
 
     public JwtAuthenticationFilter(
             TokenResolver tokenResolver,
             TokenPersistencePort tokenPersistencePort,
             @Qualifier("handlerExceptionResolver") HandlerExceptionResolver handlerExceptionResolver,
-            JwtProperties jwtProperties
+            TokenExtractionUtils tokenExtractionUtils
     ) {
         this.tokenResolver = tokenResolver;
         this.tokenPersistencePort = tokenPersistencePort;
         this.handlerExceptionResolver = handlerExceptionResolver;
-        this.ACCESS_TOKEN_HEADER = jwtProperties.accessToken().header();
+        this.tokenExtractionUtils = tokenExtractionUtils;
     }
 
     @Override
@@ -48,7 +49,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             HttpServletResponse response,
             FilterChain filterChain
     ) {
-        String token = resolveToken(request);
+        String token = tokenExtractionUtils.extractAccessToken(request);
 
         try {
             if (StringUtils.hasText(token) && tokenResolver.validateAccessToken(token)) {
@@ -70,16 +71,5 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             log.error("[JWT Filter Exception] -> ", e);
             handlerExceptionResolver.resolveException(request, response, null, e);
         }
-    }
-
-    /**
-     * HTTP 요청 헤더에서 JWT 토큰을 추출합니다.
-     */
-    private String resolveToken(HttpServletRequest request) {
-        String bearerToken = request.getHeader(ACCESS_TOKEN_HEADER);
-        if (StringUtils.hasText(bearerToken) && bearerToken.startsWith("Bearer ")) {
-            return bearerToken.substring(7);
-        }
-        return null;
     }
 }

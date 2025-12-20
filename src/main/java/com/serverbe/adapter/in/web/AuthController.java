@@ -121,13 +121,7 @@ public class AuthController {
 
         logoutUseCase.logout(accessToken, refreshToken);
 
-        // 쿠키 무효화 (Max-Age를 0으로 설정)
-        ResponseCookie cookie = ResponseCookie.from(REFRESH_TOKEN_COOKIE, "")
-                .path("/")
-                .maxAge(0) // 즉시 만료
-                .build();
-
-        response.addHeader("Set-Cookie", cookie.toString());
+        response.addHeader("Set-Cookie", revokeCookie().toString());
 
         return ApiResponse.success(null);
     }
@@ -139,11 +133,7 @@ public class AuthController {
     public ApiResponse<Void> globalLogout(HttpServletRequest request, HttpServletResponse response) {
         logoutUseCase.globalLogout(tokenExtractionUtils.extractAccessToken(request));
 
-        ResponseCookie cookie = ResponseCookie.from(REFRESH_TOKEN_COOKIE, "")
-                .path("/")
-                .maxAge(0) // 즉시 만료
-                .build();
-        response.addHeader("Set-Cookie", cookie.toString());
+        response.addHeader("Set-Cookie", revokeCookie().toString());
 
         return ApiResponse.success(null);
     }
@@ -153,7 +143,7 @@ public class AuthController {
      * (Refresh Token Rotation 정책 적용)
      */
     @PostMapping("/reissue")
-    public ApiResponse<TokenResponse> reissue(HttpServletRequest request) {
+    public ApiResponse<TokenResponse> reissue(HttpServletRequest request, HttpServletResponse response) {
         // 클라이언트로부터 전달받은 리프레시 토큰 추출
         String accessToken = tokenExtractionUtils.extractAccessToken(request);
         String refreshToken = tokenExtractionUtils.extractRefreshToken(request);
@@ -163,7 +153,26 @@ public class AuthController {
         }
 
         // 리프레시 토큰의 유효성과 Redis 존재 여부를 확인 후 토큰 세트(AT, RT) 재발급
-        TokenResponse response = reissueUseCase.reissue(accessToken, refreshToken);
-        return ApiResponse.success(response);
+        TokenResponse tokenResponse = reissueUseCase.reissue(accessToken, refreshToken);
+
+        ResponseCookie refreshTokenCookie = ResponseCookie.from(REFRESH_TOKEN_COOKIE, tokenResponse.refreshTokenResponse().opaqueToken())
+                .httpOnly(true)
+                .secure(true)
+                .path("/")
+                .maxAge(60 * 24 * 60 * 60) // 60일
+                .sameSite("Lax")
+                .build();
+        response.addHeader("Set-Cookie", refreshTokenCookie.toString());
+        return ApiResponse.success(tokenResponse);
+    }
+
+    /**
+     * 무효화 쿠키 생성 메소드
+     * */
+    private ResponseCookie revokeCookie(){
+        return ResponseCookie.from(REFRESH_TOKEN_COOKIE, "")
+                .path("/")
+                .maxAge(0) // 즉시 만료
+                .build();
     }
 }
