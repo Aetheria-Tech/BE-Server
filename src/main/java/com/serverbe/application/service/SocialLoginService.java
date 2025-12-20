@@ -17,6 +17,8 @@ import com.serverbe.infrastructure.error.ErrorMessage;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 import java.time.Duration;
 import java.util.List;
@@ -47,30 +49,30 @@ public class SocialLoginService implements SocialLoginUseCase {
     }
 
     @Override
-    public TokenResponse login(String code, OAuthProvider provider) {
+    public Mono<TokenResponse> login(String code, OAuthProvider provider) {
         // 1. 외부 소셜 서버(카카오/구글) 어댑터 선택 (Strategy Pattern 적용)
         OAuthClientPort client = getClient(provider);
 
-        OAuthUserInfo oauthInfo = client.getUserInfo(code, provider);
+        return client.getUserInfo(code, provider)
+                .publishOn(Schedulers.boundedElastic()) // 이후의 블로킹(JPA) 작업을 전용 쓰레드 풀로 넘김
+                .map(oauthInfo -> {
+                    User user = userRepositoryPort.findByOauthId(oauthInfo.oauthId(), provider)
+                            .map(existingUser -> userRepositoryPort.save(existingUser.updateFromOAuth(oauthInfo)))
+                            .orElseGet(() -> userRepositoryPort.save(User.createNew(oauthInfo, provider)));
 
-        // 2. DB에서 기존 유저인지 확인 (Upsert 로직)
-        // Record의 불변성을 활용하여 새로운 객체를 저장
-        User user = userRepositoryPort.findByOauthId(oauthInfo.oauthId(), provider)
-                .map(existingUser -> userRepositoryPort.save(existingUser.updateFromOAuth(oauthInfo)))
-                .orElseGet(() -> userRepositoryPort.save(User.createNew(oauthInfo, provider)));
+                    // 3. 우리 서비스 전용 JWT 발급 (로그인 로직)
+                    AccessTokenResponse accessToken = tokenProvider.generateAccessToken(user.id(), user.role());
+                    RefreshTokenResponse refreshTokenResponse = tokenProvider.generateRefreshToken(user.id(), user.role());
 
-        // 3. 우리 서비스 전용 JWT 발급 (로그인 로직)
-        AccessTokenResponse accessToken = tokenProvider.generateAccessToken(user.id(), user.role());
-        RefreshTokenResponse refreshTokenResponse = tokenProvider.generateRefreshToken(user.id(), user.role());
+                    // 4. Redis에 리프레시 토큰 저장
+                    tokenPersistencePort.saveRefreshToken(
+                            user.id(),
+                            refreshTokenResponse.opaqueToken(),
+                            REFRESH_TOKEN_EXPIRATION_DAYS
+                    );
 
-        // 4. Redis에 리프레시 토큰 저장
-        tokenPersistencePort.saveRefreshToken(
-                user.id(),
-                refreshTokenResponse.opaqueToken(),
-                REFRESH_TOKEN_EXPIRATION_DAYS
-        );
-
-        return TokenResponse.of(accessToken, refreshTokenResponse, user.role());
+                    return TokenResponse.of(accessToken, refreshTokenResponse, user.role());
+                });
     }
 
     /**

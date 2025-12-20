@@ -12,6 +12,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 import java.util.List;
 
@@ -26,7 +28,7 @@ public class WithdrawService implements WithdrawUseCase {
 
     @Override
     @Transactional
-    public void withdraw(Long userId) {
+    public Mono<Boolean> withdraw(Long userId) {
         // 사용자 조회
         User user = userRepositoryPort.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorMessage.NOT_FOUND_RUNNER));
@@ -35,13 +37,19 @@ public class WithdrawService implements WithdrawUseCase {
         OAuthClientPort client = getClient(user.provider());
 
         // 소셜 서비스 연동 해제 요청 (unlink)
-        client.unlink(user.provider(), user.oauthId(), user.oauthRefreshToken());
+        return client.unlink(user.provider(), user.oauthId(), user.oauthRefreshToken())
+                .publishOn(Schedulers.boundedElastic()) // 이후의 블로킹(JPA) 작업을 전용 쓰레드 풀로 넘김
+                .map(isUnLink -> {
+                    if(isUnLink){
+                        // 우리 DB에서 사용자 삭제 (Hard Delete)
+                        userRepositoryPort.deleteById(userId);
 
-        // 우리 DB에서 사용자 삭제 (Hard Delete)
-        userRepositoryPort.deleteById(userId);
-
-        // Redis에서 리프레쉬 토큰 삭제
-        tokenPersistencePort.deleteRefreshToken(userId);
+                        // Redis에서 리프레쉬 토큰 삭제
+                        tokenPersistencePort.deleteRefreshToken(userId);
+                        return true;
+                    }
+                    return false;
+                });
     }
 
     // Provider에 맞는 구현체를 찾는 헬퍼 메서드

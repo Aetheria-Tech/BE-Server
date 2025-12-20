@@ -25,8 +25,11 @@ public enum ErrorMessage {
     NOT_FOUND_IMAGE_METADATA(HttpStatus.NOT_FOUND, "IMAGE_METADATA_001", "이미지 메타데이터를 찾을 수 없습니다."),
     FORBIDDEN_IMAGE_METADATA(HttpStatus.FORBIDDEN, "IMAGE_METADATA_002", "이미지 메타데이터에 대한 권한이 없습니다."),
 
-    // KAKAO_TOKEN / API
-    NOT_FOUND_KAKAO_TOKEN(HttpStatus.NOT_FOUND, "KAKAO_TOKEN_001", "카카오 토큰을 찾을 수 없습니다."),
+    // EXTERNAL API
+    WITHDRAWAL_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "EXTERNAL_001","회원 탈퇴 서버에서 회원 탈퇴를 실패했습니다."),
+
+    // KAKAO / API
+    NOT_FOUND_KAKAO_TOKEN(HttpStatus.NOT_FOUND, "KAKAO_001", "카카오 토큰을 찾을 수 없습니다."),
     FAILED_KAKAO_API(HttpStatus.BAD_GATEWAY, "KAKAO_002", "카카오 API 호출에 실패했습니다."),
 
     // GOOGLE /API

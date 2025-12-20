@@ -18,6 +18,7 @@ import org.springframework.http.ResponseCookie;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
+import reactor.core.publisher.Mono;
 
 import java.io.IOException;
 
@@ -76,7 +77,7 @@ public class AuthController {
      * @return 발급된 서비스 전용 JWT (Access, Refresh)
      */
     @GetMapping("/callback/{provider}")
-    public ApiResponse<AccessTokenResponse> loginCallback(
+    public Mono<ApiResponse<AccessTokenResponse>> loginCallback(
             @PathVariable(value = "provider") OAuthProvider provider,
             @RequestParam("code") String code,
             HttpServletResponse response
@@ -84,20 +85,19 @@ public class AuthController {
         // 1. 인가 코드로 소셜 서버와 통신하여 유저 정보 획득
         // 2. 신규 유저면 가입, 기존 유저면 정보 업데이트(Upsert)
         // 3. 우리 서비스 전용 액세스/리프레시 토큰 발급 및 리프레시 토큰 Redis 저장
-        TokenResponse tokenResponse = socialLoginUseCase.login(code, provider);
+        return socialLoginUseCase.login(code, provider).map(tokenResponse -> {
+            ResponseCookie refreshTokenCookie = ResponseCookie.from(REFRESH_TOKEN_COOKIE, tokenResponse.refreshTokenResponse().opaqueToken())
+                    .httpOnly(true)    // 자바스크립트 접근 차단 (XSS 방지)
+                    .secure(true)      // HTTPS 환경에서만 전송
+                    .path("/")         // 모든 경로에서 쿠키 유효
+                    .maxAge(60 * 24 * 60 * 60) // 60일 (Duration을 초 단위로 변환)
+                    .sameSite("Lax")   // CSRF 어느 정도 방지
+                    .build();
 
-        // 리프레시 토큰을 쿠키로 생성
-        ResponseCookie refreshTokenCookie = ResponseCookie.from(REFRESH_TOKEN_COOKIE, tokenResponse.refreshTokenResponse().opaqueToken())
-                .httpOnly(true)    // 자바스크립트 접근 차단 (XSS 방지)
-                .secure(true)      // HTTPS 환경에서만 전송
-                .path("/")         // 모든 경로에서 쿠키 유효
-                .maxAge(60 * 24 * 60 * 60) // 60일 (Duration을 초 단위로 변환)
-                .sameSite("Lax")   // CSRF 어느 정도 방지
-                .build();
+            response.addHeader("Set-Cookie", refreshTokenCookie.toString());
 
-        response.addHeader("Set-Cookie", refreshTokenCookie.toString());
-
-        return ApiResponse.success(tokenResponse.accessTokenResponse());
+            return ApiResponse.success(tokenResponse.accessTokenResponse());
+        });
     }
 
     /**
@@ -106,10 +106,9 @@ public class AuthController {
      * @param userId JwtAuthenticationFilter에 의해 SecurityContext에 담긴 현재 로그인 유저 PK
      */
     @DeleteMapping("/me")
-    public ApiResponse<Void> withdraw(@AuthenticationPrincipal Long userId) {
+    public Mono<ApiResponse<Boolean>> withdraw(@AuthenticationPrincipal Long userId) {
         // DB 삭제 + 소셜 연동 해제(Unlink) + Redis 세션 삭제를 수행
-        withdrawUseCase.withdraw(userId);
-        return ApiResponse.success(null);
+        return withdrawUseCase.withdraw(userId).map(ApiResponse::success);
     }
 
     /**

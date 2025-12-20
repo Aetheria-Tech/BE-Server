@@ -19,6 +19,7 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.web.reactive.function.BodyInserters;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.util.UriComponentsBuilder;
+import reactor.core.publisher.Mono;
 
 @Slf4j
 @Component
@@ -49,19 +50,17 @@ public class KakaoAdapter implements OAuthClientPort {
 
 
     @Override
-    public OAuthUserInfo getUserInfo(String code, OAuthProvider provider) {
+    public Mono<OAuthUserInfo> getUserInfo(String code, OAuthProvider provider) {
         if (provider != OAuthProvider.KAKAO) {
             throw new BusinessException(ErrorMessage.INTERNAL_SERVER_ERROR, "카카오 어댑터는 카카오 로그인만 처리할 수 있습니다.");
         }
 
         // 1. 인가 코드로 카카오 액세스/리프레시 토큰 받기
-        KakaoTokenResponse accessToken = getKakaoAccessToken(code);
-
-        // 2. 액세스 토큰으로 카카오 유저 정보 받기
-        return fetchUserInfo(accessToken.accessToken(), accessToken.refreshToken());
+        return getKakaoAccessToken(code)
+                .flatMap(accessToken -> fetchUserInfo(accessToken.accessToken(), accessToken.refreshToken()));
     }
 
-    private KakaoTokenResponse getKakaoAccessToken(String code) {
+    private Mono<KakaoTokenResponse> getKakaoAccessToken(String code) {
         MultiValueMap<String, String> formData = new LinkedMultiValueMap<>();
         formData.add("grant_type", "authorization_code");
         formData.add("client_id", kakaoProperties.auth().clientId());
@@ -76,12 +75,11 @@ public class KakaoAdapter implements OAuthClientPort {
                 .onStatus(status -> status.is4xxClientError() || status.is5xxServerError(),
                         clientResponse -> clientResponse.bodyToMono(String.class)
                                 .map(body -> new BusinessException(ErrorMessage.FAILED_KAKAO_API, body)))
-                .bodyToMono(KakaoTokenResponse.class)
-                .block(); // 유스케이스 흐름을 위해 동기 방식으로 처리
+                .bodyToMono(KakaoTokenResponse.class);
     }
 
-    private OAuthUserInfo fetchUserInfo(String accessToken, String refreshToken) {
-        KakaoUserInfoResponse response = webClient.get()
+    private Mono<OAuthUserInfo> fetchUserInfo(String accessToken, String refreshToken) {
+        return webClient.get()
                 .uri(kakaoProperties.auth().api() + "/v2/user/me")
                 .header("Authorization", "Bearer " + accessToken)
                 .retrieve()
@@ -89,21 +87,19 @@ public class KakaoAdapter implements OAuthClientPort {
                         clientResponse -> clientResponse.bodyToMono(String.class)
                                 .map(body -> new BusinessException(ErrorMessage.FAILED_KAKAO_API, body)))
                 .bodyToMono(KakaoUserInfoResponse.class)
-                .block();
-
-        return new OAuthUserInfo(
-                String.valueOf(response.id()),
-                OAuthProvider.KAKAO,
-                response.kakaoAccount().email(),
-                response.kakaoAccount().profile().nickname(),
-                refreshToken
-        );
+                .map(response -> new OAuthUserInfo(
+                        String.valueOf(response.id()),
+                        OAuthProvider.KAKAO,
+                        response.kakaoAccount().email(),
+                        response.kakaoAccount().profile().nickname(),
+                        refreshToken
+                ));
     }
 
     @Override
-    public void unlink(OAuthProvider provider, String oauthId, String oauthRefreshToken) {
+    public Mono<Boolean> unlink(OAuthProvider provider, String oauthId, String oauthRefreshToken) {
         // 카카오 어드민 키 방식 (사용자 동의 없이도 서버에서 강제 해제 가능)
-        webClient.post()
+        return webClient.post()
                 .uri("https://kapi.kakao.com/v1/user/unlink") // API 도메인 확인 (kapi.kakao.com)
                 .header("Authorization", "KakaoAK " + kakaoProperties.adminKey())
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
@@ -112,12 +108,15 @@ public class KakaoAdapter implements OAuthClientPort {
                 .retrieve()
                 .onStatus(HttpStatusCode::isError, res -> res.bodyToMono(String.class)
                         .map(body -> new BusinessException(ErrorMessage.FAILED_KAKAO_API, "Kakao Unlink Failed: " + body)))
-                .bodyToMono(Void.class)
-                .block();
+                .toBodilessEntity()
+                .map(response -> true)
+                // 에러 발생 시(BusinessException 포함) 흐름을 끊지 않고 false로 치환하고 싶다면 아래 주석 활용
+                // .onErrorReturn(false)
+                .defaultIfEmpty(false);
     }
 
     @Override
-    public SocialTokenRefreshResponse refreshSocialToken(OAuthProvider provider, String refreshToken) {
+    public Mono<SocialTokenRefreshResponse> refreshSocialToken(OAuthProvider provider, String refreshToken) {
         MultiValueMap<String, String> formData = new LinkedMultiValueMap<>();
         formData.add("grant_type", "refresh_token");
         formData.add("client_id", kakaoProperties.auth().clientId());
@@ -130,8 +129,7 @@ public class KakaoAdapter implements OAuthClientPort {
                 .retrieve()
                 .onStatus(HttpStatusCode::isError, res -> res.bodyToMono(String.class)
                         .map(body -> new BusinessException(ErrorMessage.FAILED_KAKAO_API, "Kakao Refresh Error: " + body)))
-                .bodyToMono(SocialTokenRefreshResponse.class)
-                .block();
+                .bodyToMono(SocialTokenRefreshResponse.class);
     }
 
     @Override

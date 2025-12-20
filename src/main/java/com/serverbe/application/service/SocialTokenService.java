@@ -10,6 +10,7 @@ import com.serverbe.infrastructure.error.ErrorMessage;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import reactor.core.publisher.Mono;
 
 import java.util.List;
 
@@ -25,7 +26,7 @@ public class SocialTokenService {
      * 필요시 Refresh Token을 사용하여 갱신하며, 변경된 정보는 DB에 저장합니다.
      */
     @Transactional
-    public String getFreshAccessToken(Long userId) {
+    public Mono<String> getFreshAccessToken(Long userId) {
         // 1. 유저 조회 (암호화된 토큰은 Converter에 의해 자동 복호화됨)
         User user = userRepositoryPort.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorMessage.NOT_FOUND_RUNNER));
@@ -34,19 +35,16 @@ public class SocialTokenService {
         OAuthClientPort client = getClient(user.provider());
 
         // 3. 찾은 어댑터로 토큰 갱신 요청
-        SocialTokenRefreshResponse response = client.refreshSocialToken(
+        return client.refreshSocialToken(
                 user.provider(),
                 user.oauthRefreshToken()
-        );
-
-        // 4. 리프레시 토큰이 갱신되었다면(Rotate) DB 업데이트
-        // (User 레코드는 불변이므로 새로운 객체를 만들어 저장)
-        if (response.refreshToken() != null) {
-            User updatedUser = user.renewOauthRefreshToken(response.refreshToken());
-            userRepositoryPort.save(updatedUser);
-        }
-
-        return response.accessToken();
+        ).map(response -> {
+            if(response.refreshToken() != null) {
+                User updatedUser = user.renewOauthRefreshToken(response.refreshToken());
+                userRepositoryPort.save(updatedUser);
+            }
+            return response.accessToken();
+        });
     }
 
     /**

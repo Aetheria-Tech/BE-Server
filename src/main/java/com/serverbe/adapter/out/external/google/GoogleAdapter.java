@@ -37,7 +37,7 @@ public class GoogleAdapter implements OAuthClientPort {
     }
 
     @Override
-    public OAuthUserInfo getUserInfo(String code, OAuthProvider provider) {
+    public Mono<OAuthUserInfo> getUserInfo(String code, OAuthProvider provider) {
         // 1. 토큰 교환 (액세스 토큰과 리프레시 토큰을 모두 받아옴)
         GoogleTokenResponse tokenResponse = getGoogleTokenResponse(code);
 
@@ -45,13 +45,13 @@ public class GoogleAdapter implements OAuthClientPort {
         GoogleUserInfoResponse userInfo = fetchUserInfo(tokenResponse.accessToken());
 
         // 3. 응답 객체 생성 (받아온 refresh_token을 포함)
-        return new OAuthUserInfo(
+        return Mono.just(new OAuthUserInfo(
                 userInfo.sub(),
                 OAuthProvider.GOOGLE,
                 userInfo.email(),
                 userInfo.name(),
                 tokenResponse.refreshToken() // 여기서 매번 받은 리프레시 토큰을 넘깁니다.
-        );
+        ));
     }
 
     public String getGoogleRedirectUrl() {
@@ -100,24 +100,27 @@ public class GoogleAdapter implements OAuthClientPort {
     }
 
     @Override
-    public void unlink(OAuthProvider provider, String oauthId, String oauthRefreshToken) {
+    public Mono<Boolean> unlink(OAuthProvider provider, String oauthId, String oauthRefreshToken) {
         if (oauthRefreshToken == null || oauthRefreshToken.isBlank()) {
             throw new BusinessException(ErrorMessage.INVALID_REFRESH_TOKEN, "구글 리프레시 토큰이 없어 연동 해제가 불가능합니다.");
         }
 
-        webClient.post()
+        return webClient.post()
                 .uri(URI.create("https://oauth2.googleapis.com/revoke"))
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .body(BodyInserters.fromFormData("token", oauthRefreshToken)) // 리프레시 토큰 전송
                 .retrieve()
                 .onStatus(HttpStatusCode::isError, response -> response.bodyToMono(String.class)
                         .flatMap(error -> Mono.error(new BusinessException(ErrorMessage.FAILED_GOOGLE_API, error))))
-                .bodyToMono(Void.class)
-                .block();
+                .toBodilessEntity()
+                .map(response -> true)
+                // 에러 발생 시(BusinessException 포함) 흐름을 끊지 않고 false로 치환하고 싶다면 아래 주석 활용
+                // .onErrorReturn(false)
+                .defaultIfEmpty(false);
     }
 
     @Override
-    public SocialTokenRefreshResponse refreshSocialToken(OAuthProvider provider, String refreshToken) {
+    public Mono<SocialTokenRefreshResponse> refreshSocialToken(OAuthProvider provider, String refreshToken) {
         MultiValueMap<String, String> formData = new LinkedMultiValueMap<>();
         formData.add("grant_type", "refresh_token");
         formData.add("client_id", googleProperties.auth().clientId());
@@ -131,8 +134,7 @@ public class GoogleAdapter implements OAuthClientPort {
                 .retrieve()
                 .onStatus(HttpStatusCode::isError, res -> res.bodyToMono(String.class)
                         .map(body -> new BusinessException(ErrorMessage.FAILED_KAKAO_API, "Google Refresh Error: " + body)))
-                .bodyToMono(SocialTokenRefreshResponse.class)
-                .block();
+                .bodyToMono(SocialTokenRefreshResponse.class);
     }
 
     @Override
