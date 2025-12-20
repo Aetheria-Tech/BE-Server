@@ -1,113 +1,63 @@
-# Java & Spring Boot WebFlux 스타일 가이드
+# 프로젝트 스타일 가이드: Semi-Reactive Hybrid Architecture
 
-# 소개
-이 문서는 Java와 Spring Boot WebFlux를 사용하는 프로젝트의 코딩 표준 및 아키텍처 원칙을 정의합니다.
-리액티브 프로그래밍의 이점(고성능, 비동기 처리)을 극대화하고, 흔한 실수(Blocking Call 등)를 방지하는 것을 목표로 합니다.
+이 문서는 Gemini Code Assist가 본 프로젝트의 코드를 생성하거나 리뷰할 때 준수해야 할 원칙을 정의합니다. 본 프로젝트는 **Semi-Reactive(Hybrid)** 모델을 채택하고 있습니다.
 
-# 핵심 원칙 (Core Principles)
-* **Non-blocking I/O:** 메인 스레드나 이벤트 루프를 차단(Block)하는 코드는 절대 작성하지 않습니다.
-* **불변성 (Immutability):** 데이터 객체는 불변으로 설계하며, 상태 변경 대신 새로운 객체를 반환하는 방식을 선호합니다.
-* **선언적 스타일:** 명령형 프로그래밍(for, if 등)보다는 리액티브 연산자(`map`, `filter`, `flatMap` 등)를 사용합니다.
-* **Null Safety:** WebFlux 스트림 내에서는 `null`을 절대 사용하지 않습니다. 값이 없음을 표현할 때는 `Mono.empty()`를 사용합니다.
+## 1. 핵심 아키텍처 원칙 (Semi-Reactive)
 
----
+### 1.1 하이브리드 스레드 모델 및 반환 타입
 
-# 아키텍처 및 레이어링 (Architecture)
+- **엔드투엔드 비동기 체인**: 모든 Controller, Service, Port는 원칙적으로 `Mono<T>` 또는 `Flux<T>`를 반환하여 Netty 이벤트 루프의 효율성을 극대화합니다.
+- **외부 I/O (WebClient)**: 논블로킹(Non-blocking) 방식으로 처리하며 이벤트를 기다리는 동안 쓰레드를 점유하지 않습니다.
+- **내부 로직 & DB (JPA/Redis)**: JDBC 기반의 JPA와 같은 동기식(Blocking) 라이브러리를 사용합니다.
+- **스레드 전환 (CRITICAL)**: 비동기 체인 내부에서 JPA 등 동기식 라이브러리를 호출할 경우, **반드시** `publishOn(Schedulers.boundedElastic())` 또는 `subscribeOn(Schedulers.boundedElastic())`을 사용하여 작업 스레드를 이벤트 루프에서 블로킹 전용 스레드 풀로 전환해야 합니다.
 
-## 1. Controller (Web Layer)
-* **역할:** HTTP 요청/응답 처리 및 파라미터 검증만 담당합니다. 비즈니스 로직을 포함하지 않습니다.
-* **반환 타입:** 항상 `Mono<T>` 또는 `Flux<T>`를 반환해야 합니다. `ResponseEntity`를 감쌀 때도 `Mono<ResponseEntity<T>>` 형식을 유지합니다.
-* **구독 금지:** 컨트롤러에서 `.subscribe()`를 명시적으로 호출하지 않습니다. 구독은 프레임워크(WebFlux)가 처리하도록 위임합니다.
+### 1.2 .block() 사용 금지
 
-## 2. Service (Business Layer)
-* **역할:** 핵심 비즈니스 로직, 트랜잭션 관리, 여러 도메인 간의 조율을 담당합니다.
-* **단일 책임:** 각 서비스 메서드는 하나의 명확한 작업만 수행해야 합니다.
-* **비동기 흐름 유지:** 리턴 타입은 항상 Publisher(`Mono`, `Flux`)여야 하며, 중간에 `block()`을 호출하여 흐름을 끊지 않습니다.
+- 어떠한 계층에서도 `.block()` 또는 `.blockFirst()`를 호출하여 스레드를 강제로 대기시키지 않습니다.
+- 모든 흐름은 비동기 파이프라인으로 연결되어 최종적으로 프레임워크가 처리하도록 합니다.
 
-## 3. Repository (Data Layer)
-* **Reactive Repository:** R2DBC 또는 Reactive Mongo와 같은 리액티브 드라이버를 사용해야 합니다.
-* **Blocking 호출 금지:** JDBC와 같은 블로킹 드라이버나 메서드를 사용해야 할 경우, 반드시 `Schedulers.boundedElastic()`을 사용하여 별도 스레드로 격리해야 합니다.
+## 2. 코드 구현 가이드라인
 
----
+### 2.1 WebClient 사용 (외부 연동)
 
-# 코딩 규칙 (Coding Conventions)
+- 외부 API 호출 시 `WebClient`를 사용하며, 결과는 `Mono<T>` 등으로 반환합니다.
+- 비즈니스 에러 발생 시 `Mono.error(new BusinessException(...))`를 반환하여 체인 내에서 예외가 흐르도록 합니다.
 
-## 1. 명명 규칙 (Naming)
-* **클래스/인터페이스:** PascalCase (예: `UserHandler`, `PaymentService`)
-* **메서드/변수:** camelCase (예: `findUserById`, `processPayment`)
-* **테스트:** `대상_상황_기대결과` 형식을 권장합니다. (예: `createUser_WithValidData_ReturnsMonoUser`)
+### 2.2 동기 라이브러리 연동 패턴 (MANDATORY)
 
-## 2. 리액티브 연산자 사용 (Operators)
-* **Map vs FlatMap:**
-    * 동기적인 변환(단순 값 변경)에는 `map`을 사용합니다.
-    * 비동기 호출(DB 조회, 외부 API 호출)이 포함된 변환에는 `flatMap`을 사용합니다.
-* **Nesting 방지:** 콜백 지옥처럼 중첩된 `flatMap`은 피하고, 메서드 체이닝(Chaining)이나 `zip`, `zipWith`를 활용하여 가독성을 높입니다.
+비동기 흐름 중에 JPA와 같은 블로킹 작업이 필요할 경우 아래 패턴을 엄격히 준수합니다.
 
-## 3. 블로킹 호출 금지 (NO Blocking)
-* **엄격 금지:** `.block()`, `.blockFirst()`, `.blockLast()`는 테스트 코드를 제외하고는 절대 사용하지 않습니다.
-* **Thread Sleep 금지:** `Thread.sleep()` 대신 `Duration`과 함께 `delayElement` 등을 사용합니다.
-
----
-
-# 에러 처리 (Error Handling)
-
-* **Try-Catch 지양:** 리액티브 체인 내부에서 전통적인 `try-catch` 블록 사용을 피합니다.
-* **리액티브 에러 연산자 사용:**
-    * 에러 발생 시 대체 값을 반환하려면: `onErrorResume` 또는 `onErrorReturn`
-    * 에러를 다른 에러로 변환하려면: `onErrorMap`
-* **Global Exception Handling:** 비즈니스 예외는 `@RestControllerAdvice`와 `ExceptionHandler`를 통해 전역적으로 처리하여 일관된 에러 응답 포맷을 유지합니다.
-
----
-
-# 로깅 (Logging)
-
-* **위치:** 로깅은 사이드 이펙트(Side-effect)이므로 `doOnNext`, `doOnError`, `doOnSubscribe` 등의 연산자 내부에서 수행합니다.
-* **적절성:**
-    * `DEBUG`: 개발 단계의 상세 흐름.
-    * `INFO`: 주요 비즈니스 이벤트 성공 (예: 결제 완료).
-    * `ERROR`: 예외 발생 및 스택트레이스. (`doOnError` 활용)
-* **Slf4j 사용:** `System.out.println` 대신 Slf4j(`@Slf4j`)를 사용합니다.
-
----
-
-# 예시 코드 (Example)
-
-```java
-@Service
-@RequiredArgsConstructor
-@Slf4j
-public class UserService {
-
-    private final UserRepository userRepository;
-
-    // 좋은 예: Non-blocking, 메서드 체이닝, 명확한 에러 처리
-    public Mono<UserDto> updateUser(String id, UserUpdateDto updateDto) {
-        return userRepository.findById(id)
-            .switchIfEmpty(Mono.error(new UserNotFoundException(id))) // 데이터 없음 처리
-            .flatMap(user -> {
-                user.updateInfo(updateDto.getName(), updateDto.getEmail());
-                return userRepository.save(user); // DB 저장 (비동기)
-            })
-            .map(UserMapper::toDto) // 동기 변환은 map 사용
-            .doOnSuccess(dto -> log.info("User updated successfully: {}", dto.getId())) // 로깅
-            .doOnError(ex -> log.error("Failed to update user: {}", id, ex)); // 에러 로깅
-    }
-
-    // 나쁜 예: block() 사용, try-catch 혼용
-    /*
-    public UserDto updateUserBad(String id, UserUpdateDto updateDto) {
-        try {
-            User user = userRepository.findById(id).block(); // 절대 금지!
-            if (user == null) throw new RuntimeException("User not found");
-            
-            user.setName(updateDto.getName());
-            userRepository.save(user).block(); // 절대 금지!
-            return UserMapper.toDto(user);
-        } catch (Exception e) {
-            log.error(e.getMessage());
-            return null;
-        }
-    }
-    */
-}
 ```
+public Mono<Entity> someServiceMethod(Long id) {
+    return adapter.asyncCall(id) // 1. 외부 API 호출 (비동기)
+        .publishOn(Schedulers.boundedElastic()) // 2. 블로킹 작업을 위한 스레드 전환
+        .map(result -> {
+            // 3. 여기서부터 JPA 등 블로킹 작업 수행 (안전함)
+            return repository.save(new Entity(result));
+        }); // 4. 결과를 Mono로 유지하여 반환
+}
+
+```
+
+### 2.3 데이터베이스 계층 (JPA)
+
+- `UserRepositoryPort` 등 레포지토리 포트는 표준 JPA 인터페이스를 사용합니다.
+- 이벤트 루프 스레드(`reactor-http-nio-*`)에서 직접 JPA 메서드를 호출하는 것은 시스템 전체의 성능 마비를 초래하므로 절대 금지합니다.
+
+## 3. 도메인 및 예외 처리
+
+### 3.1 에러 핸들링
+
+- `BusinessException`과 `ErrorMessage`를 사용하여 예외를 관리합니다.
+- 비동기 체인 내부의 예외는 `onErrorResume` 또는 `switchIfEmpty` 등을 사용하여 우아하게 처리합니다.
+
+### 3.2 JWT 및 보안
+
+- 만료된 토큰에서도 정보를 추출해야 하는 reissue 로직의 경우, `ExpiredJwtException`에서 `Claims`를 추출하는 방식을 사용합니다.
+- 일반 인가 로직에서는 토큰 만료 시 즉시 에러를 발생시킵니다.
+
+## 4. Gemini Code Assist를 위한 지시사항 (Prompt Context)
+
+- **리뷰 시**: 코드가 WebFlux의 이벤트 루프 스레드에서 블로킹 작업(JPA, Thread.sleep 등)을 수행하고 있는지 최우선으로 검토하십시오.
+- **생성 시**: 헥사고날 아키텍처를 준수하며, 모든 API의 끝점까지 `Mono/Flux`가 유지되도록 코드를 작성하십시오.
+- **수정 시**: `.block()`이 포함된 기존 코드를 발견하면, 이를 제거하고 `publishOn`과 `flatMap/map`을 이용한 비동기 체인으로 변환할 것을 제안하십시오.

@@ -48,7 +48,7 @@ public class KakaoAdapter implements OAuthClientPort {
     @Override
     public Mono<OAuthUserInfo> getUserInfo(String code, OAuthProvider provider) {
         if (provider != OAuthProvider.KAKAO) {
-            throw new BusinessException(ErrorMessage.INTERNAL_SERVER_ERROR, "카카오 어댑터는 카카오 로그인만 처리할 수 있습니다.");
+            return Mono.error(new BusinessException(ErrorMessage.INTERNAL_SERVER_ERROR, "카카오 어댑터는 카카오 로그인만 처리할 수 있습니다."));
         }
 
         // 1. 인가 코드로 카카오 액세스/리프레시 토큰 받기
