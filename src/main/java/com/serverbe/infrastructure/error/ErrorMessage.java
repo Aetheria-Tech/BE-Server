@@ -51,6 +51,8 @@ public enum ErrorMessage {
     // TOKEN (Refresh Token / Redis 관련)
     NOT_FOUND_REFRESH_TOKEN(HttpStatus.NOT_FOUND, "TOKEN_001", "리프레시 토큰을 찾을 수 없습니다."),
     INVALID_REFRESH_TOKEN(HttpStatus.BAD_REQUEST, "TOKEN_002", "유효하지 않은 리프레시 토큰입니다."),
+    ACCESS_TOKEN_NOT_EXIST(HttpStatus.BAD_REQUEST, "TOKEN_003", "액세스 토큰이 존재하지 않습니다."),
+    REFRESH_TOKEN_NOT_EXIST(HttpStatus.BAD_REQUEST, "TOKEN_004", "리프레시 토큰이 존재하지 않습니다.")
     ;
 
 

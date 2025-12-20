@@ -60,7 +60,7 @@ public class AuthController {
      * @param response 리다이렉션을 위한 응답 객체
      */
     @GetMapping("/login/{provider}")
-    public void redirectToSocial(@PathVariable OAuthProvider provider, HttpServletResponse response) throws IOException {
+    public void redirectToSocial(@PathVariable(value = "provider") OAuthProvider provider, HttpServletResponse response) throws IOException {
         String redirectUrl = socialLoginUseCase.getSocialLoginUrl(provider);
         response.sendRedirect(redirectUrl);
     }
@@ -74,7 +74,7 @@ public class AuthController {
      */
     @GetMapping("/callback/{provider}")
     public ApiResponse<AccessTokenResponse> loginCallback(
-            @PathVariable OAuthProvider provider,
+            @PathVariable(value = "provider") OAuthProvider provider,
             @RequestParam("code") String code,
             HttpServletResponse response
     ) {
@@ -117,6 +117,7 @@ public class AuthController {
         // 헤더에서 토큰 추출 (resolveToken 메서드 활용)
         String accessToken = resolveToken(request);
         String refreshToken = resolveRefreshToken(request);
+
         logoutUseCase.logout(accessToken, refreshToken);
 
         // 쿠키 무효화 (Max-Age를 0으로 설정)
@@ -132,7 +133,7 @@ public class AuthController {
 
     /**
      * 전역 로그아웃: 모든 계정을 비활성화한다. 그리고 현재 사용 중인 토큰을 무효화한다.
-     * */
+     */
     @PostMapping("/logout/all")
     public ApiResponse<Void> globalLogout(HttpServletRequest request, HttpServletResponse response) {
         logoutUseCase.globalLogout(resolveToken(request));
@@ -172,7 +173,7 @@ public class AuthController {
         if (StringUtils.hasText(bearerToken) && bearerToken.startsWith("Bearer ")) {
             return bearerToken.substring(7);
         }
-        return null;
+        throw new BusinessException(ErrorMessage.ACCESS_TOKEN_NOT_EXIST, "액세스 토큰이 존재하지 않습니다");
     }
 
     /**
@@ -181,6 +182,7 @@ public class AuthController {
     private String resolveRefreshToken(HttpServletRequest request) {
         // Spring의 WebUtils를 사용하면 쿠키 찾기가 매우 쉽습니다.
         Cookie cookie = WebUtils.getCookie(request, REFRESH_TOKEN_COOKIE);
-        return (cookie != null) ? cookie.getValue() : null;
+        if (cookie == null) throw new BusinessException(ErrorMessage.REFRESH_TOKEN_NOT_EXIST, "액세스 토큰이 존재하지 않습니다");
+        return cookie.getValue();
     }
 }

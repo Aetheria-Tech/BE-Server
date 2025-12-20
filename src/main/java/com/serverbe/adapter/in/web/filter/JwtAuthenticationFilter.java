@@ -10,6 +10,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
@@ -32,7 +33,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     public JwtAuthenticationFilter(
             TokenResolver tokenResolver,
             TokenPersistencePort tokenPersistencePort,
-            HandlerExceptionResolver handlerExceptionResolver,
+            @Qualifier("handlerExceptionResolver") HandlerExceptionResolver handlerExceptionResolver,
             JwtProperties jwtProperties
     ) {
         this.tokenResolver = tokenResolver;
