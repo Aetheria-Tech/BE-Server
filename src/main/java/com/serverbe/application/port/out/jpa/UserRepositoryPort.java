@@ -1,4 +1,4 @@
-package com.serverbe.application.port.in.jpa;
+package com.serverbe.application.port.out.jpa;
 
 import com.serverbe.domain.model.User;
 import com.serverbe.domain.model.vo.OAuthProvider;

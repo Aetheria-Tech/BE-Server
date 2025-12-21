@@ -7,7 +7,7 @@ import com.serverbe.application.port.out.oauth.OAuthClientPort;
 import com.serverbe.application.port.out.oauth.SocialLoginUseCase;
 import com.serverbe.application.port.out.security.TokenProvider;
 import com.serverbe.application.port.in.redis.TokenPersistencePort;
-import com.serverbe.application.port.in.jpa.UserRepositoryPort;
+import com.serverbe.application.port.out.jpa.UserRepositoryPort;
 import com.serverbe.domain.model.User;
 import com.serverbe.domain.model.vo.OAuthProvider;
 import com.serverbe.infrastructure.config.properties.JwtProperties;
