@@ -6,7 +6,7 @@ import com.serverbe.application.port.out.dto.oauth.TokenResponse;
 import com.serverbe.application.port.in.token.ReissueUseCase;
 import com.serverbe.application.port.out.security.TokenProvider;
 import com.serverbe.application.port.out.security.TokenResolver;
-import com.serverbe.application.port.in.redis.TokenPersistenceUseCase;
+import com.serverbe.application.port.out.redis.TokenPersistencePort;
 import com.serverbe.domain.model.vo.Role;
 import com.serverbe.infrastructure.config.properties.JwtProperties;
 import com.serverbe.infrastructure.error.BusinessException;
@@ -20,13 +20,13 @@ import java.time.Duration;
 @Transactional
 public class ReissueService implements ReissueUseCase {
 
-    private final TokenPersistenceUseCase tokenPersistenceUseCase;
+    private final TokenPersistencePort tokenPersistencePort;
     private final TokenProvider tokenProvider;
     private final TokenResolver tokenResolver;
     private final Duration REFRESH_TOKEN_EXPIRATION_DAYS;
 
-    public ReissueService(TokenPersistenceUseCase tokenPersistenceUseCase, TokenProvider tokenProvider, TokenResolver tokenResolver, JwtProperties jwtProperties) {
-        this.tokenPersistenceUseCase = tokenPersistenceUseCase;
+    public ReissueService(TokenPersistencePort tokenPersistencePort, TokenProvider tokenProvider, TokenResolver tokenResolver, JwtProperties jwtProperties) {
+        this.tokenPersistencePort = tokenPersistencePort;
         this.tokenProvider = tokenProvider;
         this.tokenResolver = tokenResolver;
         this.REFRESH_TOKEN_EXPIRATION_DAYS = jwtProperties.refreshToken().expirationDays();
@@ -44,9 +44,9 @@ public class ReissueService implements ReissueUseCase {
 
         // 2. [보안 핵심] 리스트 내 존재 여부 확인 (재사용 감지)
         // 리스트에 토큰이 없다는 것은 이미 사용되었거나(RTR), 만료되어 밀려난 토큰임
-        if (!tokenPersistenceUseCase.existsRefreshToken(userId, refreshToken)) {
+        if (!tokenPersistencePort.existsRefreshToken(userId, refreshToken)) {
             // 탈취된 토큰을 재사용하려는 시도로 간주하고 모든 세션 무효화 (보안 조치)
-            tokenPersistenceUseCase.deleteRefreshToken(userId);
+            tokenPersistencePort.deleteRefreshToken(userId);
             throw new BusinessException(ErrorMessage.INVALID_REFRESH_TOKEN, "이미 사용되었거나 유효하지 않은 토큰입니다.");
         }
 
@@ -56,10 +56,10 @@ public class ReissueService implements ReissueUseCase {
 
         // 4. [RTR 핵심] 기존 토큰은 제거하고 새 토큰 저장
         // 사용된 기존 토큰만 리스트에서 삭제
-        tokenPersistenceUseCase.removeSpecificRefreshToken(userId, refreshToken);
+        tokenPersistencePort.removeSpecificRefreshToken(userId, refreshToken);
 
         // 새로운 리프레시 토큰을 리스트에 추가 (이때 MAX_TOKEN 정책이 어댑터에서 적용됨)
-        tokenPersistenceUseCase.saveRefreshToken(
+        tokenPersistencePort.saveRefreshToken(
                 userId,
                 newRefreshTokenResult.opaqueToken(),
                 REFRESH_TOKEN_EXPIRATION_DAYS // Duration (60일)

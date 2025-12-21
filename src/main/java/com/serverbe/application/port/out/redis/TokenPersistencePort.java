@@ -1,8 +1,8 @@
-package com.serverbe.application.port.in.redis;
+package com.serverbe.application.port.out.redis;
 
 import java.time.Duration;
 
-public interface TokenPersistenceUseCase {
+public interface TokenPersistencePort {
     // 리프레시 토큰 등록
     void saveRefreshToken(Long userId, String refreshToken, Duration expiry);
 

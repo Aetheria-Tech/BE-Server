@@ -2,7 +2,7 @@ package com.serverbe.application.service;
 
 import com.serverbe.application.port.out.oauth.OAuthClientPort;
 import com.serverbe.application.port.in.oauth.WithdrawUseCase;
-import com.serverbe.application.port.in.redis.TokenPersistenceUseCase;
+import com.serverbe.application.port.out.redis.TokenPersistencePort;
 import com.serverbe.application.port.out.jpa.UserRepositoryPort;
 import com.serverbe.domain.model.vo.OAuthProvider;
 import com.serverbe.infrastructure.error.BusinessException;
@@ -23,7 +23,7 @@ public class WithdrawService implements WithdrawUseCase {
 
     private final UserRepositoryPort userRepositoryPort;
     private final List<OAuthClientPort> oAuthClients;
-    private final TokenPersistenceUseCase tokenPersistenceUseCase;
+    private final TokenPersistencePort tokenPersistencePort;
 
     @Override
     @Transactional
@@ -41,7 +41,7 @@ public class WithdrawService implements WithdrawUseCase {
                                     // 우리 DB에서 사용자 삭제 (Hard Delete)
                                     userRepositoryPort.deleteById(user.id());
                                     // Redis에서 리프레쉬 토큰 삭제
-                                    tokenPersistenceUseCase.deleteRefreshToken(user.id());
+                                    tokenPersistencePort.deleteRefreshToken(user.id());
                                     return true;
                                 }
                                 return false;

@@ -6,7 +6,7 @@ import com.serverbe.application.port.out.dto.oauth.TokenResponse;
 import com.serverbe.application.port.out.oauth.OAuthClientPort;
 import com.serverbe.application.port.in.oauth.LoginUseCase;
 import com.serverbe.application.port.out.security.TokenProvider;
-import com.serverbe.application.port.in.redis.TokenPersistenceUseCase;
+import com.serverbe.application.port.out.redis.TokenPersistencePort;
 import com.serverbe.application.port.out.jpa.UserRepositoryPort;
 import com.serverbe.domain.model.User;
 import com.serverbe.domain.model.vo.OAuthProvider;
@@ -29,20 +29,20 @@ public class LoginService implements LoginUseCase {
 
     private final List<OAuthClientPort> oAuthClients;
     private final UserRepositoryPort userRepositoryPort;
-    private final TokenPersistenceUseCase tokenPersistenceUseCase;
+    private final TokenPersistencePort tokenPersistencePort;
     private final TokenProvider tokenProvider;
     private final Duration REFRESH_TOKEN_EXPIRATION_DAYS;
 
     public LoginService(
             List<OAuthClientPort> oAuthClients,
             UserRepositoryPort userRepositoryPort,
-            TokenPersistenceUseCase tokenPersistenceUseCase,
+            TokenPersistencePort tokenPersistencePort,
             TokenProvider tokenProvider,
             JwtProperties jwtProperties
     ) {
         this.oAuthClients = oAuthClients;
         this.userRepositoryPort = userRepositoryPort;
-        this.tokenPersistenceUseCase = tokenPersistenceUseCase;
+        this.tokenPersistencePort = tokenPersistencePort;
         this.tokenProvider = tokenProvider;
         REFRESH_TOKEN_EXPIRATION_DAYS = jwtProperties.refreshToken().expirationDays();
     }
@@ -64,7 +64,7 @@ public class LoginService implements LoginUseCase {
                     RefreshTokenResponse refreshTokenResponse = tokenProvider.generateRefreshToken(user.id(), user.role());
 
                     // 4. Redis에 리프레시 토큰 저장
-                    tokenPersistenceUseCase.saveRefreshToken(
+                    tokenPersistencePort.saveRefreshToken(
                             user.id(),
                             refreshTokenResponse.opaqueToken(),
                             REFRESH_TOKEN_EXPIRATION_DAYS

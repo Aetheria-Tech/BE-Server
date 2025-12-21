@@ -1,6 +1,6 @@
 package com.serverbe.adapter.out.persistence.token;
 
-import com.serverbe.application.port.in.redis.TokenPersistenceUseCase;
+import com.serverbe.application.port.out.redis.TokenPersistencePort;
 import com.serverbe.infrastructure.config.properties.RedisProperties;
 
 import org.springframework.data.redis.core.RedisTemplate;
@@ -10,7 +10,7 @@ import java.time.Duration;
 import java.util.List;
 
 @Component
-public class TokenPersistenceAdapter implements TokenPersistenceUseCase {
+public class TokenPersistenceAdapter implements TokenPersistencePort {
 
     private final RedisTemplate<String, Object> redisTemplate;
     private final int MAX_TOKEN;
