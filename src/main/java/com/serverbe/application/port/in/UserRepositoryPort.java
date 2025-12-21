@@ -1,4 +1,4 @@
-package com.serverbe.application.port.out;
+package com.serverbe.application.port.in;
 
 import com.serverbe.domain.model.User;
 import com.serverbe.domain.model.vo.OAuthProvider;

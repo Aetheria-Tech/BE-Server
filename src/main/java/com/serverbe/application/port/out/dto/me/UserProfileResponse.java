@@ -1,4 +1,4 @@
-package com.serverbe.application.port.in.dto.me;
+package com.serverbe.application.port.out.dto.me;
 
 import com.serverbe.domain.model.User;
 

@@ -1,8 +1,8 @@
 package com.serverbe.adapter.in.web;
 
-import com.serverbe.application.port.in.dto.me.UserProfileResponse;
-import com.serverbe.application.port.in.dto.me.UserUpdateCommand;
-import com.serverbe.application.port.in.me.UserUseCase;
+import com.serverbe.application.port.out.dto.me.UserProfileResponse;
+import com.serverbe.application.port.out.dto.me.UserUpdateCommand;
+import com.serverbe.application.port.out.me.UserUseCase;
 import com.serverbe.infrastructure.common.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;

@@ -1,6 +1,6 @@
-package com.serverbe.application.port.in.geocoding;
+package com.serverbe.application.port.out.geocoding;
 
-import com.serverbe.application.port.in.dto.geocoding.GeocodeResponse;
+import com.serverbe.application.port.out.dto.geocoding.GeocodeResponse;
 import reactor.core.publisher.Mono;
 
 /**

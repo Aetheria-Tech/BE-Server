@@ -1,12 +1,12 @@
 package com.serverbe.application.service;
 
-import com.serverbe.application.port.in.dto.oauth.AccessTokenResponse;
-import com.serverbe.application.port.in.dto.oauth.RefreshTokenResponse;
-import com.serverbe.application.port.in.dto.oauth.TokenResponse;
-import com.serverbe.application.port.in.security.ReissueUseCase;
-import com.serverbe.application.port.in.security.TokenProvider;
-import com.serverbe.application.port.in.security.TokenResolver;
-import com.serverbe.application.port.out.TokenPersistencePort;
+import com.serverbe.application.port.out.dto.oauth.AccessTokenResponse;
+import com.serverbe.application.port.out.dto.oauth.RefreshTokenResponse;
+import com.serverbe.application.port.out.dto.oauth.TokenResponse;
+import com.serverbe.application.port.out.security.ReissueUseCase;
+import com.serverbe.application.port.out.security.TokenProvider;
+import com.serverbe.application.port.out.security.TokenResolver;
+import com.serverbe.application.port.in.TokenPersistencePort;
 import com.serverbe.domain.model.vo.Role;
 import com.serverbe.infrastructure.config.properties.JwtProperties;
 import com.serverbe.infrastructure.error.BusinessException;

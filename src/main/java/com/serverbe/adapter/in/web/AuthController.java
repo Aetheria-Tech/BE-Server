@@ -1,11 +1,11 @@
 package com.serverbe.adapter.in.web;
 
-import com.serverbe.application.port.in.dto.oauth.AccessTokenResponse;
-import com.serverbe.application.port.in.dto.oauth.TokenResponse;
-import com.serverbe.application.port.in.oauth.LogoutUseCase;
-import com.serverbe.application.port.in.oauth.SocialLoginUseCase;
-import com.serverbe.application.port.in.oauth.WithdrawUseCase;
-import com.serverbe.application.port.in.security.ReissueUseCase;
+import com.serverbe.application.port.out.dto.oauth.AccessTokenResponse;
+import com.serverbe.application.port.out.dto.oauth.TokenResponse;
+import com.serverbe.application.port.out.oauth.LogoutUseCase;
+import com.serverbe.application.port.out.oauth.SocialLoginUseCase;
+import com.serverbe.application.port.out.oauth.WithdrawUseCase;
+import com.serverbe.application.port.out.security.ReissueUseCase;
 import com.serverbe.domain.model.vo.OAuthProvider;
 import com.serverbe.infrastructure.common.ApiResponse;
 import com.serverbe.infrastructure.config.properties.JwtProperties;

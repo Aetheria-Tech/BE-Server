@@ -1,7 +1,7 @@
 package com.serverbe.adapter.in.web;
 
-import com.serverbe.application.port.in.dto.geocoding.GeocodeResponse;
-import com.serverbe.application.port.in.geocoding.AddressPort;
+import com.serverbe.application.port.out.dto.geocoding.GeocodeResponse;
+import com.serverbe.application.port.out.geocoding.AddressPort;
 import com.serverbe.infrastructure.common.ApiResponse;
 import com.serverbe.infrastructure.util.AddressValidator;
 import io.swagger.v3.oas.annotations.Operation;

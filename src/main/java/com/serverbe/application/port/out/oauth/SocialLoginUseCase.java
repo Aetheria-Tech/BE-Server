@@ -1,7 +1,7 @@
-package com.serverbe.application.port.in.oauth;
+package com.serverbe.application.port.out.oauth;
 
 
-import com.serverbe.application.port.in.dto.oauth.TokenResponse;
+import com.serverbe.application.port.out.dto.oauth.TokenResponse;
 import com.serverbe.domain.model.vo.OAuthProvider;
 import reactor.core.publisher.Mono;
 

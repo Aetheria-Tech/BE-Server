@@ -1,4 +1,4 @@
-package com.serverbe.application.port.out;
+package com.serverbe.application.port.in;
 
 import java.time.Duration;
 

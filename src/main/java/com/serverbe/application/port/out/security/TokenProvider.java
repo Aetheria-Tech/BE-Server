@@ -1,7 +1,7 @@
-package com.serverbe.application.port.in.security;
+package com.serverbe.application.port.out.security;
 
-import com.serverbe.application.port.in.dto.oauth.AccessTokenResponse;
-import com.serverbe.application.port.in.dto.oauth.RefreshTokenResponse;
+import com.serverbe.application.port.out.dto.oauth.AccessTokenResponse;
+import com.serverbe.application.port.out.dto.oauth.RefreshTokenResponse;
 import com.serverbe.domain.model.vo.Role;
 
 public interface TokenProvider {

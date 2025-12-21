@@ -1,4 +1,4 @@
-package com.serverbe.application.port.in.dto.geocoding;
+package com.serverbe.application.port.out.dto.geocoding;
 
 public record GeocodeResponse(
         Double latitude,
