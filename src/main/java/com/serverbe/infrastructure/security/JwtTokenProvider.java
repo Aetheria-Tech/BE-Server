@@ -28,11 +28,11 @@ public class JwtTokenProvider implements TokenProvider {
 
     private final SecureRandom secureRandom;
 
-    private final SecretKey KEY;
-    private final Duration ACCESS_TOKEN_VALIDITY_IN_MINUTE;
-    private final Duration REFRESH_TOKEN_VALIDATE_DAY;
-    private final int REFRESH_TOKEN_LENGTH;
-    private final String AUTHORITY_KEY;
+    private final SecretKey key;
+    private final Duration accessTokenValidityInMinute;
+    private final Duration refreshTokenValidateDay;
+    private final int refreshTokenLength;
+    private final String authorityKey;
 
     /**
      * {@code JwtTokenProvider}의 생성자입니다.
@@ -47,12 +47,12 @@ public class JwtTokenProvider implements TokenProvider {
     ) {
         this.secureRandom = secureRandom;
 
-        this.ACCESS_TOKEN_VALIDITY_IN_MINUTE = jwtProperties.accessToken().validityInMinute();
-        this.REFRESH_TOKEN_VALIDATE_DAY = jwtProperties.refreshToken().expirationDays();
-        this.REFRESH_TOKEN_LENGTH = jwtProperties.refreshToken().byteLength();
-        this.AUTHORITY_KEY = jwtProperties.authorityKey();
+        this.accessTokenValidityInMinute = jwtProperties.accessToken().validityInMinute();
+        this.refreshTokenValidateDay = jwtProperties.refreshToken().expirationDays();
+        this.refreshTokenLength = jwtProperties.refreshToken().byteLength();
+        this.authorityKey = jwtProperties.authorityKey();
         // 서명 키를 KeyManager로부터 가져옵니다.
-        KEY = jwtKeyManager.getKey();
+        key = jwtKeyManager.getKey();
     }
 
     /**
@@ -71,14 +71,14 @@ public class JwtTokenProvider implements TokenProvider {
     @Override
     public AccessTokenResponse generateAccessToken(Long id, Role role) {
         Date now = new Date();
-        Date validity = new Date(now.getTime() + ACCESS_TOKEN_VALIDITY_IN_MINUTE.toMillis());
+        Date validity = new Date(now.getTime() + accessTokenValidityInMinute.toMillis());
 
         String compact = Jwts.builder()
                 .setSubject(String.valueOf(id)) // 유저 ID
-                .claim(AUTHORITY_KEY, role.name()) // 권한 (예: "USER")
+                .claim(authorityKey, role.name()) // 권한 (예: "USER")
                 .setIssuedAt(now)
                 .setExpiration(validity)
-                .signWith(KEY, SignatureAlgorithm.HS512)
+                .signWith(key, SignatureAlgorithm.HS512)
                 .compact();
         return AccessTokenResponse.of(compact, validity.toInstant().toEpochMilli());
     }
@@ -97,13 +97,13 @@ public class JwtTokenProvider implements TokenProvider {
     @Override
     public RefreshTokenResponse generateRefreshToken(Long id, Role role) {
         String opaqueToken = generateOpaqueToken();
-        Instant expire = Instant.now().plus(REFRESH_TOKEN_VALIDATE_DAY);
+        Instant expire = Instant.now().plus(refreshTokenValidateDay);
 
         return RefreshTokenResponse.of(opaqueToken, String.valueOf(id), expire);
     }
 
     private String generateOpaqueToken() {
-        byte[] randomBytes = new byte[REFRESH_TOKEN_LENGTH];
+        byte[] randomBytes = new byte[refreshTokenLength];
         secureRandom.nextBytes(randomBytes);
 
         // Base64 URL-safe 인코더를 사용하여 문자열로 변환 (패딩 제거)

@@ -28,15 +28,15 @@ public class GoogleOAuthAdapter implements OAuthClientPort {
 
     private final GoogleProperties googleProperties;
 
-    private final String OAUTH_URL;
-    private final String API_URL;
+    private final String oauthUrl;
+    private final String apiUrl;
 
 
     private final WebClient webClient;
 
     public GoogleOAuthAdapter(GoogleProperties googleProperties, WebClient.Builder webClientBuilder) {
-        this.OAUTH_URL = googleProperties.auth().oauthApi();
-        this.API_URL = googleProperties.auth().api();
+        this.oauthUrl = googleProperties.auth().oauthApi();
+        this.apiUrl = googleProperties.auth().api();
         this.googleProperties = googleProperties;
         this.webClient = webClientBuilder
                 .build();
@@ -70,7 +70,7 @@ public class GoogleOAuthAdapter implements OAuthClientPort {
         // prompt=consent
 
         return webClient.post()
-                .uri(OAUTH_URL + "/token")
+                .uri(oauthUrl + "/token")
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .body(BodyInserters.fromFormData(formData))
                 .retrieve()
@@ -81,7 +81,7 @@ public class GoogleOAuthAdapter implements OAuthClientPort {
 
     private Mono<GoogleUserInfoResponse> fetchUserInfo(String accessToken) {
         return webClient.get()
-                .uri(API_URL + "/oauth2/v3/userinfo")
+                .uri(apiUrl + "/oauth2/v3/userinfo")
                 .header("Authorization", "Bearer " + accessToken)
                 .retrieve()
                 .bodyToMono(GoogleUserInfoResponse.class);
@@ -94,7 +94,7 @@ public class GoogleOAuthAdapter implements OAuthClientPort {
         }
 
         return webClient.post()
-                .uri(URI.create(API_URL + "/revoke"))
+                .uri(URI.create(apiUrl + "/revoke"))
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .body(BodyInserters.fromFormData("token", oauthRefreshToken)) // 리프레시 토큰 전송
                 .retrieve()
@@ -116,7 +116,7 @@ public class GoogleOAuthAdapter implements OAuthClientPort {
         formData.add("refresh_token", refreshToken);
 
         return webClient.post()
-                .uri(OAUTH_URL + "/token")
+                .uri(oauthUrl + "/token")
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .body(BodyInserters.fromFormData(formData))
                 .retrieve()

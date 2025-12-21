@@ -19,8 +19,8 @@ public class AesEncryptor {
     private final SecretKeySpec keySpec;
     private final String ALGORITHM;
     private final SecureRandom secureRandom;
-    private final int TAG_LENGTH_BIT;
-    private final int IV_LEVEL_BYTE;
+    private final int tagLengthBit;
+    private final int ivLevelByte;
 
     public AesEncryptor(SecureRandom secureRandom, EncryptionProperties encryptionProperties) {
         this.secureRandom = secureRandom;
@@ -28,18 +28,18 @@ public class AesEncryptor {
                 encryptionProperties.secretKey().getBytes(StandardCharsets.UTF_8), encryptionProperties.keyAlgorithm()
         );
         this.ALGORITHM = encryptionProperties.algorithm();
-        this.TAG_LENGTH_BIT = encryptionProperties.tagLengthBit();
-        this.IV_LEVEL_BYTE = encryptionProperties.ivLengthByte();
+        this.tagLengthBit = encryptionProperties.tagLengthBit();
+        this.ivLevelByte = encryptionProperties.ivLengthByte();
     }
 
     public String encrypt(String plainText) {
         if (plainText == null) return null;
         try {
-            byte[] iv = new byte[IV_LEVEL_BYTE];
+            byte[] iv = new byte[ivLevelByte];
             this.secureRandom.nextBytes(iv);
 
             Cipher cipher = Cipher.getInstance(ALGORITHM);
-            GCMParameterSpec spec = new GCMParameterSpec(TAG_LENGTH_BIT, iv);
+            GCMParameterSpec spec = new GCMParameterSpec(tagLengthBit, iv);
             cipher.init(Cipher.ENCRYPT_MODE, keySpec, spec);
 
             byte[] cipherText = cipher.doFinal(plainText.getBytes(StandardCharsets.UTF_8));
@@ -60,13 +60,13 @@ public class AesEncryptor {
             byte[] combined = Base64.getDecoder().decode(cipherText);
             ByteBuffer buffer = ByteBuffer.wrap(combined);
 
-            byte[] iv = new byte[IV_LEVEL_BYTE];
+            byte[] iv = new byte[ivLevelByte];
             buffer.get(iv);
             byte[] cipherBytes = new byte[buffer.remaining()];
             buffer.get(cipherBytes);
 
             Cipher cipher = Cipher.getInstance(ALGORITHM);
-            GCMParameterSpec spec = new GCMParameterSpec(TAG_LENGTH_BIT, iv);
+            GCMParameterSpec spec = new GCMParameterSpec(tagLengthBit, iv);
             cipher.init(Cipher.DECRYPT_MODE, keySpec, spec);
 
             return new String(cipher.doFinal(cipherBytes), StandardCharsets.UTF_8);

@@ -39,7 +39,7 @@ public class AuthController {
     private final LogoutUseCase logoutUseCase;
     private final ReissueUseCase reissueUseCase;
     private final TokenExtractionUtils tokenExtractionUtils;
-    private final String REFRESH_TOKEN_COOKIE;
+    private final String refreshTokenCookie;
 
     public AuthController(
             LoginUseCase loginUseCase,
@@ -54,7 +54,7 @@ public class AuthController {
         this.logoutUseCase = logoutUseCase;
         this.reissueUseCase = reissueUseCase;
         this.tokenExtractionUtils = tokenExtractionUtils;
-        this.REFRESH_TOKEN_COOKIE = jwtProperties.refreshToken().cookie();
+        this.refreshTokenCookie = jwtProperties.refreshToken().cookie();
     }
 
 
@@ -167,7 +167,7 @@ public class AuthController {
     }
 
     private void addCookieToResponse(HttpServletResponse response, String token, long maxAgeSeconds) {
-        ResponseCookie cookie = ResponseCookie.from(REFRESH_TOKEN_COOKIE, token)
+        ResponseCookie cookie = ResponseCookie.from(refreshTokenCookie, token)
                 .httpOnly(true)
                 .secure(true)
                 .path("/")

@@ -23,14 +23,14 @@ import java.util.List;
 @Component
 public class JwtTokenResolver implements TokenResolver {
     private final JwtParser parser;
-    private final String ROLES;
-    private final int REFRESH_TOKEN_LENGTH;
+    private final String roles;
+    private final int refreshTokenLength;
 
     public JwtTokenResolver(JwtKeyManager jwtKeyManager, JwtProperties jwtProperties) {
         // JwtKeyManager로부터 서명 키가 설정된 JwtParser를 주입받아 공유합니다.
         this.parser = jwtKeyManager.getParser();
-        this.ROLES = jwtProperties.authorityKey();
-        this.REFRESH_TOKEN_LENGTH = jwtProperties.refreshToken().byteLength();
+        this.roles = jwtProperties.authorityKey();
+        this.refreshTokenLength = jwtProperties.refreshToken().byteLength();
     }
 
     @Override
@@ -62,7 +62,7 @@ public class JwtTokenResolver implements TokenResolver {
 
     @Override
     public boolean validateRefreshToken(String refreshToken) {
-            return StringUtils.hasText(refreshToken) && refreshToken.length() == REFRESH_TOKEN_LENGTH;
+            return StringUtils.hasText(refreshToken) && refreshToken.length() == refreshTokenLength;
     }
 
     /**
@@ -103,7 +103,7 @@ public class JwtTokenResolver implements TokenResolver {
         Claims claims = getClaims(token);
 
         // JwtProperties에 정의된 authorityKey(예: "auth")로 값을 가져옴
-        String roleStr = claims.get(ROLES, String.class);
+        String roleStr = claims.get(roles, String.class);
 
         // 문자열을 Role Enum으로 변환 (예: "USER" -> Role.USER)
         return Role.valueOf(roleStr);
