@@ -1,8 +1,8 @@
 package com.serverbe.adapter.in.web.filter;
 
 
-import com.serverbe.application.port.in.security.TokenResolver;
-import com.serverbe.application.port.out.TokenPersistencePort;
+import com.serverbe.application.port.out.security.TokenResolver;
+import com.serverbe.application.port.out.token.TokenPersistencePort;
 import com.serverbe.infrastructure.error.BusinessException;
 import com.serverbe.infrastructure.error.ErrorMessage;
 import com.serverbe.infrastructure.util.TokenExtractionUtils;

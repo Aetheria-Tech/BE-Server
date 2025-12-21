@@ -1,9 +1,9 @@
 package com.serverbe.application.service;
 
-import com.serverbe.application.port.in.dto.me.UserProfileResponse;
-import com.serverbe.application.port.in.dto.me.UserUpdateCommand;
+import com.serverbe.application.port.out.dto.me.UserProfileResponse;
+import com.serverbe.application.port.out.dto.me.UserUpdateCommand;
 import com.serverbe.application.port.in.me.UserUseCase;
-import com.serverbe.application.port.out.UserRepositoryPort;
+import com.serverbe.application.port.out.jpa.UserRepositoryPort;
 import com.serverbe.domain.model.User;
 import com.serverbe.infrastructure.error.BusinessException;
 import com.serverbe.infrastructure.error.ErrorMessage;

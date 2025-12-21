@@ -3,9 +3,9 @@ package com.serverbe.adapter.out.external.kakao;
 
 import com.serverbe.adapter.out.external.kakao.dto.KakaoTokenResponse;
 import com.serverbe.adapter.out.external.kakao.dto.KakaoUserInfoResponse;
-import com.serverbe.application.port.in.dto.oauth.OAuthUserInfo;
-import com.serverbe.application.port.in.dto.oauth.SocialTokenRefreshResponse;
-import com.serverbe.application.port.in.oauth.OAuthClientPort;
+import com.serverbe.application.port.out.dto.oauth.OAuthUserInfo;
+import com.serverbe.application.port.out.dto.oauth.SocialTokenRefreshResponse;
+import com.serverbe.application.port.out.oauth.OAuthClientPort;
 import com.serverbe.domain.model.vo.OAuthProvider;
 import com.serverbe.infrastructure.config.properties.KakaoProperties;
 import com.serverbe.infrastructure.error.BusinessException;
@@ -23,7 +23,7 @@ import reactor.core.publisher.Mono;
 
 @Slf4j
 @Component
-public class KakaoAdapter implements OAuthClientPort {
+public class KakaoOAuthAdapter implements OAuthClientPort {
 
     private final WebClient webClient;
     private final String KAUTH_URL;
@@ -32,7 +32,7 @@ public class KakaoAdapter implements OAuthClientPort {
     private final String ADMIN_KEY;
     private final String REDIRECT_URI;
 
-    public KakaoAdapter(KakaoProperties kakaoProperties, WebClient.Builder webClientBuilder) {
+    public KakaoOAuthAdapter(KakaoProperties kakaoProperties, WebClient.Builder webClientBuilder) {
         this.KAUTH_URL = kakaoProperties.auth().kauth();
         this.KAPI_URL = kakaoProperties.auth().kapi();
         this.CLIENT_ID = kakaoProperties.clientId();

@@ -1,13 +1,13 @@
 package com.serverbe.application.service;
 
-import com.serverbe.application.port.in.dto.oauth.AccessTokenResponse;
-import com.serverbe.application.port.in.dto.oauth.RefreshTokenResponse;
-import com.serverbe.application.port.in.dto.oauth.TokenResponse;
-import com.serverbe.application.port.in.oauth.OAuthClientPort;
-import com.serverbe.application.port.in.oauth.SocialLoginUseCase;
-import com.serverbe.application.port.in.security.TokenProvider;
-import com.serverbe.application.port.out.TokenPersistencePort;
-import com.serverbe.application.port.out.UserRepositoryPort;
+import com.serverbe.application.port.out.dto.oauth.AccessTokenResponse;
+import com.serverbe.application.port.out.dto.oauth.RefreshTokenResponse;
+import com.serverbe.application.port.out.dto.oauth.TokenResponse;
+import com.serverbe.application.port.out.oauth.OAuthClientPort;
+import com.serverbe.application.port.in.oauth.LoginUseCase;
+import com.serverbe.application.port.out.security.TokenProvider;
+import com.serverbe.application.port.out.token.TokenPersistencePort;
+import com.serverbe.application.port.out.jpa.UserRepositoryPort;
 import com.serverbe.domain.model.User;
 import com.serverbe.domain.model.vo.OAuthProvider;
 import com.serverbe.infrastructure.config.properties.JwtProperties;
@@ -25,7 +25,7 @@ import java.util.List;
 @Slf4j
 @Service
 @Transactional
-public class SocialLoginService implements SocialLoginUseCase {
+public class LoginService implements LoginUseCase {
 
     private final List<OAuthClientPort> oAuthClients;
     private final UserRepositoryPort userRepositoryPort;
@@ -33,7 +33,7 @@ public class SocialLoginService implements SocialLoginUseCase {
     private final TokenProvider tokenProvider;
     private final Duration REFRESH_TOKEN_EXPIRATION_DAYS;
 
-    public SocialLoginService(
+    public LoginService(
             List<OAuthClientPort> oAuthClients,
             UserRepositoryPort userRepositoryPort,
             TokenPersistencePort tokenPersistencePort,

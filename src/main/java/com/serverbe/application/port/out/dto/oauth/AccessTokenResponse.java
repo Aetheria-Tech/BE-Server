@@ -1,4 +1,4 @@
-package com.serverbe.application.port.in.dto.oauth;
+package com.serverbe.application.port.out.dto.oauth;
 
 public record AccessTokenResponse(
         String accessToken,

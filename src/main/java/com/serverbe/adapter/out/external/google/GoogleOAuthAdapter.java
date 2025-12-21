@@ -2,9 +2,9 @@ package com.serverbe.adapter.out.external.google;
 
 import com.serverbe.adapter.out.external.google.dto.GoogleTokenResponse;
 import com.serverbe.adapter.out.external.google.dto.GoogleUserInfoResponse;
-import com.serverbe.application.port.in.dto.oauth.OAuthUserInfo;
-import com.serverbe.application.port.in.dto.oauth.SocialTokenRefreshResponse;
-import com.serverbe.application.port.in.oauth.OAuthClientPort;
+import com.serverbe.application.port.out.dto.oauth.OAuthUserInfo;
+import com.serverbe.application.port.out.dto.oauth.SocialTokenRefreshResponse;
+import com.serverbe.application.port.out.oauth.OAuthClientPort;
 import com.serverbe.domain.model.vo.OAuthProvider;
 import com.serverbe.infrastructure.config.properties.GoogleProperties;
 import com.serverbe.infrastructure.error.BusinessException;
@@ -24,7 +24,7 @@ import java.net.URI;
 
 @Slf4j
 @Component
-public class GoogleAdapter implements OAuthClientPort {
+public class GoogleOAuthAdapter implements OAuthClientPort {
 
     private final GoogleProperties googleProperties;
 
@@ -34,7 +34,7 @@ public class GoogleAdapter implements OAuthClientPort {
 
     private final WebClient webClient;
 
-    public GoogleAdapter(GoogleProperties googleProperties, WebClient.Builder webClientBuilder) {
+    public GoogleOAuthAdapter(GoogleProperties googleProperties, WebClient.Builder webClientBuilder) {
         this.OAUTH_URL = googleProperties.auth().oauthApi();
         this.API_URL = googleProperties.auth().api();
         this.googleProperties = googleProperties;

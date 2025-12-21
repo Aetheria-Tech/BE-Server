@@ -1,6 +1,6 @@
 package com.serverbe.infrastructure.security;
 
-import com.serverbe.application.port.in.security.TokenResolver;
+import com.serverbe.application.port.out.security.TokenResolver;
 import com.serverbe.domain.model.vo.Role;
 import com.serverbe.infrastructure.config.properties.JwtProperties;
 import com.serverbe.infrastructure.error.BusinessException;
@@ -13,7 +13,6 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
-import javax.crypto.SecretKey;
 import java.time.Instant;
 import java.util.List;
 

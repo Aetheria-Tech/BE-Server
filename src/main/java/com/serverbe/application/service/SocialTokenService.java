@@ -1,7 +1,7 @@
 package com.serverbe.application.service;
 
-import com.serverbe.application.port.in.oauth.OAuthClientPort;
-import com.serverbe.application.port.out.UserRepositoryPort;
+import com.serverbe.application.port.out.oauth.OAuthClientPort;
+import com.serverbe.application.port.out.jpa.UserRepositoryPort;
 import com.serverbe.domain.model.User;
 import com.serverbe.domain.model.vo.OAuthProvider;
 import com.serverbe.infrastructure.error.BusinessException;

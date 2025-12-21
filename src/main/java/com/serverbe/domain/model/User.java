@@ -1,6 +1,6 @@
 package com.serverbe.domain.model;
 
-import com.serverbe.application.port.in.dto.oauth.OAuthUserInfo;
+import com.serverbe.application.port.out.dto.oauth.OAuthUserInfo;
 import com.serverbe.domain.model.vo.OAuthProvider;
 import com.serverbe.domain.model.vo.Role;
 
