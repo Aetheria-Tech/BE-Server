@@ -1,4 +1,4 @@
-package com.serverbe.adapter.out.persistence;
+package com.serverbe.adapter.out.persistence.token;
 
 import com.serverbe.application.port.in.redis.TokenPersistenceUseCase;
 import com.serverbe.infrastructure.config.properties.RedisProperties;
