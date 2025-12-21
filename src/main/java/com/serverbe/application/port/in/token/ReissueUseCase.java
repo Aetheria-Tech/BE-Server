@@ -1,4 +1,4 @@
-package com.serverbe.application.port.out.security;
+package com.serverbe.application.port.in.token;
 
 import com.serverbe.application.port.out.dto.oauth.TokenResponse;
 

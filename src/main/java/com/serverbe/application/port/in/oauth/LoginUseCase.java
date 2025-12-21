@@ -1,11 +1,11 @@
-package com.serverbe.application.port.out.oauth;
+package com.serverbe.application.port.in.oauth;
 
 
 import com.serverbe.application.port.out.dto.oauth.TokenResponse;
 import com.serverbe.domain.model.vo.OAuthProvider;
 import reactor.core.publisher.Mono;
 
-public interface SocialLoginUseCase {
+public interface LoginUseCase {
     /**
      * @param code OAuth 제공자로부터 받은 인가 코드
      * @param provider KAKAO, GOOGLE 등

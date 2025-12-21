@@ -1,4 +1,4 @@
-package com.serverbe.application.port.out.oauth;
+package com.serverbe.application.port.in.oauth;
 
 import reactor.core.publisher.Mono;
 

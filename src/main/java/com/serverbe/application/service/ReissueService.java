@@ -3,7 +3,7 @@ package com.serverbe.application.service;
 import com.serverbe.application.port.out.dto.oauth.AccessTokenResponse;
 import com.serverbe.application.port.out.dto.oauth.RefreshTokenResponse;
 import com.serverbe.application.port.out.dto.oauth.TokenResponse;
-import com.serverbe.application.port.out.security.ReissueUseCase;
+import com.serverbe.application.port.in.token.ReissueUseCase;
 import com.serverbe.application.port.out.security.TokenProvider;
 import com.serverbe.application.port.out.security.TokenResolver;
 import com.serverbe.application.port.in.redis.TokenPersistenceUseCase;

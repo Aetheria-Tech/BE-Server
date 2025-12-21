@@ -1,7 +1,7 @@
 package com.serverbe.application.service;
 
 
-import com.serverbe.application.port.out.oauth.LogoutUseCase;
+import com.serverbe.application.port.in.oauth.LogoutUseCase;
 import com.serverbe.application.port.out.security.TokenResolver;
 import com.serverbe.application.port.in.redis.TokenPersistenceUseCase;
 import lombok.RequiredArgsConstructor;
