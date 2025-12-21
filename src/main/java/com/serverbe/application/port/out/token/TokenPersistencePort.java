@@ -1,4 +1,4 @@
-package com.serverbe.application.port.out.redis;
+package com.serverbe.application.port.out.token;
 
 import java.time.Duration;
 

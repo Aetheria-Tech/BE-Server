@@ -2,7 +2,7 @@ package com.serverbe.application.service;
 
 import com.serverbe.application.port.out.oauth.OAuthClientPort;
 import com.serverbe.application.port.in.oauth.WithdrawUseCase;
-import com.serverbe.application.port.out.redis.TokenPersistencePort;
+import com.serverbe.application.port.out.token.TokenPersistencePort;
 import com.serverbe.application.port.out.jpa.UserRepositoryPort;
 import com.serverbe.domain.model.vo.OAuthProvider;
 import com.serverbe.infrastructure.error.BusinessException;

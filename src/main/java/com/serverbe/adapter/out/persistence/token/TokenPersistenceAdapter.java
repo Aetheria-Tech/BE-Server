@@ -1,6 +1,6 @@
 package com.serverbe.adapter.out.persistence.token;
 
-import com.serverbe.application.port.out.redis.TokenPersistencePort;
+import com.serverbe.application.port.out.token.TokenPersistencePort;
 import com.serverbe.infrastructure.config.properties.RedisProperties;
 
 import org.springframework.data.redis.core.RedisTemplate;

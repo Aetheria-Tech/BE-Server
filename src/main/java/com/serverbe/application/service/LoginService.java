@@ -6,7 +6,7 @@ import com.serverbe.application.port.out.dto.oauth.TokenResponse;
 import com.serverbe.application.port.out.oauth.OAuthClientPort;
 import com.serverbe.application.port.in.oauth.LoginUseCase;
 import com.serverbe.application.port.out.security.TokenProvider;
-import com.serverbe.application.port.out.redis.TokenPersistencePort;
+import com.serverbe.application.port.out.token.TokenPersistencePort;
 import com.serverbe.application.port.out.jpa.UserRepositoryPort;
 import com.serverbe.domain.model.User;
 import com.serverbe.domain.model.vo.OAuthProvider;
