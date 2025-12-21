@@ -1,7 +1,7 @@
 package com.serverbe.application.service;
 
-import com.serverbe.application.port.in.dto.UserProfileResponse;
-import com.serverbe.application.port.in.dto.UserUpdateCommand;
+import com.serverbe.application.port.in.dto.me.UserProfileResponse;
+import com.serverbe.application.port.in.dto.me.UserUpdateCommand;
 import com.serverbe.application.port.in.me.UserUseCase;
 import com.serverbe.application.port.out.UserRepositoryPort;
 import com.serverbe.domain.model.User;

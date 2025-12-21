@@ -3,8 +3,8 @@ package com.serverbe.adapter.out.external.kakao;
 
 import com.serverbe.adapter.out.external.kakao.dto.KakaoTokenResponse;
 import com.serverbe.adapter.out.external.kakao.dto.KakaoUserInfoResponse;
-import com.serverbe.application.port.in.dto.OAuthUserInfo;
-import com.serverbe.application.port.in.dto.SocialTokenRefreshResponse;
+import com.serverbe.application.port.in.dto.oauth.OAuthUserInfo;
+import com.serverbe.application.port.in.dto.oauth.SocialTokenRefreshResponse;
 import com.serverbe.application.port.in.oauth.OAuthClientPort;
 import com.serverbe.domain.model.vo.OAuthProvider;
 import com.serverbe.infrastructure.config.properties.KakaoProperties;
@@ -35,7 +35,7 @@ public class KakaoAdapter implements OAuthClientPort {
     public KakaoAdapter(KakaoProperties kakaoProperties, WebClient.Builder webClientBuilder) {
         this.KAUTH_URL = kakaoProperties.auth().kauth();
         this.KAPI_URL = kakaoProperties.auth().kapi();
-        this.CLIENT_ID = kakaoProperties.auth().clientId();
+        this.CLIENT_ID = kakaoProperties.clientId();
         this.ADMIN_KEY = kakaoProperties.adminKey();
         this.REDIRECT_URI = kakaoProperties.auth().redirectUri();
 

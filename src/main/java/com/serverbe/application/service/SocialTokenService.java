@@ -1,6 +1,5 @@
 package com.serverbe.application.service;
 
-import com.serverbe.application.port.in.dto.SocialTokenRefreshResponse;
 import com.serverbe.application.port.in.oauth.OAuthClientPort;
 import com.serverbe.application.port.out.UserRepositoryPort;
 import com.serverbe.domain.model.User;

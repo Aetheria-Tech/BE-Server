@@ -1,4 +1,4 @@
-package com.serverbe.application.port.in.dto;
+package com.serverbe.application.port.in.dto.oauth;
 
 public record SocialTokenRefreshResponse(
     String accessToken,

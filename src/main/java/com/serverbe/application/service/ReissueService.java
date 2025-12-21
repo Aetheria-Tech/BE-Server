@@ -1,8 +1,8 @@
 package com.serverbe.application.service;
 
-import com.serverbe.application.port.in.dto.AccessTokenResponse;
-import com.serverbe.application.port.in.dto.RefreshTokenResponse;
-import com.serverbe.application.port.in.dto.TokenResponse;
+import com.serverbe.application.port.in.dto.oauth.AccessTokenResponse;
+import com.serverbe.application.port.in.dto.oauth.RefreshTokenResponse;
+import com.serverbe.application.port.in.dto.oauth.TokenResponse;
 import com.serverbe.application.port.in.security.ReissueUseCase;
 import com.serverbe.application.port.in.security.TokenProvider;
 import com.serverbe.application.port.in.security.TokenResolver;

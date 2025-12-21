@@ -35,6 +35,11 @@ public enum ErrorMessage {
     // GOOGLE /API
     FAILED_GOOGLE_API(HttpStatus.BAD_GATEWAY, "GOOGLE_001", "구글 API 호출에 실패했습니다."),
 
+    // GEOCODING
+    FAILED_GEOCODING_API(HttpStatus.BAD_GATEWAY, "GEOCODE_001","지오코딩 API 호출에 실패했습니다."),
+    INVALID_ADDRESS(HttpStatus.BAD_REQUEST, "GEOCODE_002","주소가 올바르지 않습니다"),
+
+
     // RUNNER
     DUPLICATE_KAKAO_ID(HttpStatus.BAD_REQUEST, "RUNNER_001", "이미 존재하는 카카오 ID입니다."),
     NOT_FOUND_RUNNER(HttpStatus.NOT_FOUND, "RUNNER_002", "사용자를 찾을 수 없습니다."),
