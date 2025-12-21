@@ -24,7 +24,7 @@ import java.net.URI;
 
 @Slf4j
 @Component
-public class GoogleAdapter implements OAuthClientPort {
+public class GoogleOAuthAdapter implements OAuthClientPort {
 
     private final GoogleProperties googleProperties;
 
@@ -34,7 +34,7 @@ public class GoogleAdapter implements OAuthClientPort {
 
     private final WebClient webClient;
 
-    public GoogleAdapter(GoogleProperties googleProperties, WebClient.Builder webClientBuilder) {
+    public GoogleOAuthAdapter(GoogleProperties googleProperties, WebClient.Builder webClientBuilder) {
         this.OAUTH_URL = googleProperties.auth().oauthApi();
         this.API_URL = googleProperties.auth().api();
         this.googleProperties = googleProperties;

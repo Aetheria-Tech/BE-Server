@@ -23,7 +23,7 @@ import reactor.core.publisher.Mono;
 
 @Slf4j
 @Component
-public class KakaoAdapter implements OAuthClientPort {
+public class KakaoOAuthAdapter implements OAuthClientPort {
 
     private final WebClient webClient;
     private final String KAUTH_URL;
@@ -32,7 +32,7 @@ public class KakaoAdapter implements OAuthClientPort {
     private final String ADMIN_KEY;
     private final String REDIRECT_URI;
 
-    public KakaoAdapter(KakaoProperties kakaoProperties, WebClient.Builder webClientBuilder) {
+    public KakaoOAuthAdapter(KakaoProperties kakaoProperties, WebClient.Builder webClientBuilder) {
         this.KAUTH_URL = kakaoProperties.auth().kauth();
         this.KAPI_URL = kakaoProperties.auth().kapi();
         this.CLIENT_ID = kakaoProperties.clientId();
