@@ -2,7 +2,7 @@ package com.serverbe.adapter.out.external.kakao;
 
 import com.serverbe.adapter.out.external.kakao.dto.KakaoGeocodeResponse;
 import com.serverbe.application.port.out.dto.geocoding.GeocodeResponse;
-import com.serverbe.application.port.out.geocoding.AddressPort;
+import com.serverbe.application.port.out.geocode.GeocodePort;
 import com.serverbe.infrastructure.config.properties.KakaoProperties;
 import com.serverbe.infrastructure.error.BusinessException;
 import com.serverbe.infrastructure.error.ErrorMessage;
@@ -17,13 +17,13 @@ import reactor.core.publisher.Mono;
  */
 @Slf4j
 @Component
-public class KakaoAddressAdapter implements AddressPort {
+public class KakaoGeocodeAdapter implements GeocodePort {
 
     private final WebClient webClient;
     private final String CLIENT_ID;
     private final String GEOCODE_API_URL;
 
-    public KakaoAddressAdapter(
+    public KakaoGeocodeAdapter(
             WebClient.Builder builder,
             KakaoProperties kakaoProperties
     ) {
