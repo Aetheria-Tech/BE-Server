@@ -81,7 +81,7 @@ public class KakaoGeocodeAdapter implements GeocodePort {
     private double parseCoordinate(String value, String fieldName) {
         try {
             return Double.parseDouble(value);
-        } catch (Exception e) {
+        } catch (NumberFormatException | NullPointerException e) {
             throw new BusinessException(ErrorMessage.EXTERNAL_API_SERVER_ERROR, fieldName + " 파싱 실패: " + value);
         }
     }

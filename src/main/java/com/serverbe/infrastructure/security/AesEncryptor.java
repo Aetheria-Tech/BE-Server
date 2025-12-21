@@ -17,7 +17,7 @@ import java.util.Base64;
 public class AesEncryptor {
 
     private final SecretKeySpec keySpec;
-    private final String ALGORITHM;
+    private final String algorithm;
     private final SecureRandom secureRandom;
     private final int tagLengthBit;
     private final int ivLevelByte;
@@ -27,7 +27,7 @@ public class AesEncryptor {
         this.keySpec = new SecretKeySpec(
                 encryptionProperties.secretKey().getBytes(StandardCharsets.UTF_8), encryptionProperties.keyAlgorithm()
         );
-        this.ALGORITHM = encryptionProperties.algorithm();
+        this.algorithm = encryptionProperties.algorithm();
         this.tagLengthBit = encryptionProperties.tagLengthBit();
         this.ivLevelByte = encryptionProperties.ivLengthByte();
     }
@@ -38,7 +38,7 @@ public class AesEncryptor {
             byte[] iv = new byte[ivLevelByte];
             this.secureRandom.nextBytes(iv);
 
-            Cipher cipher = Cipher.getInstance(ALGORITHM);
+            Cipher cipher = Cipher.getInstance(algorithm);
             GCMParameterSpec spec = new GCMParameterSpec(tagLengthBit, iv);
             cipher.init(Cipher.ENCRYPT_MODE, keySpec, spec);
 
@@ -65,7 +65,7 @@ public class AesEncryptor {
             byte[] cipherBytes = new byte[buffer.remaining()];
             buffer.get(cipherBytes);
 
-            Cipher cipher = Cipher.getInstance(ALGORITHM);
+            Cipher cipher = Cipher.getInstance(algorithm);
             GCMParameterSpec spec = new GCMParameterSpec(tagLengthBit, iv);
             cipher.init(Cipher.DECRYPT_MODE, keySpec, spec);
 
