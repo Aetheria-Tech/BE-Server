@@ -1,11 +1,11 @@
 package com.serverbe.adapter.in.web;
 
-import com.serverbe.application.port.in.dto.AccessTokenResponse;
-import com.serverbe.application.port.in.dto.TokenResponse;
+import com.serverbe.application.port.out.dto.oauth.AccessTokenResponse;
+import com.serverbe.application.port.out.dto.oauth.TokenResponse;
 import com.serverbe.application.port.in.oauth.LogoutUseCase;
-import com.serverbe.application.port.in.oauth.SocialLoginUseCase;
+import com.serverbe.application.port.in.oauth.LoginUseCase;
 import com.serverbe.application.port.in.oauth.WithdrawUseCase;
-import com.serverbe.application.port.in.security.ReissueUseCase;
+import com.serverbe.application.port.in.token.ReissueUseCase;
 import com.serverbe.domain.model.vo.OAuthProvider;
 import com.serverbe.infrastructure.common.ApiResponse;
 import com.serverbe.infrastructure.config.properties.JwtProperties;
@@ -34,27 +34,27 @@ import java.io.IOException;
 @RequestMapping("/api/v1/auth")
 public class AuthController {
 
-    private final SocialLoginUseCase socialLoginUseCase;
+    private final LoginUseCase loginUseCase;
     private final WithdrawUseCase withdrawUseCase;
     private final LogoutUseCase logoutUseCase;
     private final ReissueUseCase reissueUseCase;
     private final TokenExtractionUtils tokenExtractionUtils;
-    private final String REFRESH_TOKEN_COOKIE;
+    private final String refreshTokenCookie;
 
     public AuthController(
-            SocialLoginUseCase socialLoginUseCase,
+            LoginUseCase loginUseCase,
             WithdrawUseCase withdrawUseCase,
             LogoutUseCase logoutUseCase,
             ReissueUseCase reissueUseCase,
             TokenExtractionUtils tokenExtractionUtils,
             JwtProperties jwtProperties
     ) {
-        this.socialLoginUseCase = socialLoginUseCase;
+        this.loginUseCase = loginUseCase;
         this.withdrawUseCase = withdrawUseCase;
         this.logoutUseCase = logoutUseCase;
         this.reissueUseCase = reissueUseCase;
         this.tokenExtractionUtils = tokenExtractionUtils;
-        this.REFRESH_TOKEN_COOKIE = jwtProperties.refreshToken().cookie();
+        this.refreshTokenCookie = jwtProperties.refreshToken().cookie();
     }
 
 
@@ -69,7 +69,7 @@ public class AuthController {
             @PathVariable(value = "provider") OAuthProvider provider,
             HttpServletResponse response
     ) {
-        return Mono.fromCallable(() -> socialLoginUseCase.getSocialLoginUrl(provider))
+        return Mono.fromCallable(() -> loginUseCase.getSocialLoginUrl(provider))
                 .subscribeOn(Schedulers.boundedElastic())
                 .flatMap(redirectUrl -> {
                     try {
@@ -97,7 +97,7 @@ public class AuthController {
         // 1. 인가 코드로 소셜 서버와 통신하여 유저 정보 획득
         // 2. 신규 유저면 가입, 기존 유저면 정보 업데이트(Upsert)
         // 3. 우리 서비스 전용 액세스/리프레시 토큰 발급 및 리프레시 토큰 Redis 저장
-        return socialLoginUseCase.login(code, provider)
+        return loginUseCase.login(code, provider)
                 .map(tokenResponse -> {
                     addCookieToResponse(response, tokenResponse.refreshTokenResponse().opaqueToken(), 60 * 24 * 60 * 60);
                     return ApiResponse.success(tokenResponse.accessTokenResponse());
@@ -167,7 +167,7 @@ public class AuthController {
     }
 
     private void addCookieToResponse(HttpServletResponse response, String token, long maxAgeSeconds) {
-        ResponseCookie cookie = ResponseCookie.from(REFRESH_TOKEN_COOKIE, token)
+        ResponseCookie cookie = ResponseCookie.from(refreshTokenCookie, token)
                 .httpOnly(true)
                 .secure(true)
                 .path("/")

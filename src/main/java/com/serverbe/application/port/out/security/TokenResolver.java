@@ -1,4 +1,4 @@
-package com.serverbe.application.port.in.security;
+package com.serverbe.application.port.out.security;
 
 import com.serverbe.domain.model.vo.Role;
 import org.springframework.security.core.Authentication;

@@ -27,6 +27,7 @@ public enum ErrorMessage {
 
     // EXTERNAL API
     WITHDRAWAL_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "EXTERNAL_001","회원 탈퇴 서버에서 회원 탈퇴를 실패했습니다."),
+    EXTERNAL_API_SERVER_ERROR(HttpStatus.BAD_GATEWAY, "EXTERNAL_002","외부 API 응답이 잘못되었습니다."),
 
     // KAKAO / API
     NOT_FOUND_KAKAO_TOKEN(HttpStatus.NOT_FOUND, "KAKAO_001", "카카오 토큰을 찾을 수 없습니다."),
@@ -34,6 +35,11 @@ public enum ErrorMessage {
 
     // GOOGLE /API
     FAILED_GOOGLE_API(HttpStatus.BAD_GATEWAY, "GOOGLE_001", "구글 API 호출에 실패했습니다."),
+
+    // GEOCODING
+    FAILED_GEOCODING_API(HttpStatus.BAD_GATEWAY, "GEOCODE_001","지오코딩 API 호출에 실패했습니다."),
+    INVALID_ADDRESS(HttpStatus.BAD_REQUEST, "GEOCODE_002","주소가 올바르지 않습니다"),
+
 
     // RUNNER
     DUPLICATE_KAKAO_ID(HttpStatus.BAD_REQUEST, "RUNNER_001", "이미 존재하는 카카오 ID입니다."),

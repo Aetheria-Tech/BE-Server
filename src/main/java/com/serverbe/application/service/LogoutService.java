@@ -2,8 +2,8 @@ package com.serverbe.application.service;
 
 
 import com.serverbe.application.port.in.oauth.LogoutUseCase;
-import com.serverbe.application.port.in.security.TokenResolver;
-import com.serverbe.application.port.out.TokenPersistencePort;
+import com.serverbe.application.port.out.security.TokenResolver;
+import com.serverbe.application.port.out.token.TokenPersistencePort;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 

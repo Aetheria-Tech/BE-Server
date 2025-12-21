@@ -1,4 +1,4 @@
-package com.serverbe.application.port.in.dto;
+package com.serverbe.application.port.out.dto.oauth;
 
 import java.time.Instant;
 

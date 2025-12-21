@@ -2,9 +2,9 @@ package com.serverbe.adapter.out.external.google;
 
 import com.serverbe.adapter.out.external.google.dto.GoogleTokenResponse;
 import com.serverbe.adapter.out.external.google.dto.GoogleUserInfoResponse;
-import com.serverbe.application.port.in.dto.OAuthUserInfo;
-import com.serverbe.application.port.in.dto.SocialTokenRefreshResponse;
-import com.serverbe.application.port.in.oauth.OAuthClientPort;
+import com.serverbe.application.port.out.dto.oauth.OAuthUserInfo;
+import com.serverbe.application.port.out.dto.oauth.SocialTokenRefreshResponse;
+import com.serverbe.application.port.out.oauth.OAuthClientPort;
 import com.serverbe.domain.model.vo.OAuthProvider;
 import com.serverbe.infrastructure.config.properties.GoogleProperties;
 import com.serverbe.infrastructure.error.BusinessException;
@@ -24,19 +24,19 @@ import java.net.URI;
 
 @Slf4j
 @Component
-public class GoogleAdapter implements OAuthClientPort {
+public class GoogleOAuthAdapter implements OAuthClientPort {
 
     private final GoogleProperties googleProperties;
 
-    private final String OAUTH_URL;
-    private final String API_URL;
+    private final String oauthUrl;
+    private final String apiUrl;
 
 
     private final WebClient webClient;
 
-    public GoogleAdapter(GoogleProperties googleProperties, WebClient.Builder webClientBuilder) {
-        this.OAUTH_URL = googleProperties.auth().oauthApi();
-        this.API_URL = googleProperties.auth().api();
+    public GoogleOAuthAdapter(GoogleProperties googleProperties, WebClient.Builder webClientBuilder) {
+        this.oauthUrl = googleProperties.auth().oauthApi();
+        this.apiUrl = googleProperties.auth().api();
         this.googleProperties = googleProperties;
         this.webClient = webClientBuilder
                 .build();
@@ -70,7 +70,7 @@ public class GoogleAdapter implements OAuthClientPort {
         // prompt=consent
 
         return webClient.post()
-                .uri(OAUTH_URL + "/token")
+                .uri(oauthUrl + "/token")
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .body(BodyInserters.fromFormData(formData))
                 .retrieve()
@@ -81,7 +81,7 @@ public class GoogleAdapter implements OAuthClientPort {
 
     private Mono<GoogleUserInfoResponse> fetchUserInfo(String accessToken) {
         return webClient.get()
-                .uri(API_URL + "/oauth2/v3/userinfo")
+                .uri(apiUrl + "/oauth2/v3/userinfo")
                 .header("Authorization", "Bearer " + accessToken)
                 .retrieve()
                 .bodyToMono(GoogleUserInfoResponse.class);
@@ -94,7 +94,7 @@ public class GoogleAdapter implements OAuthClientPort {
         }
 
         return webClient.post()
-                .uri(URI.create(API_URL + "/revoke"))
+                .uri(URI.create(apiUrl + "/revoke"))
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .body(BodyInserters.fromFormData("token", oauthRefreshToken)) // 리프레시 토큰 전송
                 .retrieve()
@@ -116,7 +116,7 @@ public class GoogleAdapter implements OAuthClientPort {
         formData.add("refresh_token", refreshToken);
 
         return webClient.post()
-                .uri(OAUTH_URL + "/token")
+                .uri(oauthUrl + "/token")
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .body(BodyInserters.fromFormData(formData))
                 .retrieve()

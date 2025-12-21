@@ -63,15 +63,17 @@ redis:
 
 kakao:
   admin-key: ${KAKAO_ADMIN_KEY}
+  client-id: ${KAKAO_CLIENT_ID}
   auth:
-    client-id: ${KAKAO_CLIENT_ID}
     redirect-uri: ${KAKAO_REDIRECT_URI}
     kauth: https://kauth.kakao.com
     kapi: https://kapi.kakao.com
     connect-timeout-millis: 5000
     response-timeout-seconds: 5
     time-out-seconds: 5
-  #geocoding:
+  geocoding:
+    dapi: https://dapi.kakao.com
+    geocode-api: /v2/local/search/address.json
 
 google:
   auth:

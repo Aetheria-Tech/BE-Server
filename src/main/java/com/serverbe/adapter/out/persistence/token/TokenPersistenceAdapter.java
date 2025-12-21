@@ -1,6 +1,6 @@
-package com.serverbe.adapter.out.persistence;
+package com.serverbe.adapter.out.persistence.token;
 
-import com.serverbe.application.port.out.TokenPersistencePort;
+import com.serverbe.application.port.out.token.TokenPersistencePort;
 import com.serverbe.infrastructure.config.properties.RedisProperties;
 
 import org.springframework.data.redis.core.RedisTemplate;
@@ -14,20 +14,20 @@ public class TokenPersistenceAdapter implements TokenPersistencePort {
 
     private final RedisTemplate<String, Object> redisTemplate;
     private final int MAX_TOKEN;
-    private final String RT_PREFIX;
-    private final String RT_SUFFIX;
-    private final String BL_PREFIX;
-    private final String BL_SUFFIX;
+    private final String rtPrefix;
+    private final String rtSuffix;
+    private final String blPrefix;
+    private final String blSuffix;
 
     public TokenPersistenceAdapter(
             RedisTemplate<String, Object> redisTemplate,
             RedisProperties redisProperties) {
         this.redisTemplate = redisTemplate;
         this.MAX_TOKEN = redisProperties.auth().maxToken();
-        this.RT_PREFIX = redisProperties.auth().prefix();
-        this.RT_SUFFIX = redisProperties.auth().suffix();
-        this.BL_PREFIX = redisProperties.blacklist().prefix();
-        this.BL_SUFFIX = redisProperties.blacklist().suffix();
+        this.rtPrefix = redisProperties.auth().prefix();
+        this.rtSuffix = redisProperties.auth().suffix();
+        this.blPrefix = redisProperties.blacklist().prefix();
+        this.blSuffix = redisProperties.blacklist().suffix();
     }
 
     @Override
@@ -99,16 +99,16 @@ public class TokenPersistenceAdapter implements TokenPersistencePort {
 
     private String createRefreshTokenKey(Long userId) {
         return String.format("%s:%s:%s",
-                RT_PREFIX,
+                rtPrefix,
                 userId,
-                RT_SUFFIX
+                rtSuffix
         );
     }
 
     private String createBlacklistKey(String accessToken) {
         return String.format("%s:%s:%s",
-                BL_PREFIX,
+                blPrefix,
                 accessToken,
-                BL_SUFFIX);
+                blSuffix);
     }
 }

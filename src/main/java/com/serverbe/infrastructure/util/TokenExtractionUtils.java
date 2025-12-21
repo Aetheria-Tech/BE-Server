@@ -19,12 +19,12 @@ import java.util.Arrays;
 @Slf4j
 @Component
 public class TokenExtractionUtils {
-    private final String BEARER_PREFIX;
-    private final String REFRESH_TOKEN_COOKIE;
+    private final String bearerPrefix;
+    private final String refreshTokenCookie;
 
     public TokenExtractionUtils(JwtProperties jwtProperties) {
-        this.BEARER_PREFIX = jwtProperties.accessToken().prefix();
-        this.REFRESH_TOKEN_COOKIE = jwtProperties.refreshToken().cookie();
+        this.bearerPrefix = jwtProperties.accessToken().prefix();
+        this.refreshTokenCookie = jwtProperties.refreshToken().cookie();
     }
 
     /**
@@ -36,8 +36,8 @@ public class TokenExtractionUtils {
     public String extractAccessToken(HttpServletRequest request) {
         String bearerToken = request.getHeader(HttpHeaders.AUTHORIZATION);
 
-        if (StringUtils.hasText(bearerToken) && bearerToken.startsWith(BEARER_PREFIX)) {
-            return bearerToken.substring(BEARER_PREFIX.length());
+        if (StringUtils.hasText(bearerToken) && bearerToken.startsWith(bearerPrefix)) {
+            return bearerToken.substring(bearerPrefix.length());
         }
 
         return null;
@@ -57,7 +57,7 @@ public class TokenExtractionUtils {
         }
 
         // 설정 파일에서 정의한 쿠키 이름을 동적으로 가져옵니다.
-        String cookieName = REFRESH_TOKEN_COOKIE;
+        String cookieName = refreshTokenCookie;
 
         return Arrays.stream(cookies)
                 .filter(cookie -> cookieName.equals(cookie.getName()))
