@@ -20,8 +20,8 @@ import reactor.core.publisher.Mono;
 public class KakaoGeocodeAdapter implements GeocodePort {
 
     private final WebClient webClient;
-    private final String CLIENT_ID;
-    private final String GEOCODE_API_URL;
+    private final String clientId;
+    private final String geocodeApiUrl;
 
     public KakaoGeocodeAdapter(
             WebClient.Builder builder,
@@ -29,18 +29,18 @@ public class KakaoGeocodeAdapter implements GeocodePort {
     ) {
         // baseUrl은 호스트까지만 설정하는 것이 관례이며, 나머지는 uri()에서 처리합니다.
         this.webClient = builder.baseUrl(kakaoProperties.geocoding().dapi()).build();
-        this.CLIENT_ID = kakaoProperties.clientId();
-        this.GEOCODE_API_URL = kakaoProperties.geocoding().geocodeApi();
+        this.clientId = kakaoProperties.clientId();
+        this.geocodeApiUrl = kakaoProperties.geocoding().geocodeApi();
     }
 
     @Override
     public Mono<GeocodeResponse> geocode(String address) {
         return webClient.get()
                 .uri(uriBuilder -> uriBuilder
-                        .path(GEOCODE_API_URL)
+                        .path(geocodeApiUrl)
                         .queryParam("query", address)
                         .build())
-                .header("Authorization", "KakaoAK " + CLIENT_ID)
+                .header("Authorization", "KakaoAK " + clientId)
                 .retrieve()
                 .onStatus(
                         HttpStatusCode::isError,
@@ -64,16 +64,25 @@ public class KakaoGeocodeAdapter implements GeocodePort {
      */
     private Mono<KakaoGeocodeResponse.Document> extractFirstDocument(KakaoGeocodeResponse response) {
         if (response.documents() == null || response.documents().isEmpty()) {
-            return Mono.error(new BusinessException(ErrorMessage.FAILED_GEOCODING_API));
+            return Mono.error(new BusinessException(ErrorMessage.INVALID_ADDRESS, "해당 주소에 대한 검색 결과가 없습니다."));
         }
         return Mono.just(response.documents().get(0));
     }
 
+
     private GeocodeResponse convertToGeocodeResponse(KakaoGeocodeResponse.Document document) {
         return new GeocodeResponse(
-                Double.parseDouble(document.y()), // 위도
-                Double.parseDouble(document.x()), // 경도
+                parseCoordinate(document.y(), "latitude"),
+                parseCoordinate(document.x(), "longitude"),
                 document.addressName()
         );
+    }
+
+    private double parseCoordinate(String value, String fieldName) {
+        try {
+            return Double.parseDouble(value);
+        } catch (Exception e) {
+            throw new BusinessException(ErrorMessage.EXTERNAL_API_SERVER_ERROR, fieldName + " 파싱 실패: " + value);
+        }
     }
 }

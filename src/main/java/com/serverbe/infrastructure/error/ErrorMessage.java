@@ -27,6 +27,7 @@ public enum ErrorMessage {
 
     // EXTERNAL API
     WITHDRAWAL_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "EXTERNAL_001","회원 탈퇴 서버에서 회원 탈퇴를 실패했습니다."),
+    EXTERNAL_API_SERVER_ERROR(HttpStatus.BAD_GATEWAY, "EXTERNAL_002","외부 API 응답이 잘못되었습니다."),
 
     // KAKAO / API
     NOT_FOUND_KAKAO_TOKEN(HttpStatus.NOT_FOUND, "KAKAO_001", "카카오 토큰을 찾을 수 없습니다."),

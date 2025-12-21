@@ -31,7 +31,7 @@ public class AddressValidator {
         String trimmedAddress = address.trim();
 
         // 2. 최소 길이 체크 (지오코딩을 위한 최소한의 정보, 예: '서울시' 등 3자 이상 권장)
-        if (trimmedAddress.length() < 2) {
+        if (trimmedAddress.length() < 3) {
             throw new BusinessException(ErrorMessage.INVALID_ADDRESS, "주소가 너무 짧습니다. 보다 구체적인 주소를 입력해주세요.");
         }
 
