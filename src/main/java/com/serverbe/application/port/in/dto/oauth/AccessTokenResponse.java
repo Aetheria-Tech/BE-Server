@@ -1,6 +1,4 @@
-package com.serverbe.application.port.in.dto;
-
-import java.time.Instant;
+package com.serverbe.application.port.in.dto.oauth;
 
 public record AccessTokenResponse(
         String accessToken,

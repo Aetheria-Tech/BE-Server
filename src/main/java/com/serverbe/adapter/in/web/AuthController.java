@@ -1,7 +1,7 @@
 package com.serverbe.adapter.in.web;
 
-import com.serverbe.application.port.in.dto.AccessTokenResponse;
-import com.serverbe.application.port.in.dto.TokenResponse;
+import com.serverbe.application.port.in.dto.oauth.AccessTokenResponse;
+import com.serverbe.application.port.in.dto.oauth.TokenResponse;
 import com.serverbe.application.port.in.oauth.LogoutUseCase;
 import com.serverbe.application.port.in.oauth.SocialLoginUseCase;
 import com.serverbe.application.port.in.oauth.WithdrawUseCase;

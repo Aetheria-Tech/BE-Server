@@ -1,7 +1,7 @@
 package com.serverbe.infrastructure.security;
 
-import com.serverbe.application.port.in.dto.AccessTokenResponse;
-import com.serverbe.application.port.in.dto.RefreshTokenResponse;
+import com.serverbe.application.port.in.dto.oauth.AccessTokenResponse;
+import com.serverbe.application.port.in.dto.oauth.RefreshTokenResponse;
 import com.serverbe.application.port.in.security.TokenProvider;
 import com.serverbe.domain.model.vo.Role;
 import com.serverbe.infrastructure.config.properties.JwtProperties;

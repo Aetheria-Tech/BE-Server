@@ -1,8 +1,8 @@
 package com.serverbe.application.port.in.oauth;
 
 
-import com.serverbe.application.port.in.dto.OAuthUserInfo;
-import com.serverbe.application.port.in.dto.SocialTokenRefreshResponse;
+import com.serverbe.application.port.in.dto.oauth.OAuthUserInfo;
+import com.serverbe.application.port.in.dto.oauth.SocialTokenRefreshResponse;
 import com.serverbe.domain.model.vo.OAuthProvider;
 import reactor.core.publisher.Mono;
 
