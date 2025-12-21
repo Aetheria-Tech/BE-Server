@@ -3,7 +3,7 @@ package com.serverbe.application.service;
 
 import com.serverbe.application.port.out.oauth.LogoutUseCase;
 import com.serverbe.application.port.out.security.TokenResolver;
-import com.serverbe.application.port.in.redis.TokenPersistencePort;
+import com.serverbe.application.port.in.redis.TokenPersistenceUseCase;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -14,7 +14,7 @@ import java.time.Instant;
 @RequiredArgsConstructor
 public class LogoutService implements LogoutUseCase {
 
-    private final TokenPersistencePort tokenPersistencePort;
+    private final TokenPersistenceUseCase tokenPersistenceUseCase;
     private final TokenResolver tokenResolver;
 
     @Override
@@ -23,7 +23,7 @@ public class LogoutService implements LogoutUseCase {
         Long userId = tokenResolver.getIdFromToken(accessToken);
 
         // 2. Redis에서 리프레시 토큰 삭제 (더 이상 재발급 불가)
-        tokenPersistencePort.removeSpecificRefreshToken(userId, refreshToken);
+        tokenPersistenceUseCase.removeSpecificRefreshToken(userId, refreshToken);
 
         // 3. 액세스 토큰의 남은 유효 시간 계산
         Instant expiration = tokenResolver.getExpirationFromToken(accessToken);
@@ -31,7 +31,7 @@ public class LogoutService implements LogoutUseCase {
 
         // 4. 액세스 토큰 블랙리스트 등록 (남은 시간 동안만)
         if (!remainingTime.isNegative()) {
-            tokenPersistencePort.blacklistAccessToken(accessToken, remainingTime);
+            tokenPersistenceUseCase.blacklistAccessToken(accessToken, remainingTime);
         }
     }
 
@@ -41,7 +41,7 @@ public class LogoutService implements LogoutUseCase {
         Long userId = tokenResolver.getIdFromToken(accessToken);
 
         // 2. 모든 리프레쉬 토큰 삭제
-        tokenPersistencePort.deleteRefreshToken(userId);
+        tokenPersistenceUseCase.deleteRefreshToken(userId);
 
         // 3. 액세스 토큰의 남은 유효 시간 계산
         Instant expiration = tokenResolver.getExpirationFromToken(accessToken);
@@ -49,7 +49,7 @@ public class LogoutService implements LogoutUseCase {
 
         // 4. 액세스 토큰 블랙리스트 등록 (남은 시간 동안만)
         if (!remainingTime.isNegative()) {
-            tokenPersistencePort.blacklistAccessToken(accessToken, remainingTime);
+            tokenPersistenceUseCase.blacklistAccessToken(accessToken, remainingTime);
         }
     }
 }

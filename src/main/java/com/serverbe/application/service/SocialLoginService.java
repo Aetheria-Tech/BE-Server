@@ -6,7 +6,7 @@ import com.serverbe.application.port.out.dto.oauth.TokenResponse;
 import com.serverbe.application.port.out.oauth.OAuthClientPort;
 import com.serverbe.application.port.out.oauth.SocialLoginUseCase;
 import com.serverbe.application.port.out.security.TokenProvider;
-import com.serverbe.application.port.in.redis.TokenPersistencePort;
+import com.serverbe.application.port.in.redis.TokenPersistenceUseCase;
 import com.serverbe.application.port.out.jpa.UserRepositoryPort;
 import com.serverbe.domain.model.User;
 import com.serverbe.domain.model.vo.OAuthProvider;
@@ -29,20 +29,20 @@ public class SocialLoginService implements SocialLoginUseCase {
 
     private final List<OAuthClientPort> oAuthClients;
     private final UserRepositoryPort userRepositoryPort;
-    private final TokenPersistencePort tokenPersistencePort;
+    private final TokenPersistenceUseCase tokenPersistenceUseCase;
     private final TokenProvider tokenProvider;
     private final Duration REFRESH_TOKEN_EXPIRATION_DAYS;
 
     public SocialLoginService(
             List<OAuthClientPort> oAuthClients,
             UserRepositoryPort userRepositoryPort,
-            TokenPersistencePort tokenPersistencePort,
+            TokenPersistenceUseCase tokenPersistenceUseCase,
             TokenProvider tokenProvider,
             JwtProperties jwtProperties
     ) {
         this.oAuthClients = oAuthClients;
         this.userRepositoryPort = userRepositoryPort;
-        this.tokenPersistencePort = tokenPersistencePort;
+        this.tokenPersistenceUseCase = tokenPersistenceUseCase;
         this.tokenProvider = tokenProvider;
         REFRESH_TOKEN_EXPIRATION_DAYS = jwtProperties.refreshToken().expirationDays();
     }
@@ -64,7 +64,7 @@ public class SocialLoginService implements SocialLoginUseCase {
                     RefreshTokenResponse refreshTokenResponse = tokenProvider.generateRefreshToken(user.id(), user.role());
 
                     // 4. Redis에 리프레시 토큰 저장
-                    tokenPersistencePort.saveRefreshToken(
+                    tokenPersistenceUseCase.saveRefreshToken(
                             user.id(),
                             refreshTokenResponse.opaqueToken(),
                             REFRESH_TOKEN_EXPIRATION_DAYS

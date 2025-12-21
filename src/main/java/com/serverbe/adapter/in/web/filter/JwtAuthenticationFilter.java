@@ -2,7 +2,7 @@ package com.serverbe.adapter.in.web.filter;
 
 
 import com.serverbe.application.port.out.security.TokenResolver;
-import com.serverbe.application.port.in.redis.TokenPersistencePort;
+import com.serverbe.application.port.in.redis.TokenPersistenceUseCase;
 import com.serverbe.infrastructure.error.BusinessException;
 import com.serverbe.infrastructure.error.ErrorMessage;
 import com.serverbe.infrastructure.util.TokenExtractionUtils;
@@ -26,18 +26,18 @@ import org.springframework.web.servlet.HandlerExceptionResolver;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final TokenResolver tokenResolver;
-    private final TokenPersistencePort tokenPersistencePort;
+    private final TokenPersistenceUseCase tokenPersistenceUseCase;
     private final TokenExtractionUtils tokenExtractionUtils;
     private final HandlerExceptionResolver handlerExceptionResolver;
 
     public JwtAuthenticationFilter(
             TokenResolver tokenResolver,
-            TokenPersistencePort tokenPersistencePort,
+            TokenPersistenceUseCase tokenPersistenceUseCase,
             TokenExtractionUtils tokenExtractionUtils,
             @Qualifier("handlerExceptionResolver") HandlerExceptionResolver handlerExceptionResolver
     ) {
         this.tokenResolver = tokenResolver;
-        this.tokenPersistencePort = tokenPersistencePort;
+        this.tokenPersistenceUseCase = tokenPersistenceUseCase;
         this.handlerExceptionResolver = handlerExceptionResolver;
         this.tokenExtractionUtils = tokenExtractionUtils;
     }
@@ -54,7 +54,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             if (StringUtils.hasText(token) && tokenResolver.validateAccessToken(token)) {
 
                 // 1. 블랙리스트 확인을 인증 객체 등록보다 먼저 수행 (Fail-Fast)
-                if (tokenPersistencePort.isBlacklisted(token)) {
+                if (tokenPersistenceUseCase.isBlacklisted(token)) {
                     log.warn("[JWT Filter] 로그아웃된 토큰으로 접근 시도: {}", token);
                     throw new BusinessException(ErrorMessage.UNAUTHORIZED, "이미 로그아웃된 토큰입니다.");
                 }
