@@ -35,7 +35,7 @@ public class KakaoAdapter implements OAuthClientPort {
     public KakaoAdapter(KakaoProperties kakaoProperties, WebClient.Builder webClientBuilder) {
         this.KAUTH_URL = kakaoProperties.auth().kauth();
         this.KAPI_URL = kakaoProperties.auth().kapi();
-        this.CLIENT_ID = kakaoProperties.auth().clientId();
+        this.CLIENT_ID = kakaoProperties.clientId();
         this.ADMIN_KEY = kakaoProperties.adminKey();
         this.REDIRECT_URI = kakaoProperties.auth().redirectUri();
 
