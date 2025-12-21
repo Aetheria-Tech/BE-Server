@@ -1,4 +1,4 @@
-package com.serverbe.application.port.in;
+package com.serverbe.application.port.in.redis;
 
 import java.time.Duration;
 

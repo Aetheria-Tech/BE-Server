@@ -3,7 +3,7 @@ package com.serverbe.application.service;
 import com.serverbe.application.port.out.dto.me.UserProfileResponse;
 import com.serverbe.application.port.out.dto.me.UserUpdateCommand;
 import com.serverbe.application.port.out.me.UserUseCase;
-import com.serverbe.application.port.in.UserRepositoryPort;
+import com.serverbe.application.port.in.jpa.UserRepositoryPort;
 import com.serverbe.domain.model.User;
 import com.serverbe.infrastructure.error.BusinessException;
 import com.serverbe.infrastructure.error.ErrorMessage;

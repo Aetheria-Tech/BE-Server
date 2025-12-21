@@ -6,7 +6,7 @@ import com.serverbe.application.port.out.dto.oauth.TokenResponse;
 import com.serverbe.application.port.out.security.ReissueUseCase;
 import com.serverbe.application.port.out.security.TokenProvider;
 import com.serverbe.application.port.out.security.TokenResolver;
-import com.serverbe.application.port.in.TokenPersistencePort;
+import com.serverbe.application.port.in.redis.TokenPersistencePort;
 import com.serverbe.domain.model.vo.Role;
 import com.serverbe.infrastructure.config.properties.JwtProperties;
 import com.serverbe.infrastructure.error.BusinessException;

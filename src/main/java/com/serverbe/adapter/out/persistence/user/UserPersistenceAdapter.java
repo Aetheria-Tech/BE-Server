@@ -1,7 +1,7 @@
 package com.serverbe.adapter.out.persistence.user;
 
 import com.serverbe.adapter.out.persistence.mapper.UserMapper;
-import com.serverbe.application.port.in.UserRepositoryPort;
+import com.serverbe.application.port.in.jpa.UserRepositoryPort;
 import com.serverbe.domain.model.User;
 import com.serverbe.domain.model.vo.OAuthProvider;
 import lombok.RequiredArgsConstructor;
