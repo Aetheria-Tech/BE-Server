@@ -24,7 +24,7 @@ public class AddressValidator {
      */
     public static void validate(String address) {
         // 1. 빈 값 및 공백 체크
-        if (!StringUtils.hasText(address) || address.trim().isEmpty()) {
+        if (!StringUtils.hasText(address)) {
             throw new BusinessException(ErrorMessage.INVALID_ADDRESS, "주소를 입력해주세요.");
         }
 
