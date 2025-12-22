@@ -1,6 +1,6 @@
 package com.serverbe.application.port.out.dto.oauth;
 
-import com.serverbe.domain.model.vo.OAuthProvider;
+import com.serverbe.domain.model.user.vo.OAuthProvider;
 
 /**
  * 외부 OAuth 제공자(카카오, 구글)로부터 받은 사용자 정보를 통일된 형식으로 담는 DTO입니다.

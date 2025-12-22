@@ -1,8 +1,8 @@
-package com.serverbe.domain.model;
+package com.serverbe.domain.model.user;
 
 import com.serverbe.application.port.out.dto.oauth.OAuthUserInfo;
-import com.serverbe.domain.model.vo.OAuthProvider;
-import com.serverbe.domain.model.vo.Role;
+import com.serverbe.domain.model.user.vo.OAuthProvider;
+import com.serverbe.domain.model.user.vo.Role;
 
 import java.util.List;
 

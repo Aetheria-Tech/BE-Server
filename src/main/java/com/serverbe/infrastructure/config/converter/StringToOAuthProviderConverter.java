@@ -1,6 +1,6 @@
 package com.serverbe.infrastructure.config.converter;
 
-import com.serverbe.domain.model.vo.OAuthProvider;
+import com.serverbe.domain.model.user.vo.OAuthProvider;
 import org.springframework.core.convert.converter.Converter;
 
 public class StringToOAuthProviderConverter implements Converter<String, OAuthProvider> {

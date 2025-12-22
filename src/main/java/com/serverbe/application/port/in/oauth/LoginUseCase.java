@@ -2,7 +2,7 @@ package com.serverbe.application.port.in.oauth;
 
 
 import com.serverbe.application.port.out.dto.oauth.TokenResponse;
-import com.serverbe.domain.model.vo.OAuthProvider;
+import com.serverbe.domain.model.user.vo.OAuthProvider;
 import reactor.core.publisher.Mono;
 
 public interface LoginUseCase {

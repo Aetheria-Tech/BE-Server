@@ -1,8 +1,9 @@
 package com.serverbe.adapter.out.persistence.user;
 
+import com.serverbe.adapter.out.persistence.art.RunningArtEntity;
 import com.serverbe.adapter.out.persistence.converter.CryptoConverter;
-import com.serverbe.domain.model.vo.OAuthProvider;
-import com.serverbe.domain.model.vo.Role;
+import com.serverbe.domain.model.user.vo.OAuthProvider;
+import com.serverbe.domain.model.user.vo.Role;
 import jakarta.persistence.*;
 import lombok.*;
 import org.springframework.data.annotation.CreatedDate;
@@ -10,6 +11,8 @@ import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "users", uniqueConstraints = {
@@ -57,6 +60,16 @@ public class UserEntity {
 
     @LastModifiedDate
     private LocalDateTime updatedAt;
+
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<RunningArtEntity> runningArtEntities = new ArrayList<>();
+
+    public void addRunningArt(RunningArtEntity art) {
+        this.runningArtEntities.add(art);
+        if (art.getUser() != this) {
+            art.assignUser(this);
+        }
+    }
 
     @Builder
     private UserEntity(

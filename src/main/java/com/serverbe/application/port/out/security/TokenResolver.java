@@ -1,6 +1,6 @@
 package com.serverbe.application.port.out.security;
 
-import com.serverbe.domain.model.vo.Role;
+import com.serverbe.domain.model.user.vo.Role;
 import org.springframework.security.core.Authentication;
 
 import java.time.Instant;

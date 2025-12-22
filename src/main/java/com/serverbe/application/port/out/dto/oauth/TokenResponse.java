@@ -1,6 +1,6 @@
 package com.serverbe.application.port.out.dto.oauth;
 
-import com.serverbe.domain.model.vo.Role;
+import com.serverbe.domain.model.user.vo.Role;
 
 /**
  * 로그인 성공 후 우리 서비스 전용 토큰 정보를 담아 클라이언트에게 반환하는 DTO입니다.
