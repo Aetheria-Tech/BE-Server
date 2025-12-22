@@ -21,7 +21,7 @@ public class UserService implements UserUseCase {
     @Override
     public UserProfileResponse getMyProfile(Long userId) {
         User user = userRepositoryPort.findById(userId)
-                .orElseThrow(() -> new BusinessException(ErrorMessage.NOT_FOUND_RUNNER));
+                .orElseThrow(() -> new BusinessException(ErrorMessage.NOT_FOUND_USER));
         return UserProfileResponse.from(user);
     }
 
@@ -29,7 +29,7 @@ public class UserService implements UserUseCase {
     @Transactional
     public UserProfileResponse updateMyProfile(Long userId, UserUpdateCommand command) {
         User user = userRepositoryPort.findById(userId)
-                .orElseThrow(() -> new BusinessException(ErrorMessage.NOT_FOUND_RUNNER));
+                .orElseThrow(() -> new BusinessException(ErrorMessage.NOT_FOUND_USER));
 
         // 도메인 모델의 비즈니스 로직 호출 후 저장
         User updatedUser = user.updateProfile(

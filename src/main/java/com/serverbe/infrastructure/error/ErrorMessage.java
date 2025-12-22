@@ -41,10 +41,13 @@ public enum ErrorMessage {
     INVALID_ADDRESS(HttpStatus.BAD_REQUEST, "GEOCODE_002","주소가 올바르지 않습니다"),
 
 
-    // RUNNER
-    DUPLICATE_KAKAO_ID(HttpStatus.BAD_REQUEST, "RUNNER_001", "이미 존재하는 카카오 ID입니다."),
-    NOT_FOUND_RUNNER(HttpStatus.NOT_FOUND, "RUNNER_002", "사용자를 찾을 수 없습니다."),
-    FORBIDDEN_RUNNER(HttpStatus.FORBIDDEN, "RUNNER_003", "사용자에 대한 권한이 없습니다."),
+    // USER
+    NOT_FOUND_USER(HttpStatus.NOT_FOUND, "RUNNER_002", "사용자를 찾을 수 없습니다."),
+    FORBIDDEN_USER(HttpStatus.FORBIDDEN, "RUNNER_003", "사용자에 대한 권한이 없습니다."),
+
+    // ART
+    NOT_FOUND_RUNNING_ART(HttpStatus.NOT_FOUND, "ART_001", "런닝아트를 찾을 수 없습니다"),
+
 
     // AUTH (SecurityConfig 및 Handler에서 사용)
     UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "AUTH_001", "로그인이 필요합니다."),

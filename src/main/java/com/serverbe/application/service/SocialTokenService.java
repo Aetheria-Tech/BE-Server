@@ -28,7 +28,7 @@ public class SocialTokenService {
     public Mono<String> getFreshAccessToken(Long userId) {
         // 1. 유저 조회 (암호화된 토큰은 Converter에 의해 자동 복호화됨)
         User user = userRepositoryPort.findById(userId)
-                .orElseThrow(() -> new BusinessException(ErrorMessage.NOT_FOUND_RUNNER));
+                .orElseThrow(() -> new BusinessException(ErrorMessage.NOT_FOUND_USER));
 
         // 2. 유저의 제공자(KAKAO, GOOGLE)를 지원하는 어댑터 선택
         OAuthClientPort client = getClient(user.provider());

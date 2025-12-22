@@ -6,6 +6,8 @@ import com.serverbe.application.port.in.dto.art.UpdateRunningArtCommand;
 import com.serverbe.application.port.out.dto.art.RunningArtUpdateDto;
 import com.serverbe.application.port.out.jpa.RunningArtRepositoryPort;
 import com.serverbe.domain.model.art.RunningArt;
+import com.serverbe.infrastructure.error.BusinessException;
+import com.serverbe.infrastructure.error.ErrorMessage;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -30,7 +32,11 @@ public class RunningArtService implements GetRunningArtQuery, ManageRunningArtUs
     @Transactional(readOnly = true)
     public RunningArt getRunningArtById(Long id) {
         return repositoryPort.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("해당 작품을 찾을 수 없습니다. ID: " + id));
+                .orElseThrow(() -> new BusinessException(
+                                ErrorMessage.NOT_FOUND_RUNNING_ART,
+                                String.format("런닝아트(%d)를 찾지 못했습니다.", id)
+                        )
+                );
     }
 
 
