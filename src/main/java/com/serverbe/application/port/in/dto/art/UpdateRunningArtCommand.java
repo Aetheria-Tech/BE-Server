@@ -4,5 +4,5 @@ public record UpdateRunningArtCommand(
     String title,
     String content
 ) {
-    // 필요 시 유효성 검증(Validation) 로직 추가 가능
+    // 필요 시 유효성 검증(Validation) 로직 추가
 }

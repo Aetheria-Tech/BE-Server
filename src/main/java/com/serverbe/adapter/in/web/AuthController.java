@@ -76,7 +76,7 @@ public class AuthController {
                         response.sendRedirect(redirectUrl);
                         return Mono.empty();
                     } catch (IOException e) {
-                        return Mono.error(new RuntimeException("리다이렉트 처리 중 오류가 발생했습니다.", e));
+                        return Mono.error(new BusinessException(ErrorMessage.INTERNAL_SERVER_ERROR, e.getMessage()));
                     }
                 });
     }
