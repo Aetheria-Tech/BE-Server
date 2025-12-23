@@ -42,7 +42,7 @@ public class RunningArtController {
     @PutMapping("/{runningArtId}")
     public ApiResponse<Void> update(
             @AuthenticationPrincipal Long userId,
-            @PathVariable Long runningArtId,
+            @PathVariable(name = "runningArtId") Long runningArtId,
             @RequestBody @Valid UpdateRunningArtCommand request
     ) {
         manageRunningArtUseCase.updateRunningArt(userId, runningArtId, request);
@@ -53,7 +53,7 @@ public class RunningArtController {
     @DeleteMapping("/{runningArtId}")
     public ApiResponse<Void> delete(
             @AuthenticationPrincipal Long userId,
-            @PathVariable Long runningArtId
+            @PathVariable(name = "runningArtId") Long runningArtId
     ) {
         manageRunningArtUseCase.deleteRunningArt(userId, runningArtId);
         return ApiResponse.noContent();
