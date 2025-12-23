@@ -6,7 +6,8 @@ import com.serverbe.adapter.out.persistence.user.UserEntity;
 import com.serverbe.application.port.out.dto.art.RunningArtUpdateDto;
 import com.serverbe.application.port.out.jpa.RunningArtRepositoryPort;
 import com.serverbe.domain.model.art.RunningArt;
-import jakarta.persistence.EntityNotFoundException;
+import com.serverbe.infrastructure.error.BusinessException;
+import com.serverbe.infrastructure.error.ErrorMessage;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,7 +27,7 @@ public class RunningArtPersistentAdapter implements RunningArtRepositoryPort {
     public RunningArt save(RunningArt runningArt) {
         // 1. 도메인의 userId를 이용해 UserEntity 참조를 가져옴
         UserEntity userEntity = jpaUserRepository.findById(runningArt.getUserId())
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자입니다. ID: " + runningArt.getUserId()));
+                .orElseThrow(() -> new BusinessException(ErrorMessage.NOT_FOUND_USER, "사용자를 조회할 수 없습니다."));
 
         // 2. Mapper를 통해 Domain -> Entity 변환 (UserEntity 주입)
         RunningArtEntity entity = mapper.toEntity(runningArt, userEntity);
@@ -53,7 +54,10 @@ public class RunningArtPersistentAdapter implements RunningArtRepositoryPort {
     @Transactional
     public void updateMetadata(Long id, RunningArtUpdateDto dto) {
         RunningArtEntity entity = jpaRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("해당 작품을 찾을 수 없습니다. ID: " + id));
+                .orElseThrow(() -> new BusinessException(ErrorMessage.NOT_FOUND_RUNNING_ART, "런닝아트를 조회할 수 없습니다"));
+
+        if (!entity.getId().equals(id))
+            throw new BusinessException(ErrorMessage.USER_IS_NOT_OWNER_OF_RUNNING_ART, "사용자는 런닝아트의 주인이 아닙니다");
 
         entity.updateMetadata(dto.title(), dto.content());
     }
@@ -61,7 +65,7 @@ public class RunningArtPersistentAdapter implements RunningArtRepositoryPort {
     @Override
     public void deleteById(Long id) {
         if (!jpaRepository.existsById(id)) {
-            throw new EntityNotFoundException("삭제할 대상이 존재하지 않습니다. ID: " + id);
+            throw new BusinessException(ErrorMessage.NOT_FOUND_RUNNING_ART, "삭제할 대상이 존재하지 않습니다");
         }
         jpaRepository.deleteById(id);
     }
