@@ -4,10 +4,10 @@ import com.serverbe.application.port.in.dto.art.UpdateRunningArtCommand;
 
 public interface ManageRunningArtUseCase {
     // 3. 런닝 아트 ID로 런닝 아트 삭제
-    void deleteRunningArt(Long userId, Long runningArtid);
+    void deleteRunningArt(Long userId, Long runningArtId);
 
     // 4. 런닝 아트 ID로 런닝 아트 수정
-    void updateRunningArt(Long userId, Long runningAryId, UpdateRunningArtCommand command);
+    void updateRunningArt(Long userId, Long runningArtId, UpdateRunningArtCommand command);
 
     // 5. 사용자 ID로 런닝 아트 삭제
     void deleteAllRunningArtsByUserId(Long userId);
