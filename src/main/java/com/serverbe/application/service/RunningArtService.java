@@ -40,15 +40,15 @@ public class RunningArtService implements GetRunningArtQuery, ManageRunningArtUs
 
 
     @Override
-    public void deleteRunningArt(Long id) {
-        repositoryPort.deleteById(id);
+    public void deleteRunningArt(Long userId, Long runningArtid) {
+        repositoryPort.deleteById(userId, runningArtid);
     }
 
     @Override
-    public void updateRunningArt(Long id, UpdateRunningArtCommand command) {
+    public void updateRunningArt(Long userId, Long runningArtId, UpdateRunningArtCommand command) {
         // Command를 DTO로 변환하여 출력 포트에 전달
         RunningArtUpdateDto updateDto = new RunningArtUpdateDto(command.title(), command.content());
-        repositoryPort.updateMetadata(id, updateDto);
+        repositoryPort.updateMetadata(userId, runningArtId, updateDto);
     }
 
     @Override
