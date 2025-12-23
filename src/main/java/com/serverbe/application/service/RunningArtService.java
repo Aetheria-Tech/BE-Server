@@ -29,13 +29,18 @@ public class RunningArtService implements GetRunningArtQuery, ManageRunningArtUs
 
     @Override
     @Transactional(readOnly = true)
-    public RunningArt getRunningArtById(Long id) {
-        return repositoryPort.findById(id)
+    public RunningArt getRunningArtById(Long userId, Long runningArtId) {
+        RunningArt runningArt = repositoryPort.findById(runningArtId)
                 .orElseThrow(() -> new BusinessException(
                                 ErrorMessage.NOT_FOUND_RUNNING_ART,
-                                String.format("런닝아트(%d)를 찾지 못했습니다.", id)
+                                String.format("런닝아트(%d)를 찾지 못했습니다.", runningArtId)
                         )
                 );
+        if (!runningArt.getUserId().equals(userId)) {
+            throw new BusinessException(ErrorMessage.USER_IS_NOT_OWNER_OF_RUNNING_ART, "사용자는 런닝아트의 주인이 아닙니다");
+        }
+
+        return runningArt;
     }
 
 

@@ -24,15 +24,18 @@ public class RunningArtController {
     private final ManageRunningArtUseCase manageRunningArtUseCase;
 
     @Operation(summary = "사용자별 런닝 아트 목록 조회", description = "특정 사용자가 작성한 모든 런닝 아트를 조회합니다.")
-    @GetMapping("/user/{userId}")
-    public ApiResponse<List<RunningArt>> getByUserId(@PathVariable Long userId) {
+    @GetMapping("/user")
+    public ApiResponse<List<RunningArt>> getByUserId(@AuthenticationPrincipal Long userId) {
         return ApiResponse.success(getRunningArtQuery.getRunningArtsByUserId(userId));
     }
 
     @Operation(summary = "런닝 아트 단건 조회", description = "ID를 통해 특정 런닝 아트를 상세 조회합니다.")
-    @GetMapping("/{id}")
-    public ApiResponse<RunningArt> getById(@PathVariable Long id) {
-        return ApiResponse.success(getRunningArtQuery.getRunningArtById(id));
+    @GetMapping("/{runningArtId}")
+    public ApiResponse<RunningArt> getById(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable(name = "runningArtId") Long runningArtId
+    ) {
+        return ApiResponse.success(getRunningArtQuery.getRunningArtById(userId, runningArtId));
     }
 
     @Operation(summary = "런닝 아트 수정", description = "제목과 내용을 수정합니다.")

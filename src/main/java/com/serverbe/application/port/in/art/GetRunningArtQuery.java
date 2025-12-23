@@ -9,5 +9,5 @@ public interface GetRunningArtQuery {
     List<RunningArt> getRunningArtsByUserId(Long userId);
 
     // 런닝 아트 ID로 런닝 아트 조회
-    RunningArt getRunningArtById(Long id);
+    RunningArt getRunningArtById(Long userId, Long runningArtId);
 }
