@@ -24,7 +24,7 @@ public class RunningArtController {
     private final ManageRunningArtUseCase manageRunningArtUseCase;
 
     @Operation(summary = "사용자별 런닝 아트 목록 조회", description = "특정 사용자가 작성한 모든 런닝 아트를 조회합니다.")
-    @GetMapping("/user")
+    @GetMapping("/me")
     public ApiResponse<List<RunningArt>> getByUserId(@AuthenticationPrincipal Long userId) {
         return ApiResponse.success(getRunningArtQuery.getRunningArtsByUserId(userId));
     }
@@ -60,7 +60,7 @@ public class RunningArtController {
     }
 
     @Operation(summary = "사용자의 모든 런닝 아트 삭제", description = "특정 사용자의 모든 데이터를 일괄 삭제합니다.")
-    @DeleteMapping("/user")
+    @DeleteMapping("/me")
     public ApiResponse<Void> deleteAllByUser(@AuthenticationPrincipal Long userId) {
         manageRunningArtUseCase.deleteAllRunningArtsByUserId(userId);
         return ApiResponse.noContent();
