@@ -33,7 +33,7 @@ dependencies {
     // Spring WebFlux: 비동기 논블로킹(Non-blocking) 개발 및 WebClient 사용을 위함
     implementation 'org.springframework.boot:spring-boot-starter-webflux'
     // SpringDoc OpenAPI: Swagger UI를 통해 API 문서를 자동 생성하고 테스트 화면 제공
-    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.0.2'
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.3'
 
     /**
      * Database & Persistence (JPA & Querydsl)
@@ -85,9 +85,6 @@ dependencies {
     testImplementation 'org.springframework.security:spring-security-test'
     // JUnit Platform Launcher: 테스트 실행을 위한 JUnit 플랫폼 엔진
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
-
-    // Swagger UI (SpringDoc OpenAPI 2.x)
-    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.3.0'
 }
 
 tasks.named('test') {
