@@ -53,7 +53,7 @@ public class RunningArtService implements GetRunningArtQuery, ManageRunningArtUs
             throw new BusinessException(ErrorMessage.USER_IS_NOT_OWNER_OF_RUNNING_ART, "사용자는 런닝아트의 주인이 아닙니다");
         }
 
-        repositoryPort.deleteById(userId, runningArtId);
+        repositoryPort.deleteById(runningArtId);
     }
 
     @Override

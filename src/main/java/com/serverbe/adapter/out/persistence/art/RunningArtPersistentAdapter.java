@@ -60,7 +60,7 @@ public class RunningArtPersistentAdapter implements RunningArtRepositoryPort {
     }
 
     @Override
-    public void deleteById(Long userId, Long runningArtId) {
+    public void deleteById(Long runningArtId) {
         jpaRepository.deleteById(runningArtId);
     }
 
