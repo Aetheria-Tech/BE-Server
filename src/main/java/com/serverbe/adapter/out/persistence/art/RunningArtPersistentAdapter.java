@@ -52,25 +52,15 @@ public class RunningArtPersistentAdapter implements RunningArtRepositoryPort {
 
     @Override
     @Transactional
-    public void updateMetadata(Long userId, Long runningArtId, RunningArtUpdateDto dto) {
+    public void updateMetadata(Long runningArtId, RunningArtUpdateDto dto) {
         RunningArtEntity entity = jpaRepository.findById(runningArtId)
                 .orElseThrow(() -> new BusinessException(ErrorMessage.NOT_FOUND_RUNNING_ART, "런닝아트를 조회할 수 없습니다"));
-
-        if (!entity.getUser().getId().equals(userId))
-            throw new BusinessException(ErrorMessage.USER_IS_NOT_OWNER_OF_RUNNING_ART, "사용자는 런닝아트의 주인이 아닙니다");
 
         entity.updateMetadata(dto.title(), dto.content());
     }
 
     @Override
     public void deleteById(Long userId, Long runningArtId) {
-        RunningArtEntity entity = jpaRepository.findById(runningArtId)
-                .orElseThrow(() -> new BusinessException(ErrorMessage.NOT_FOUND_RUNNING_ART, "런닝아트를 조회할 수 없습니다"));
-
-        if (!entity.getUser().getId().equals(userId))
-            throw new BusinessException(ErrorMessage.USER_IS_NOT_OWNER_OF_RUNNING_ART, "사용자는 런닝아트의 주인이 아닙니다");
-
-
         jpaRepository.deleteById(runningArtId);
     }
 

@@ -40,15 +40,28 @@ public class RunningArtService implements GetRunningArtQuery, ManageRunningArtUs
 
 
     @Override
-    public void deleteRunningArt(Long userId, Long runningArtid) {
-        repositoryPort.deleteById(userId, runningArtid);
+    public void deleteRunningArt(Long userId, Long runningArtId) {
+        RunningArt runningArt = repositoryPort.findById(runningArtId)
+                .orElseThrow(() -> new BusinessException(ErrorMessage.NOT_FOUND_RUNNING_ART, String.format("런닝아트(%d)를 찾지 못했습니다.", runningArtId)));
+
+        if (!runningArt.getUserId().equals(userId)) {
+            throw new BusinessException(ErrorMessage.USER_IS_NOT_OWNER_OF_RUNNING_ART, "사용자는 런닝아트의 주인이 아닙니다");
+        }
+
+        repositoryPort.deleteById(userId, runningArtId);
     }
 
     @Override
     public void updateRunningArt(Long userId, Long runningArtId, UpdateRunningArtCommand command) {
-        // Command를 DTO로 변환하여 출력 포트에 전달
+        RunningArt runningArt = repositoryPort.findById(runningArtId)
+                .orElseThrow(() -> new BusinessException(ErrorMessage.NOT_FOUND_RUNNING_ART, String.format("런닝아트(%d)를 찾지 못했습니다.", runningArtId)));
+
+        if (!runningArt.getUserId().equals(userId)) {
+            throw new BusinessException(ErrorMessage.USER_IS_NOT_OWNER_OF_RUNNING_ART, "사용자는 런닝아트의 주인이 아닙니다");
+        }
+
         RunningArtUpdateDto updateDto = new RunningArtUpdateDto(command.title(), command.content());
-        repositoryPort.updateMetadata(userId, runningArtId, updateDto);
+        repositoryPort.updateMetadata(runningArtId, updateDto);
     }
 
     @Override

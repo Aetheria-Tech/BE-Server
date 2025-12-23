@@ -13,5 +13,5 @@ public interface RunningArtRepositoryPort {
     List<RunningArt> findAll();
     void deleteById(Long userId, Long runningArtId);
     void deleteByUserId(Long userId);
-    void updateMetadata(Long userId, Long runningArtId, RunningArtUpdateDto dto);
+    void updateMetadata(Long runningArtId, RunningArtUpdateDto dto);
 }
