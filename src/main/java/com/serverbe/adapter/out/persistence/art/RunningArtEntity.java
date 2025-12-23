@@ -44,8 +44,8 @@ public class RunningArtEntity {
         this.user = user;
     }
 
-    public void updateMetadata(String title, String description) {
+    public void updateMetadata(String title, String content) {
         this.title = title;
-        this.content = description;
+        this.content = content;
     }
 }
