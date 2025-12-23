@@ -2,8 +2,8 @@ package com.serverbe.application.service;
 
 import com.serverbe.application.port.out.oauth.OAuthClientPort;
 import com.serverbe.application.port.out.jpa.UserRepositoryPort;
-import com.serverbe.domain.model.User;
-import com.serverbe.domain.model.vo.OAuthProvider;
+import com.serverbe.domain.model.user.User;
+import com.serverbe.domain.model.user.vo.OAuthProvider;
 import com.serverbe.infrastructure.error.BusinessException;
 import com.serverbe.infrastructure.error.ErrorMessage;
 import lombok.RequiredArgsConstructor;
@@ -28,7 +28,7 @@ public class SocialTokenService {
     public Mono<String> getFreshAccessToken(Long userId) {
         // 1. 유저 조회 (암호화된 토큰은 Converter에 의해 자동 복호화됨)
         User user = userRepositoryPort.findById(userId)
-                .orElseThrow(() -> new BusinessException(ErrorMessage.NOT_FOUND_RUNNER));
+                .orElseThrow(() -> new BusinessException(ErrorMessage.NOT_FOUND_USER));
 
         // 2. 유저의 제공자(KAKAO, GOOGLE)를 지원하는 어댑터 선택
         OAuthClientPort client = getClient(user.provider());

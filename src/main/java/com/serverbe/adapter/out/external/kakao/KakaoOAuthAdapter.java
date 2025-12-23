@@ -6,7 +6,7 @@ import com.serverbe.adapter.out.external.kakao.dto.KakaoUserInfoResponse;
 import com.serverbe.application.port.out.dto.oauth.OAuthUserInfo;
 import com.serverbe.application.port.out.dto.oauth.SocialTokenRefreshResponse;
 import com.serverbe.application.port.out.oauth.OAuthClientPort;
-import com.serverbe.domain.model.vo.OAuthProvider;
+import com.serverbe.domain.model.user.vo.OAuthProvider;
 import com.serverbe.infrastructure.config.properties.KakaoProperties;
 import com.serverbe.infrastructure.error.BusinessException;
 import com.serverbe.infrastructure.error.ErrorMessage;

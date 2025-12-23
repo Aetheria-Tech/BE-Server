@@ -1,6 +1,6 @@
 package com.serverbe.adapter.out.persistence.user;
 
-import com.serverbe.domain.model.vo.OAuthProvider;
+import com.serverbe.domain.model.user.vo.OAuthProvider;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Optional;

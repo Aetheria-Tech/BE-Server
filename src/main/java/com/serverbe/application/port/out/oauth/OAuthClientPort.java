@@ -3,7 +3,7 @@ package com.serverbe.application.port.out.oauth;
 
 import com.serverbe.application.port.out.dto.oauth.OAuthUserInfo;
 import com.serverbe.application.port.out.dto.oauth.SocialTokenRefreshResponse;
-import com.serverbe.domain.model.vo.OAuthProvider;
+import com.serverbe.domain.model.user.vo.OAuthProvider;
 import reactor.core.publisher.Mono;
 
 public interface OAuthClientPort {

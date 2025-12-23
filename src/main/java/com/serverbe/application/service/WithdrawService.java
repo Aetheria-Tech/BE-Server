@@ -1,10 +1,11 @@
 package com.serverbe.application.service;
 
+import com.serverbe.application.port.out.jpa.RunningArtRepositoryPort;
 import com.serverbe.application.port.out.oauth.OAuthClientPort;
 import com.serverbe.application.port.in.oauth.WithdrawUseCase;
 import com.serverbe.application.port.out.token.TokenPersistencePort;
 import com.serverbe.application.port.out.jpa.UserRepositoryPort;
-import com.serverbe.domain.model.vo.OAuthProvider;
+import com.serverbe.domain.model.user.vo.OAuthProvider;
 import com.serverbe.infrastructure.error.BusinessException;
 import com.serverbe.infrastructure.error.ErrorMessage;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +23,7 @@ import java.util.List;
 public class WithdrawService implements WithdrawUseCase {
 
     private final UserRepositoryPort userRepositoryPort;
+    private final RunningArtRepositoryPort runningArtRepositoryPort;
     private final List<OAuthClientPort> oAuthClients;
     private final TokenPersistencePort tokenPersistencePort;
 
@@ -29,7 +31,7 @@ public class WithdrawService implements WithdrawUseCase {
     @Transactional
     public Mono<Boolean> withdraw(Long userId) {
         return Mono.fromCallable(() -> userRepositoryPort.findById(userId)
-                        .orElseThrow(() -> new BusinessException(ErrorMessage.NOT_FOUND_RUNNER)))
+                        .orElseThrow(() -> new BusinessException(ErrorMessage.NOT_FOUND_USER)))
                 .subscribeOn(Schedulers.boundedElastic()) // 블로킹 DB 조회를 별도 스레드에서 실행
                 .flatMap(user -> {
                     OAuthClientPort client = getClient(user.provider());
@@ -38,6 +40,7 @@ public class WithdrawService implements WithdrawUseCase {
                             .publishOn(Schedulers.boundedElastic()) // 후속 블로킹 작업(DB, Redis 삭제)도 별도 스레드에서 실행
                             .map(isUnlink -> {
                                 if (isUnlink) {
+                                    runningArtRepositoryPort.deleteByUserId(userId);
                                     // 우리 DB에서 사용자 삭제 (Hard Delete)
                                     userRepositoryPort.deleteById(user.id());
                                     // Redis에서 리프레쉬 토큰 삭제

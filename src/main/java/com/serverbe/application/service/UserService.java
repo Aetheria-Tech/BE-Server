@@ -4,7 +4,7 @@ import com.serverbe.application.port.out.dto.me.UserProfileResponse;
 import com.serverbe.application.port.out.dto.me.UserUpdateCommand;
 import com.serverbe.application.port.in.me.UserUseCase;
 import com.serverbe.application.port.out.jpa.UserRepositoryPort;
-import com.serverbe.domain.model.User;
+import com.serverbe.domain.model.user.User;
 import com.serverbe.infrastructure.error.BusinessException;
 import com.serverbe.infrastructure.error.ErrorMessage;
 import lombok.RequiredArgsConstructor;
@@ -21,7 +21,7 @@ public class UserService implements UserUseCase {
     @Override
     public UserProfileResponse getMyProfile(Long userId) {
         User user = userRepositoryPort.findById(userId)
-                .orElseThrow(() -> new BusinessException(ErrorMessage.NOT_FOUND_RUNNER));
+                .orElseThrow(() -> new BusinessException(ErrorMessage.NOT_FOUND_USER));
         return UserProfileResponse.from(user);
     }
 
@@ -29,7 +29,7 @@ public class UserService implements UserUseCase {
     @Transactional
     public UserProfileResponse updateMyProfile(Long userId, UserUpdateCommand command) {
         User user = userRepositoryPort.findById(userId)
-                .orElseThrow(() -> new BusinessException(ErrorMessage.NOT_FOUND_RUNNER));
+                .orElseThrow(() -> new BusinessException(ErrorMessage.NOT_FOUND_USER));
 
         // 도메인 모델의 비즈니스 로직 호출 후 저장
         User updatedUser = user.updateProfile(

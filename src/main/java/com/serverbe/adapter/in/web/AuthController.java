@@ -6,7 +6,7 @@ import com.serverbe.application.port.in.oauth.LogoutUseCase;
 import com.serverbe.application.port.in.oauth.LoginUseCase;
 import com.serverbe.application.port.in.oauth.WithdrawUseCase;
 import com.serverbe.application.port.in.token.ReissueUseCase;
-import com.serverbe.domain.model.vo.OAuthProvider;
+import com.serverbe.domain.model.user.vo.OAuthProvider;
 import com.serverbe.infrastructure.common.ApiResponse;
 import com.serverbe.infrastructure.config.properties.JwtProperties;
 import com.serverbe.infrastructure.error.BusinessException;
@@ -76,7 +76,7 @@ public class AuthController {
                         response.sendRedirect(redirectUrl);
                         return Mono.empty();
                     } catch (IOException e) {
-                        return Mono.error(new RuntimeException("리다이렉트 처리 중 오류가 발생했습니다.", e));
+                        return Mono.error(new BusinessException(ErrorMessage.INTERNAL_SERVER_ERROR, e.getMessage()));
                     }
                 });
     }

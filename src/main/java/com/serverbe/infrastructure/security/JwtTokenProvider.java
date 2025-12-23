@@ -3,7 +3,7 @@ package com.serverbe.infrastructure.security;
 import com.serverbe.application.port.out.dto.oauth.AccessTokenResponse;
 import com.serverbe.application.port.out.dto.oauth.RefreshTokenResponse;
 import com.serverbe.application.port.out.security.TokenProvider;
-import com.serverbe.domain.model.vo.Role;
+import com.serverbe.domain.model.user.vo.Role;
 import com.serverbe.infrastructure.config.properties.JwtProperties;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;

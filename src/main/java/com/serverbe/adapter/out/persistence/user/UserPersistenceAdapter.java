@@ -2,8 +2,8 @@ package com.serverbe.adapter.out.persistence.user;
 
 import com.serverbe.adapter.out.persistence.mapper.UserMapper;
 import com.serverbe.application.port.out.jpa.UserRepositoryPort;
-import com.serverbe.domain.model.User;
-import com.serverbe.domain.model.vo.OAuthProvider;
+import com.serverbe.domain.model.user.User;
+import com.serverbe.domain.model.user.vo.OAuthProvider;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 

@@ -1,6 +1,6 @@
 package com.serverbe.application.port.out.dto.me;
 
-import com.serverbe.domain.model.User;
+import com.serverbe.domain.model.user.User;
 
 public record UserProfileResponse(
     String email,
