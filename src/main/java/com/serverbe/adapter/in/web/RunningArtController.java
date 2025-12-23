@@ -39,7 +39,7 @@ public class RunningArtController {
     }
 
     @Operation(summary = "런닝 아트 수정", description = "제목과 내용을 수정합니다.")
-    @PutMapping("/{runningArtId}")
+    @PatchMapping("/{runningArtId}")
     public ApiResponse<Void> update(
             @AuthenticationPrincipal Long userId,
             @PathVariable(name = "runningArtId") Long runningArtId,
