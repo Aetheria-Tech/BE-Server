@@ -64,9 +64,13 @@ public class RunningArtPersistentAdapter implements RunningArtRepositoryPort {
 
     @Override
     public void deleteById(Long id) {
-        if (!jpaRepository.existsById(id)) {
-            throw new BusinessException(ErrorMessage.NOT_FOUND_RUNNING_ART, "삭제할 대상이 존재하지 않습니다");
-        }
+        RunningArtEntity entity = jpaRepository.findById(id)
+                .orElseThrow(() -> new BusinessException(ErrorMessage.NOT_FOUND_RUNNING_ART, "런닝아트를 조회할 수 없습니다"));
+
+        if (!entity.getId().equals(id))
+            throw new BusinessException(ErrorMessage.USER_IS_NOT_OWNER_OF_RUNNING_ART, "사용자는 런닝아트의 주인이 아닙니다");
+
+
         jpaRepository.deleteById(id);
     }
 
