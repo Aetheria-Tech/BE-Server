@@ -71,7 +71,7 @@ public class RunningArtPersistentAdapter implements RunningArtRepositoryPort {
 
     @Override
     public List<RunningArt> findByUserId(Long userId) {
-        return jpaRepository.findByUserId(userId).stream()
+        return jpaRepository.findByUser_Id(userId).stream()
                 .map(mapper::toDomain)
                 .toList();
     }

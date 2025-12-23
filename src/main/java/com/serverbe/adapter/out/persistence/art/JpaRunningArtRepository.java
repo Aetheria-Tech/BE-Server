@@ -7,7 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import java.util.List;
 
 public interface JpaRunningArtRepository extends JpaRepository<RunningArtEntity, Long> {
-    List<RunningArtEntity> findByUserId(Long userId);
+    List<RunningArtEntity> findByUser_Id(Long userId);
 
     @Modifying
     @Query("DELETE FROM RunningArtEntity r WHERE r.user.id = :userId")
