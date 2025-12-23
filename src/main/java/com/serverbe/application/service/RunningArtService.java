@@ -45,7 +45,7 @@ public class RunningArtService implements GetRunningArtQuery, ManageRunningArtUs
     public void updateRunningArt(Long userId, Long runningArtId, UpdateRunningArtCommand command) {
         findAndVerifyOwner(userId, runningArtId);
 
-        RunningArtUpdateDto updateDto = RunningArtUpdateDto.of(command.title(), command.content());
+        RunningArtUpdateDto updateDto = new RunningArtUpdateDto(command.title(), command.content());
         repositoryPort.updateMetadata(runningArtId, updateDto);
     }
 

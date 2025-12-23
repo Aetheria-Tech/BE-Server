@@ -19,6 +19,7 @@ public class RunningArtEntity {
     private String title;
     private String content;
     private String shape;
+    @Enumerated(EnumType.STRING)
     private Proficiency proficiency;
 
     @Lob
@@ -45,7 +46,11 @@ public class RunningArtEntity {
     }
 
     public void updateMetadata(String title, String content) {
-        this.title = title;
-        this.content = content;
+        if (title != null) {
+            this.title = title;
+        }
+        if (content != null) {
+            this.content = content;
+        }
     }
 }

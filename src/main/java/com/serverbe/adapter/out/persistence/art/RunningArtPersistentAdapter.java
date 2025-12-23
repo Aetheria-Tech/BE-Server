@@ -26,8 +26,7 @@ public class RunningArtPersistentAdapter implements RunningArtRepositoryPort {
     @Override
     public RunningArt save(RunningArt runningArt) {
         // 1. 도메인의 userId를 이용해 UserEntity 참조를 가져옴
-        UserEntity userEntity = jpaUserRepository.findById(runningArt.getUserId())
-                .orElseThrow(() -> new BusinessException(ErrorMessage.NOT_FOUND_USER, "사용자를 조회할 수 없습니다."));
+        UserEntity userEntity = jpaUserRepository.getReferenceById(runningArt.getUserId());
 
         // 2. Mapper를 통해 Domain -> Entity 변환 (UserEntity 주입)
         RunningArtEntity entity = mapper.toEntity(runningArt, userEntity);

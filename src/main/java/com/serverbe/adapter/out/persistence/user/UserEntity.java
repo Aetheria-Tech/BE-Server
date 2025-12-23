@@ -61,7 +61,7 @@ public class UserEntity {
     @LastModifiedDate
     private LocalDateTime updatedAt;
 
-    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "user")
     private List<RunningArtEntity> runningArtEntities = new ArrayList<>();
 
     public void addRunningArt(RunningArtEntity art) {
