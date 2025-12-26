@@ -1,8 +1,9 @@
 package com.serverbe.application.service;
 
+import com.serverbe.application.port.in.me.UpdateUserUseCase;
 import com.serverbe.application.port.out.dto.me.UserProfileResponse;
 import com.serverbe.application.port.out.dto.me.UserUpdateCommand;
-import com.serverbe.application.port.in.me.UserUseCase;
+import com.serverbe.application.port.in.me.GetUserUseCase;
 import com.serverbe.application.port.out.jpa.UserRepositoryPort;
 import com.serverbe.domain.model.user.User;
 import com.serverbe.infrastructure.error.BusinessException;
@@ -14,7 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
-public class UserService implements UserUseCase {
+public class GetUserService implements GetUserUseCase, UpdateUserUseCase {
 
     private final UserRepositoryPort userRepositoryPort;
 

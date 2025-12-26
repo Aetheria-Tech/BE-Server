@@ -1,8 +1,9 @@
 package com.serverbe.adapter.in.web;
 
+import com.serverbe.application.port.in.me.UpdateUserUseCase;
 import com.serverbe.application.port.out.dto.me.UserProfileResponse;
 import com.serverbe.application.port.out.dto.me.UserUpdateCommand;
-import com.serverbe.application.port.in.me.UserUseCase;
+import com.serverbe.application.port.in.me.GetUserUseCase;
 import com.serverbe.infrastructure.common.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -16,12 +17,13 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 public class UserController {
 
-    private final UserUseCase userUseCase;
+    private final GetUserUseCase getUserUseCase;
+    private final UpdateUserUseCase updateUserUseCase;
 
     @Operation(summary = "내 프로필 조회")
     @GetMapping("/me")
     public ApiResponse<UserProfileResponse> getMyProfile(@AuthenticationPrincipal Long userId) {
-        return ApiResponse.success(userUseCase.getMyProfile(userId));
+        return ApiResponse.success(getUserUseCase.getMyProfile(userId));
     }
 
     @Operation(summary = "내 프로필 수정")
@@ -30,6 +32,6 @@ public class UserController {
             @AuthenticationPrincipal Long userId,
             @RequestBody UserUpdateCommand command
     ) {
-        return ApiResponse.success(userUseCase.updateMyProfile(userId, command));
+        return ApiResponse.success(updateUserUseCase.updateMyProfile(userId, command));
     }
 }
