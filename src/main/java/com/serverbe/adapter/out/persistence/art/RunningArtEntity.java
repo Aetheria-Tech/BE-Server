@@ -10,6 +10,7 @@ import lombok.NoArgsConstructor;
 
 @Entity
 @Getter
+@Table(name = "running_arts")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class RunningArtEntity {
 
