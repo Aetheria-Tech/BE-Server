@@ -28,6 +28,7 @@ public class RunningArtEntity {
     private String shape;
 
     @Enumerated(EnumType.STRING)
+    @Column(name = "proficiency", nullable = false)
     private Proficiency proficiency;
 
     @Lob
