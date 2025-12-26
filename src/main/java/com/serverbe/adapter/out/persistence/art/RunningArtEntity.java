@@ -17,14 +17,21 @@ public class RunningArtEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Column(name = "title", nullable = false)
     private String title;
+
+    @Column(name = "content", nullable = false)
     private String content;
+
+    @Column(name = "shape", nullable = false)
     private String shape;
+
     @Enumerated(EnumType.STRING)
     private Proficiency proficiency;
 
     @Lob
-    @Column(columnDefinition = "LONGTEXT")
+    @Column(name = "gpx", columnDefinition = "LONGTEXT")
     private String gpx;
 
     // 연관관계 설정 (주인)
