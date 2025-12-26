@@ -4,7 +4,7 @@ import com.serverbe.domain.model.art.RunningArt;
 
 import java.util.List;
 
-public interface GetRunningArtQuery {
+public interface GetRunningArtUseCase {
     // 사용자 ID로 사용자의 런닝 아트 조회
     List<RunningArt> getRunningArtsByUserId(Long userId);
 

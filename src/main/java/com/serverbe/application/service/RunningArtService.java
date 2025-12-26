@@ -1,7 +1,8 @@
 package com.serverbe.application.service;
 
-import com.serverbe.application.port.in.art.GetRunningArtQuery;
-import com.serverbe.application.port.in.art.ManageRunningArtUseCase;
+import com.serverbe.application.port.in.art.GetRunningArtUseCase;
+import com.serverbe.application.port.in.art.DeleteRunningArtUseCase;
+import com.serverbe.application.port.in.art.UpdateRunningArtUseCase;
 import com.serverbe.application.port.in.dto.art.UpdateRunningArtCommand;
 import com.serverbe.application.port.out.dto.art.RunningArtUpdateDto;
 import com.serverbe.application.port.out.jpa.RunningArtRepositoryPort;
@@ -17,7 +18,7 @@ import java.util.List;
 @Service
 @Transactional
 @RequiredArgsConstructor
-public class RunningArtService implements GetRunningArtQuery, ManageRunningArtUseCase {
+public class RunningArtService implements GetRunningArtUseCase, DeleteRunningArtUseCase, UpdateRunningArtUseCase {
     private final RunningArtRepositoryPort repositoryPort;
 
 

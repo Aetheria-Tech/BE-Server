@@ -1,7 +1,8 @@
 package com.serverbe.adapter.in.web;
 
-import com.serverbe.application.port.in.art.GetRunningArtQuery;
-import com.serverbe.application.port.in.art.ManageRunningArtUseCase;
+import com.serverbe.application.port.in.art.GetRunningArtUseCase;
+import com.serverbe.application.port.in.art.DeleteRunningArtUseCase;
+import com.serverbe.application.port.in.art.UpdateRunningArtUseCase;
 import com.serverbe.application.port.in.dto.art.UpdateRunningArtCommand;
 import com.serverbe.domain.model.art.RunningArt;
 import com.serverbe.infrastructure.common.ApiResponse;
@@ -20,13 +21,14 @@ import java.util.List;
 @RequiredArgsConstructor
 public class RunningArtController {
 
-    private final GetRunningArtQuery getRunningArtQuery;
-    private final ManageRunningArtUseCase manageRunningArtUseCase;
+    private final GetRunningArtUseCase getRunningArtUseCase;
+    private final DeleteRunningArtUseCase deleteRunningArtUseCase;
+    private final UpdateRunningArtUseCase updateRunningArtUseCase;
 
     @Operation(summary = "사용자별 런닝 아트 목록 조회", description = "특정 사용자가 작성한 모든 런닝 아트를 조회합니다.")
     @GetMapping("/me")
     public ApiResponse<List<RunningArt>> getByUserId(@AuthenticationPrincipal Long userId) {
-        return ApiResponse.success(getRunningArtQuery.getRunningArtsByUserId(userId));
+        return ApiResponse.success(getRunningArtUseCase.getRunningArtsByUserId(userId));
     }
 
     @Operation(summary = "런닝 아트 단건 조회", description = "ID를 통해 특정 런닝 아트를 상세 조회합니다.")
@@ -35,7 +37,7 @@ public class RunningArtController {
             @AuthenticationPrincipal Long userId,
             @PathVariable(name = "runningArtId") Long runningArtId
     ) {
-        return ApiResponse.success(getRunningArtQuery.getRunningArtById(userId, runningArtId));
+        return ApiResponse.success(getRunningArtUseCase.getRunningArtById(userId, runningArtId));
     }
 
     @Operation(summary = "런닝 아트 수정", description = "제목과 내용을 수정합니다.")
@@ -45,7 +47,7 @@ public class RunningArtController {
             @PathVariable(name = "runningArtId") Long runningArtId,
             @RequestBody @Valid UpdateRunningArtCommand request
     ) {
-        manageRunningArtUseCase.updateRunningArt(userId, runningArtId, request);
+        updateRunningArtUseCase.updateRunningArt(userId, runningArtId, request);
         return ApiResponse.noContent();
     }
 
@@ -55,14 +57,14 @@ public class RunningArtController {
             @AuthenticationPrincipal Long userId,
             @PathVariable(name = "runningArtId") Long runningArtId
     ) {
-        manageRunningArtUseCase.deleteRunningArt(userId, runningArtId);
+        deleteRunningArtUseCase.deleteRunningArt(userId, runningArtId);
         return ApiResponse.noContent();
     }
 
     @Operation(summary = "사용자의 모든 런닝 아트 삭제", description = "특정 사용자의 모든 데이터를 일괄 삭제합니다.")
     @DeleteMapping("/me")
     public ApiResponse<Void> deleteAllByUser(@AuthenticationPrincipal Long userId) {
-        manageRunningArtUseCase.deleteAllRunningArtsByUserId(userId);
+        deleteRunningArtUseCase.deleteAllRunningArtsByUserId(userId);
         return ApiResponse.noContent();
     }
 }

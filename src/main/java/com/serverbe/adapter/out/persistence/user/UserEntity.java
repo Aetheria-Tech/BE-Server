@@ -31,24 +31,24 @@ public class UserEntity {
     private String oauthId;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(name = "oauth_provider", nullable = false)
     private OAuthProvider provider;
 
-    @Column(nullable = false)
+    @Column(name = "email", nullable = false)
     @Convert(converter = CryptoConverter.class)
     private String email;
 
-    @Column(nullable = false)
+    @Column(name = "nickname", nullable = false)
     private String nickname;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(name = "role", nullable = false)
     private Role role;
 
-    @Column(nullable = true)
+    @Column(name = "status_message")
     private String statusMessage;
 
-    // 추가: OAuth 제공자로부터 받은 리프레시 토큰
+    // OAuth 제공자로부터 받은 리프레시 토큰
     // 토큰이 매우 길 수 있으므로 TEXT 타입을 사용하거나 길이를 넉넉하게 설정합니다.
     @Column(name = "oauth_refresh_token", columnDefinition = "TEXT")
     @Convert(converter = CryptoConverter.class)
