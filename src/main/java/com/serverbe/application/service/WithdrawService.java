@@ -6,7 +6,6 @@ import com.serverbe.application.port.in.oauth.WithdrawUseCase;
 import com.serverbe.application.port.out.token.TokenPersistencePort;
 import com.serverbe.application.port.out.jpa.UserRepositoryPort;
 import com.serverbe.domain.model.user.vo.OAuthProvider;
-import com.serverbe.infrastructure.common.logging.Trace;
 import com.serverbe.infrastructure.error.BusinessException;
 import com.serverbe.infrastructure.error.ErrorMessage;
 import lombok.RequiredArgsConstructor;

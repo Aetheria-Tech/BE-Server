@@ -1,10 +1,9 @@
 package com.serverbe.infrastructure.common.logging;
 
 import lombok.extern.slf4j.Slf4j;
-import org.aspectj.lang.JoinPoint;
-import org.aspectj.lang.annotation.AfterReturning;
+import org.aspectj.lang.ProceedingJoinPoint;
+import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
-import org.aspectj.lang.annotation.Before;
 import org.springframework.stereotype.Component;
 
 import java.util.Arrays;
@@ -13,23 +12,20 @@ import java.util.Arrays;
 @Aspect
 @Component
 public class TraceAspect {
-    @Before("@within(com.serverbe.infrastructure.common.logging.Trace)")
-    public void logMethodEntry(JoinPoint joinPoint) {
-        String className = joinPoint.getSignature().getDeclaringTypeName();
-        String methodName = joinPoint.getSignature().getName();
-        Object[] args = joinPoint.getArgs();
-
-        log.info("[ENTRY] {}.{} | Args: {}", className, methodName, Arrays.toString(args));
-    }
-
-    @AfterReturning(
-            pointcut = "@within(com.serverbe.infrastructure.common.logging.Trace)",
-            returning = "result"
-    )
-    public void logMethodExit(JoinPoint joinPoint, Object result) {
+    @Around("@within(com.serverbe.infrastructure.common.logging.Trace)")
+    public Object logTrace(ProceedingJoinPoint joinPoint) throws Throwable {
         String className = joinPoint.getSignature().getDeclaringTypeName();
         String methodName = joinPoint.getSignature().getName();
 
-        log.info("[EXIT] {}.{} | Return: {}", className, methodName, result);
+        log.info("[ENTRY] {}.{} | Args: {}", className, methodName, Arrays.toString(joinPoint.getArgs()));
+
+        try {
+            Object result = joinPoint.proceed();
+            log.info("[EXIT] {}.{} | Return: {}", className, methodName, result);
+            return result;
+        } catch (Throwable e) {
+            log.error("[EXCEPTION] {}.{} | Exception: {}", className, methodName, e.getClass().getSimpleName());
+            throw e;
+        }
     }
 }

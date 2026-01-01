@@ -14,6 +14,10 @@ public class TimerAspect {
 
     @Around("@annotation(com.serverbe.infrastructure.common.logging.Timer)")
     public Object measureExecutionTime(ProceedingJoinPoint joinPoint) throws Throwable {
+        if (!log.isInfoEnabled()) {
+            return joinPoint.proceed();
+        }
+
         StopWatch stopWatch = new StopWatch();
         stopWatch.start();
 
@@ -23,7 +27,7 @@ public class TimerAspect {
             stopWatch.stop();
 
             String methodName = joinPoint.getSignature().getName();
-            String className = joinPoint.getSignature().getDeclaringType().getSimpleName();
+            String className = joinPoint.getSignature().getDeclaringTypeName();
 
             log.info("[TIMER] {}.{} | Duration: {}ms", className, methodName, stopWatch.getTotalTimeMillis());
         }
