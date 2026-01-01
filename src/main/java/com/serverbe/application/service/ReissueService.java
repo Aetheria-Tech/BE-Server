@@ -19,7 +19,6 @@ import java.time.Duration;
 
 @Service
 @Transactional
-@Trace
 public class ReissueService implements ReissueUseCase {
 
     private final TokenPersistencePort tokenPersistencePort;

@@ -19,7 +19,6 @@ import java.util.List;
 @Service
 @Transactional
 @RequiredArgsConstructor
-@Trace
 public class RunningArtService implements GetRunningArtUseCase, DeleteRunningArtUseCase, UpdateRunningArtUseCase {
     private final RunningArtRepositoryPort repositoryPort;
 

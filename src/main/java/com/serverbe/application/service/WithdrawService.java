@@ -21,7 +21,6 @@ import java.util.List;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-@Trace
 public class WithdrawService implements WithdrawUseCase {
 
     private final UserRepositoryPort userRepositoryPort;

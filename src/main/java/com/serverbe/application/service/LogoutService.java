@@ -13,7 +13,6 @@ import java.time.Instant;
 
 @Service
 @RequiredArgsConstructor
-@Trace
 public class LogoutService implements LogoutUseCase {
 
     private final TokenPersistencePort tokenPersistencePort;

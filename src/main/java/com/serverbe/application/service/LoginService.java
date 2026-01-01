@@ -26,7 +26,6 @@ import java.util.List;
 @Slf4j
 @Service
 @Transactional
-@Trace
 public class LoginService implements LoginUseCase {
 
     private final List<OAuthClientPort> oAuthClients;
