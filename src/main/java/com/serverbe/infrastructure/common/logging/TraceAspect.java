@@ -12,8 +12,8 @@ import java.util.Arrays;
 @Slf4j
 @Aspect
 @Component
-public class LoggingAspect {
-    @Before("@within(com.serverbe.infrastructure.common.logging.MethodLogging)")
+public class TraceAspect {
+    @Before("@within(com.serverbe.infrastructure.common.logging.Trace)")
     public void logMethodEntry(JoinPoint joinPoint) {
         String className = joinPoint.getSignature().getDeclaringTypeName();
         String methodName = joinPoint.getSignature().getName();
@@ -23,7 +23,7 @@ public class LoggingAspect {
     }
 
     @AfterReturning(
-            pointcut = "@within(com.serverbe.infrastructure.common.logging.MethodLogging)",
+            pointcut = "@within(com.serverbe.infrastructure.common.logging.Trace)",
             returning = "result"
     )
     public void logMethodExit(JoinPoint joinPoint, Object result) {

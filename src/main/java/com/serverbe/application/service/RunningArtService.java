@@ -7,7 +7,7 @@ import com.serverbe.application.port.in.dto.art.UpdateRunningArtCommand;
 import com.serverbe.application.port.out.dto.art.RunningArtUpdateDto;
 import com.serverbe.application.port.out.jpa.RunningArtRepositoryPort;
 import com.serverbe.domain.model.art.RunningArt;
-import com.serverbe.infrastructure.common.logging.MethodLogging;
+import com.serverbe.infrastructure.common.logging.Trace;
 import com.serverbe.infrastructure.error.BusinessException;
 import com.serverbe.infrastructure.error.ErrorMessage;
 import lombok.RequiredArgsConstructor;
@@ -19,7 +19,7 @@ import java.util.List;
 @Service
 @Transactional
 @RequiredArgsConstructor
-@MethodLogging
+@Trace
 public class RunningArtService implements GetRunningArtUseCase, DeleteRunningArtUseCase, UpdateRunningArtUseCase {
     private final RunningArtRepositoryPort repositoryPort;
 
