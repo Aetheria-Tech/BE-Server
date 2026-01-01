@@ -8,6 +8,7 @@ import com.serverbe.application.port.out.security.TokenProvider;
 import com.serverbe.application.port.out.security.TokenResolver;
 import com.serverbe.application.port.out.token.TokenPersistencePort;
 import com.serverbe.domain.model.user.vo.Role;
+import com.serverbe.infrastructure.common.logging.MethodLogging;
 import com.serverbe.infrastructure.config.properties.JwtProperties;
 import com.serverbe.infrastructure.error.BusinessException;
 import com.serverbe.infrastructure.error.ErrorMessage;
@@ -18,6 +19,7 @@ import java.time.Duration;
 
 @Service
 @Transactional
+@MethodLogging
 public class ReissueService implements ReissueUseCase {
 
     private final TokenPersistencePort tokenPersistencePort;

@@ -10,6 +10,7 @@ import com.serverbe.application.port.out.token.TokenPersistencePort;
 import com.serverbe.application.port.out.jpa.UserRepositoryPort;
 import com.serverbe.domain.model.user.User;
 import com.serverbe.domain.model.user.vo.OAuthProvider;
+import com.serverbe.infrastructure.common.logging.MethodLogging;
 import com.serverbe.infrastructure.config.properties.JwtProperties;
 import com.serverbe.infrastructure.error.BusinessException;
 import com.serverbe.infrastructure.error.ErrorMessage;
@@ -25,6 +26,7 @@ import java.util.List;
 @Slf4j
 @Service
 @Transactional
+@MethodLogging
 public class LoginService implements LoginUseCase {
 
     private final List<OAuthClientPort> oAuthClients;

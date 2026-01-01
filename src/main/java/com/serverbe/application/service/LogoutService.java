@@ -4,6 +4,7 @@ package com.serverbe.application.service;
 import com.serverbe.application.port.in.oauth.LogoutUseCase;
 import com.serverbe.application.port.out.security.TokenResolver;
 import com.serverbe.application.port.out.token.TokenPersistencePort;
+import com.serverbe.infrastructure.common.logging.MethodLogging;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -12,6 +13,7 @@ import java.time.Instant;
 
 @Service
 @RequiredArgsConstructor
+@MethodLogging
 public class LogoutService implements LogoutUseCase {
 
     private final TokenPersistencePort tokenPersistencePort;

@@ -6,6 +6,7 @@ import com.serverbe.application.port.out.dto.me.UserUpdateCommand;
 import com.serverbe.application.port.in.me.GetUserUseCase;
 import com.serverbe.application.port.out.jpa.UserRepositoryPort;
 import com.serverbe.domain.model.user.User;
+import com.serverbe.infrastructure.common.logging.MethodLogging;
 import com.serverbe.infrastructure.error.BusinessException;
 import com.serverbe.infrastructure.error.ErrorMessage;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
+@MethodLogging
 public class UserService implements GetUserUseCase, UpdateUserUseCase {
 
     private final UserRepositoryPort userRepositoryPort;
