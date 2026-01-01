@@ -7,7 +7,7 @@ import com.serverbe.application.port.in.oauth.LoginUseCase;
 import com.serverbe.application.port.in.oauth.WithdrawUseCase;
 import com.serverbe.application.port.in.token.ReissueUseCase;
 import com.serverbe.domain.model.user.vo.OAuthProvider;
-import com.serverbe.infrastructure.common.ApiResponse;
+import com.serverbe.infrastructure.common.response.ApiResponse;
 import com.serverbe.infrastructure.config.properties.JwtProperties;
 import com.serverbe.infrastructure.error.BusinessException;
 import com.serverbe.infrastructure.error.ErrorMessage;

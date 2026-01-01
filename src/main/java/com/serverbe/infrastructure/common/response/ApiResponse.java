@@ -1,4 +1,4 @@
-package com.serverbe.infrastructure.common;
+package com.serverbe.infrastructure.common.response;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.serverbe.infrastructure.error.ErrorMessage;

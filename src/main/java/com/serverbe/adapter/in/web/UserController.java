@@ -4,7 +4,7 @@ import com.serverbe.application.port.in.me.UpdateUserUseCase;
 import com.serverbe.application.port.out.dto.me.UserProfileResponse;
 import com.serverbe.application.port.out.dto.me.UserUpdateCommand;
 import com.serverbe.application.port.in.me.GetUserUseCase;
-import com.serverbe.infrastructure.common.ApiResponse;
+import com.serverbe.infrastructure.common.response.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;

@@ -5,7 +5,7 @@ import com.serverbe.application.port.in.art.DeleteRunningArtUseCase;
 import com.serverbe.application.port.in.art.UpdateRunningArtUseCase;
 import com.serverbe.application.port.in.dto.art.UpdateRunningArtCommand;
 import com.serverbe.domain.model.art.RunningArt;
-import com.serverbe.infrastructure.common.ApiResponse;
+import com.serverbe.infrastructure.common.response.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
