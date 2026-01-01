@@ -1,7 +1,7 @@
 package com.serverbe.infrastructure.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.serverbe.infrastructure.common.ApiResponse;
+import com.serverbe.infrastructure.common.response.ApiResponse;
 import com.serverbe.infrastructure.error.ErrorMessage;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;

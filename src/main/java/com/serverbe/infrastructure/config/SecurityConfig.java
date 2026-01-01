@@ -53,7 +53,7 @@ public class SecurityConfig {
                                 "/api/v1/auth/callback/**",
                                 "/api/v1/auth/reissue"
                         ).permitAll()
-
+    
                         // Swagger 문서 경로는 모두 허용
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
 
