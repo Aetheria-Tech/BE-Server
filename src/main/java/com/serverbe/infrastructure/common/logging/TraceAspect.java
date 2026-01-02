@@ -13,13 +13,7 @@ import java.util.Arrays;
 @Component
 public class TraceAspect {
 
-    // ANSI 컬러 코드 상수 정의
-    private static final String ANSI_RESET = "\u001B[0m";
-    private static final String ANSI_GREEN = "\u001B[32m";
-    private static final String ANSI_BLUE = "\u001B[34m";
-    private static final String ANSI_RED = "\u001B[31m";
-    private static final String ANSI_CYAN = "\u001B[36m";
-
+    // 정렬을 위한 너비 설정 (이것은 스타일이 아니라 데이터 포맷이므로 Java에 두어도 무방합니다)
     private static final int TAG_WIDTH = 11;      // [EXCEPTION] 길이에 맞춤
     private static final int LOCATION_WIDTH = 45; // 클래스.메서드명 너비
 
@@ -29,24 +23,25 @@ public class TraceAspect {
         String methodName = joinPoint.getSignature().getName();
         String location = className + "." + methodName;
 
+        // [ENTRY] 출력: 색상 코드 제거, 순수 텍스트 정렬만 수행
         String entryTag = String.format("%-" + TAG_WIDTH + "s", "[ENTRY]");
         String entryLocation = String.format("%-" + LOCATION_WIDTH + "s", location);
-        log.info("{}{} {}| Args: {}", ANSI_GREEN, entryTag, entryLocation, Arrays.toString(joinPoint.getArgs()) + ANSI_RESET);
+        log.info("{} {}| Args: {}", entryTag, entryLocation, Arrays.toString(joinPoint.getArgs()));
 
         try {
             Object result = joinPoint.proceed();
 
-            // [EXIT] 정렬 및 출력
+            // [EXIT] 출력
             String exitTag = String.format("%-" + TAG_WIDTH + "s", "[EXIT]");
             String exitLocation = String.format("%-" + LOCATION_WIDTH + "s", location);
-            log.info("{}{} {}| Return: {}", ANSI_BLUE, exitTag, exitLocation, result + ANSI_RESET);
+            log.info("{} {}| Return: {}", exitTag, exitLocation, result);
 
             return result;
         } catch (Throwable e) {
-            // [EXCEPTION] 정렬 및 출력
+            // [EXCEPTION] 출력
             String exTag = String.format("%-" + TAG_WIDTH + "s", "[EXCEPTION]");
             String exLocation = String.format("%-" + LOCATION_WIDTH + "s", location);
-            log.error("{}{} {}| Exception: {}", ANSI_RED, exTag, exLocation, e.getClass().getSimpleName() + ANSI_RESET);
+            log.error("{} {}| Exception: {}", exTag, exLocation, e.getClass().getSimpleName());
 
             throw e;
         }
