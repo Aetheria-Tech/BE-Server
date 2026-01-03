@@ -2,7 +2,7 @@ package com.serverbe.application.service;
 
 import com.serverbe.application.port.out.dto.oauth.AccessTokenResult;
 import com.serverbe.application.port.out.dto.oauth.RefreshTokenResult;
-import com.serverbe.application.port.out.dto.oauth.TokenResponse;
+import com.serverbe.application.port.out.dto.oauth.TokenResult;
 import com.serverbe.application.port.in.token.ReissueUseCase;
 import com.serverbe.application.port.out.security.TokenProvider;
 import com.serverbe.application.port.out.security.TokenResolver;
@@ -33,7 +33,7 @@ public class ReissueService implements ReissueUseCase {
     }
 
     @Override
-    public TokenResponse reissue(String accessToken, String refreshToken) {
+    public TokenResult reissue(String accessToken, String refreshToken) {
         // 1. 리프레시 토큰 자체의 유효성 검증
         if (!tokenResolver.validateRefreshToken(refreshToken)) {
             throw new BusinessException(ErrorMessage.REFRESH_TOKEN_NOT_EXIST);
@@ -65,7 +65,7 @@ public class ReissueService implements ReissueUseCase {
                 REFRESH_TOKEN_EXPIRATION_DAYS // Duration (60일)
         );
 
-        return TokenResponse.of(
+        return TokenResult.of(
                 newAccessToken,
                 newRefreshTokenResult,
                 role

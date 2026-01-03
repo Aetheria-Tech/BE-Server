@@ -2,7 +2,7 @@ package com.serverbe.application.service;
 
 import com.serverbe.application.port.out.dto.oauth.AccessTokenResult;
 import com.serverbe.application.port.out.dto.oauth.RefreshTokenResult;
-import com.serverbe.application.port.out.dto.oauth.TokenResponse;
+import com.serverbe.application.port.out.dto.oauth.TokenResult;
 import com.serverbe.application.port.out.oauth.OAuthClientPort;
 import com.serverbe.application.port.in.oauth.LoginUseCase;
 import com.serverbe.application.port.out.security.TokenProvider;
@@ -48,7 +48,7 @@ public class LoginService implements LoginUseCase {
     }
 
     @Override
-    public Mono<TokenResponse> login(String code, OAuthProvider provider) {
+    public Mono<TokenResult> login(String code, OAuthProvider provider) {
         // 1. 외부 소셜 서버(카카오/구글) 어댑터 선택 (Strategy Pattern 적용)
         OAuthClientPort client = getClient(provider);
 
@@ -70,7 +70,7 @@ public class LoginService implements LoginUseCase {
                             REFRESH_TOKEN_EXPIRATION_DAYS
                     );
 
-                    return TokenResponse.of(accessToken, refreshTokenResult, user.role());
+                    return TokenResult.of(accessToken, refreshTokenResult, user.role());
                 });
     }
 
