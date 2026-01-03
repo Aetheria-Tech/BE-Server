@@ -34,6 +34,8 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-webflux'
     // SpringDoc OpenAPI: Swagger UI를 통해 API 문서를 자동 생성하고 테스트 화면 제공
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.3'
+    // Validation: 요청 파라미터 검증에 필요한 라이브러리를 제공한다.
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
 
     /**
      * Database & Persistence (JPA & Querydsl)
