@@ -4,7 +4,6 @@ import com.serverbe.adapter.out.persistence.mapper.RunningArtMapper;
 import com.serverbe.adapter.out.persistence.user.JpaUserRepository;
 import com.serverbe.adapter.out.persistence.user.UserEntity;
 import com.serverbe.application.port.in.dto.art.RunningArtUpdateCommand;
-import com.serverbe.application.port.out.dto.art.RunningArtUpdateCommand;
 import com.serverbe.application.port.out.jpa.RunningArtRepositoryPort;
 import com.serverbe.domain.model.art.RunningArt;
 import com.serverbe.infrastructure.error.BusinessException;

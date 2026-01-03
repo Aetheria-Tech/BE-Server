@@ -1,7 +1,6 @@
 package com.serverbe.application.port.out.jpa;
 
 import com.serverbe.application.port.in.dto.art.RunningArtUpdateCommand;
-import com.serverbe.application.port.out.dto.art.RunningArtUpdateCommand;
 import com.serverbe.domain.model.art.RunningArt;
 
 import java.util.List;
