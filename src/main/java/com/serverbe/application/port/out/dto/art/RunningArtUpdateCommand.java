@@ -1,6 +1,6 @@
 package com.serverbe.application.port.out.dto.art;
 
-public record RunningArtUpdateDto(
+public record RunningArtUpdateCommand(
         String title,
         String content
 ) {

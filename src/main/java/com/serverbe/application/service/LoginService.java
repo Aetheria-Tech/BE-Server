@@ -1,7 +1,7 @@
 package com.serverbe.application.service;
 
-import com.serverbe.application.port.out.dto.oauth.AccessTokenResponse;
-import com.serverbe.application.port.out.dto.oauth.RefreshTokenResponse;
+import com.serverbe.application.port.out.dto.oauth.AccessTokenResult;
+import com.serverbe.application.port.out.dto.oauth.RefreshTokenResult;
 import com.serverbe.application.port.out.dto.oauth.TokenResponse;
 import com.serverbe.application.port.out.oauth.OAuthClientPort;
 import com.serverbe.application.port.in.oauth.LoginUseCase;
@@ -60,17 +60,17 @@ public class LoginService implements LoginUseCase {
                             .orElseGet(() -> userRepositoryPort.save(User.createNew(oauthInfo, provider)));
 
                     // 3. 우리 서비스 전용 JWT 발급 (로그인 로직)
-                    AccessTokenResponse accessToken = tokenProvider.generateAccessToken(user.id(), user.role());
-                    RefreshTokenResponse refreshTokenResponse = tokenProvider.generateRefreshToken(user.id(), user.role());
+                    AccessTokenResult accessToken = tokenProvider.generateAccessToken(user.id(), user.role());
+                    RefreshTokenResult refreshTokenResult = tokenProvider.generateRefreshToken(user.id(), user.role());
 
                     // 4. Redis에 리프레시 토큰 저장
                     tokenPersistencePort.saveRefreshToken(
                             user.id(),
-                            refreshTokenResponse.opaqueToken(),
+                            refreshTokenResult.opaqueToken(),
                             REFRESH_TOKEN_EXPIRATION_DAYS
                     );
 
-                    return TokenResponse.of(accessToken, refreshTokenResponse, user.role());
+                    return TokenResponse.of(accessToken, refreshTokenResult, user.role());
                 });
     }
 

@@ -1,7 +1,7 @@
 package com.serverbe.infrastructure.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.serverbe.infrastructure.common.response.ApiResponse;
+import com.serverbe.infrastructure.common.response.RestApiResponse;
 import com.serverbe.infrastructure.error.ErrorMessage;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -30,7 +30,7 @@ public class CustomAccessDeniedHandler implements AccessDeniedHandler {
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setCharacterEncoding("UTF-8");
 
-        var apiResponse = ApiResponse.fail(ErrorMessage.ACCESS_DENIED, "해당 리소스에 대한 접근 권한이 없습니다.");
+        var apiResponse = RestApiResponse.fail(ErrorMessage.ACCESS_DENIED, "해당 리소스에 대한 접근 권한이 없습니다.");
 
         response.getWriter().write(objectMapper.writeValueAsString(apiResponse));
     }

@@ -3,8 +3,8 @@ package com.serverbe.adapter.out.external.kakao;
 
 import com.serverbe.adapter.out.external.kakao.dto.KakaoTokenResponse;
 import com.serverbe.adapter.out.external.kakao.dto.KakaoUserInfoResponse;
-import com.serverbe.application.port.out.dto.oauth.OAuthUserInfo;
-import com.serverbe.application.port.out.dto.oauth.SocialTokenRefreshResponse;
+import com.serverbe.application.port.out.dto.oauth.OAuthUserInfoResult;
+import com.serverbe.application.port.out.dto.oauth.SocialTokenRefreshResult;
 import com.serverbe.application.port.out.oauth.OAuthClientPort;
 import com.serverbe.domain.model.user.vo.OAuthProvider;
 import com.serverbe.infrastructure.config.properties.KakaoProperties;
@@ -46,7 +46,7 @@ public class KakaoOAuthAdapter implements OAuthClientPort {
 
 
     @Override
-    public Mono<OAuthUserInfo> getUserInfo(String code, OAuthProvider provider) {
+    public Mono<OAuthUserInfoResult> getUserInfo(String code, OAuthProvider provider) {
         if (provider != OAuthProvider.KAKAO) {
             return Mono.error(new BusinessException(ErrorMessage.INTERNAL_SERVER_ERROR, "카카오 어댑터는 카카오 로그인만 처리할 수 있습니다."));
         }
@@ -74,7 +74,7 @@ public class KakaoOAuthAdapter implements OAuthClientPort {
                 .bodyToMono(KakaoTokenResponse.class);
     }
 
-    private Mono<OAuthUserInfo> fetchUserInfo(String accessToken, String refreshToken) {
+    private Mono<OAuthUserInfoResult> fetchUserInfo(String accessToken, String refreshToken) {
         return webClient.get()
                 .uri(kapiUrl + "/v2/user/me")
                 .header("Authorization", "Bearer " + accessToken)
@@ -83,7 +83,7 @@ public class KakaoOAuthAdapter implements OAuthClientPort {
                         clientResponse -> clientResponse.bodyToMono(String.class)
                                 .map(body -> new BusinessException(ErrorMessage.FAILED_KAKAO_API, body)))
                 .bodyToMono(KakaoUserInfoResponse.class)
-                .map(response -> new OAuthUserInfo(
+                .map(response -> new OAuthUserInfoResult(
                         String.valueOf(response.id()),
                         OAuthProvider.KAKAO,
                         response.kakaoAccount().email(),
@@ -112,7 +112,7 @@ public class KakaoOAuthAdapter implements OAuthClientPort {
     }
 
     @Override
-    public Mono<SocialTokenRefreshResponse> refreshSocialToken(OAuthProvider provider, String refreshToken) {
+    public Mono<SocialTokenRefreshResult> refreshSocialToken(OAuthProvider provider, String refreshToken) {
         MultiValueMap<String, String> formData = new LinkedMultiValueMap<>();
         formData.add("grant_type", "refresh_token");
         formData.add("client_id", clientId);
@@ -125,7 +125,7 @@ public class KakaoOAuthAdapter implements OAuthClientPort {
                 .retrieve()
                 .onStatus(HttpStatusCode::isError, res -> res.bodyToMono(String.class)
                         .map(body -> new BusinessException(ErrorMessage.FAILED_KAKAO_API, "Kakao Refresh Error: " + body)))
-                .bodyToMono(SocialTokenRefreshResponse.class);
+                .bodyToMono(SocialTokenRefreshResult.class);
     }
 
     @Override

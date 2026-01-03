@@ -1,8 +1,8 @@
 package com.serverbe.adapter.in.web;
 
-import com.serverbe.application.port.out.dto.geocoding.GeocodeResponse;
+import com.serverbe.application.port.out.dto.geocoding.GeocodeResult;
 import com.serverbe.application.port.out.geocode.GeocodePort;
-import com.serverbe.infrastructure.common.response.ApiResponse;
+import com.serverbe.infrastructure.common.response.RestApiResponse;
 import com.serverbe.infrastructure.util.AddressValidator;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -23,10 +23,10 @@ public class GeocodeController {
 
     @Operation(summary = "주소를 위경도로 변환 (지오코딩)")
     @GetMapping
-    public Mono<ApiResponse<GeocodeResponse>> geocode(@RequestParam(name = "address") String address) {
+    public Mono<RestApiResponse<GeocodeResult>> geocode(@RequestParam(name = "address") String address) {
         AddressValidator.validate(address);
         // 외부 API 호출이므로 비동기 체인(Mono)을 그대로 반환합니다.
         return geocodePort.geocode(address)
-                .map(ApiResponse::success);
+                .map(RestApiResponse::success);
     }
 }

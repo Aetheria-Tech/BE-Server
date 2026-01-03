@@ -4,7 +4,7 @@ import com.serverbe.application.port.in.art.GetRunningArtUseCase;
 import com.serverbe.application.port.in.art.DeleteRunningArtUseCase;
 import com.serverbe.application.port.in.art.UpdateRunningArtUseCase;
 import com.serverbe.application.port.in.dto.art.UpdateRunningArtCommand;
-import com.serverbe.application.port.out.dto.art.RunningArtUpdateDto;
+import com.serverbe.application.port.out.dto.art.RunningArtUpdateCommand;
 import com.serverbe.application.port.out.jpa.RunningArtRepositoryPort;
 import com.serverbe.domain.model.art.RunningArt;
 import com.serverbe.infrastructure.error.BusinessException;
@@ -46,7 +46,7 @@ public class RunningArtService implements GetRunningArtUseCase, DeleteRunningArt
     public void updateRunningArt(Long userId, Long runningArtId, UpdateRunningArtCommand command) {
         findAndVerifyOwner(userId, runningArtId);
 
-        RunningArtUpdateDto updateDto = new RunningArtUpdateDto(command.title(), command.content());
+        RunningArtUpdateCommand updateDto = new RunningArtUpdateCommand(command.title(), command.content());
         repositoryPort.updateMetadata(runningArtId, updateDto);
     }
 

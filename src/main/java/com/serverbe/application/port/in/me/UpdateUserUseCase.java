@@ -1,8 +1,8 @@
 package com.serverbe.application.port.in.me;
 
-import com.serverbe.application.port.out.dto.me.UserProfileResponse;
+import com.serverbe.application.port.out.dto.me.UserProfileResult;
 import com.serverbe.application.port.out.dto.me.UserUpdateCommand;
 
 public interface UpdateUserUseCase {
-    UserProfileResponse updateMyProfile(Long userId, UserUpdateCommand command);
+    UserProfileResult updateMyProfile(Long userId, UserUpdateCommand command);
 }

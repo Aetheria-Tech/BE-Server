@@ -1,17 +1,20 @@
 package com.serverbe.application.port.out.dto.oauth;
 
 import com.serverbe.domain.model.user.vo.Role;
+import io.swagger.v3.oas.annotations.media.Schema;
 
-/**
- * 로그인 성공 후 우리 서비스 전용 토큰 정보를 담아 클라이언트에게 반환하는 DTO입니다.
- */
+@Schema(description = "로그인 및 토큰 재발급 응답")
 public record TokenResponse(
-        AccessTokenResponse accessTokenResponse,
-        RefreshTokenResponse refreshTokenResponse,
-        Role role // 프론트엔드에서 메뉴 노출 권한 등을 제어할 때 유용합니다.
+        @Schema(description = "액세스 토큰 상세 정보")
+        AccessTokenResult accessTokenResult,
+
+        @Schema(description = "리프레시 토큰 상세 정보 (보통 HttpOnly 쿠키로 설정되므로 바디에서는 무시될 수 있음)", hidden = true)
+        RefreshTokenResult refreshTokenResult,
+
+        @Schema(description = "사용자 권한", example = "USER")
+        Role role
 ) {
-    // 정적 팩토리 메서드 (필요 시)
-    public static TokenResponse of(AccessTokenResponse accessTokenResponse, RefreshTokenResponse refreshTokenResponse, Role role) {
-        return new TokenResponse(accessTokenResponse, refreshTokenResponse, role);
+    public static TokenResponse of(AccessTokenResult accessTokenResult, RefreshTokenResult refreshTokenResult, Role role) {
+        return new TokenResponse(accessTokenResult, refreshTokenResult, role);
     }
 }

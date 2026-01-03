@@ -1,10 +1,10 @@
 package com.serverbe.adapter.in.web;
 
 import com.serverbe.application.port.in.me.UpdateUserUseCase;
-import com.serverbe.application.port.out.dto.me.UserProfileResponse;
+import com.serverbe.application.port.out.dto.me.UserProfileResult;
 import com.serverbe.application.port.out.dto.me.UserUpdateCommand;
 import com.serverbe.application.port.in.me.GetUserUseCase;
-import com.serverbe.infrastructure.common.response.ApiResponse;
+import com.serverbe.infrastructure.common.response.RestApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -22,16 +22,16 @@ public class UserController {
 
     @Operation(summary = "내 프로필 조회")
     @GetMapping("/me")
-    public ApiResponse<UserProfileResponse> getMyProfile(@AuthenticationPrincipal Long userId) {
-        return ApiResponse.success(getUserUseCase.getMyProfile(userId));
+    public RestApiResponse<UserProfileResult> getMyProfile(@AuthenticationPrincipal Long userId) {
+        return RestApiResponse.success(getUserUseCase.getMyProfile(userId));
     }
 
     @Operation(summary = "내 프로필 수정")
     @PatchMapping("/me")
-    public ApiResponse<UserProfileResponse> updateMyProfile(
+    public RestApiResponse<UserProfileResult> updateMyProfile(
             @AuthenticationPrincipal Long userId,
             @RequestBody UserUpdateCommand command
     ) {
-        return ApiResponse.success(updateUserUseCase.updateMyProfile(userId, command));
+        return RestApiResponse.success(updateUserUseCase.updateMyProfile(userId, command));
     }
 }

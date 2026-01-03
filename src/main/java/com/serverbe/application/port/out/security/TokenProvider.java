@@ -1,10 +1,10 @@
 package com.serverbe.application.port.out.security;
 
-import com.serverbe.application.port.out.dto.oauth.AccessTokenResponse;
-import com.serverbe.application.port.out.dto.oauth.RefreshTokenResponse;
+import com.serverbe.application.port.out.dto.oauth.AccessTokenResult;
+import com.serverbe.application.port.out.dto.oauth.RefreshTokenResult;
 import com.serverbe.domain.model.user.vo.Role;
 
 public interface TokenProvider {
-    AccessTokenResponse generateAccessToken(Long id, Role role);
-    RefreshTokenResponse generateRefreshToken(Long id, Role role);
+    AccessTokenResult generateAccessToken(Long id, Role role);
+    RefreshTokenResult generateRefreshToken(Long id, Role role);
 }
