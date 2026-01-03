@@ -1,6 +1,6 @@
 package com.serverbe.adapter.in.web.dto.art;
 
-import com.serverbe.application.port.in.dto.art.UpdateRunningArtCommand;
+import com.serverbe.application.port.in.dto.art.RunningArtUpdateCommand;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 
@@ -17,7 +17,7 @@ public record UpdateRunningArtRequest(
     /**
      * Web 요청 객체를 비즈니스 로직용 Command 객체로 변환합니다.
      */
-    public UpdateRunningArtCommand toCommand() {
-        return new UpdateRunningArtCommand(title, content);
+    public RunningArtUpdateCommand toCommand() {
+        return new RunningArtUpdateCommand(title, content);
     }
 }
