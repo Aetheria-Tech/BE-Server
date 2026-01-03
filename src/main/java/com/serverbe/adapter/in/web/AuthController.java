@@ -1,20 +1,26 @@
 package com.serverbe.adapter.in.web;
 
-import com.serverbe.application.port.out.dto.oauth.AccessTokenResponse;
-import com.serverbe.application.port.out.dto.oauth.TokenResponse;
+import com.serverbe.adapter.in.web.dto.auth.AccessTokenResponse;
 import com.serverbe.application.port.in.oauth.LogoutUseCase;
 import com.serverbe.application.port.in.oauth.LoginUseCase;
 import com.serverbe.application.port.in.oauth.WithdrawUseCase;
 import com.serverbe.application.port.in.token.ReissueUseCase;
 import com.serverbe.domain.model.user.vo.OAuthProvider;
-import com.serverbe.infrastructure.common.response.ApiResponse;
+import com.serverbe.infrastructure.common.response.RestApiResponse;
 import com.serverbe.infrastructure.config.properties.JwtProperties;
 import com.serverbe.infrastructure.error.BusinessException;
 import com.serverbe.infrastructure.error.ErrorMessage;
 import com.serverbe.infrastructure.util.TokenExtractionUtils;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.headers.Header;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import lombok.extern.slf4j.Slf4j;
+import jakarta.validation.constraints.NotBlank;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -29,7 +35,7 @@ import java.io.IOException;
  * 인증 및 권한 관련 HTTP 요청을 처리하는 웹 어댑터입니다.
  * 소셜 로그인 시작, 콜백 처리, 토큰 재발급, 로그아웃, 회원 탈퇴를 담당합니다.
  */
-@Slf4j
+@Tag(name = "Auth", description = "사용자 인증 관련 API")
 @RestController
 @RequestMapping("/api/v1/auth")
 public class AuthController {
@@ -57,17 +63,24 @@ public class AuthController {
         this.refreshTokenCookie = jwtProperties.refreshToken().cookie();
     }
 
-
-    /**
-     * 소셜 로그인 시작: 사용자를 소셜 서비스(카카오/구글)의 로그인 페이지로 보냅니다.
-     *
-     * @param provider KAKAO 또는 GOOGLE
-     * @param response 리다이렉션을 위한 응답 객체
-     */
+    @Operation(
+            summary = "소셜 로그인 리다이렉트",
+            description = "선택한 소셜 서비스(Provider)의 로그인 페이지로 사용자를 이동시킵니다.",
+            responses = {
+                    @ApiResponse(
+                            responseCode = "302",
+                            description = "소셜 로그인 페이지로 리다이렉트 성공",
+                            headers = @Header(name = "Location", description = "이동할 소셜 로그인 URL", schema = @Schema(type = "string"))
+                    ),
+                    @ApiResponse(responseCode = "500", description = "Internal Server Error")
+            }
+    )
     @GetMapping("/login/{provider}")
     public Mono<Void> redirectToSocial(
+            @Parameter(description = "소셜 로그인 제공자", example = "kakao")
             @PathVariable(value = "provider") OAuthProvider provider,
-            HttpServletResponse response
+
+            @Parameter(hidden = true) HttpServletResponse response
     ) {
         return Mono.fromCallable(() -> loginUseCase.getSocialLoginUrl(provider))
                 .subscribeOn(Schedulers.boundedElastic())
@@ -81,88 +94,163 @@ public class AuthController {
                 });
     }
 
-    /**
-     * 소셜 로그인 완료: 소셜 서버가 사용자 동의 후 백엔드로 인가 코드를 보내는 지점입니다.
-     *
-     * @param provider KAKAO 또는 GOOGLE
-     * @param code     소셜 서버에서 발급한 일회성 인가 코드
-     * @return 발급된 서비스 전용 JWT (Access, Refresh)
-     */
+    @Operation(
+            summary = "소셜 로그인 콜백 (인가 코드 처리)",
+            description = "소셜 서비스로부터 리다이렉트된 인가 코드(code)를 받아 로그인을 완료하고, 서비스 전용 토큰을 발급합니다.",
+            responses = {
+                    @ApiResponse(
+                            responseCode = "200",
+                            description = "로그인 성공",
+                            headers = @Header(
+                                    name = "Set-Cookie",
+                                    description = "리프레시 토큰이 담긴 쿠키 (httpOnly, secure)",
+                                    schema = @Schema(type = "string", example = "refresh_token=...; Path=/; HttpOnly; Secure; SameSite=Lax")
+                            ),
+                            useReturnTypeSchema = true
+                    ),
+                    @ApiResponse(responseCode = "400", description = "잘못된 인가 코드이거나 유효하지 않은 요청인 경우"),
+                    @ApiResponse(responseCode = "500", description = "소셜 서버와의 통신 실패 또는 내부 서버 오류")
+            }
+    )
     @GetMapping("/callback/{provider}")
-    public Mono<ApiResponse<AccessTokenResponse>> loginCallback(
+    public Mono<RestApiResponse<AccessTokenResponse>> loginCallback(
+            @Parameter(description = "소셜 로그인 제공자", example = "kakao")
             @PathVariable(value = "provider") OAuthProvider provider,
-            @RequestParam("code") String code,
-            HttpServletResponse response
+
+            @Parameter(description = "소셜 서버에서 발급한 일회성 인가 코드", required = true)
+            @RequestParam("code") @NotBlank String code,
+
+            @Parameter(hidden = true) HttpServletResponse response
     ) {
         // 1. 인가 코드로 소셜 서버와 통신하여 유저 정보 획득
         // 2. 신규 유저면 가입, 기존 유저면 정보 업데이트(Upsert)
         // 3. 우리 서비스 전용 액세스/리프레시 토큰 발급 및 리프레시 토큰 Redis 저장
         return loginUseCase.login(code, provider)
                 .map(tokenResponse -> {
-                    addCookieToResponse(response, tokenResponse.refreshTokenResponse().opaqueToken(), 60 * 24 * 60 * 60);
-                    return ApiResponse.success(tokenResponse.accessTokenResponse());
+                    addCookieToResponse(response, tokenResponse.refreshTokenResult().opaqueToken(), 60 * 24 * 60 * 60);
+                    return RestApiResponse.success(AccessTokenResponse.toResponse(tokenResponse.accessTokenResult()));
                 });
     }
 
-    /**
-     * 회원 탈퇴: 사용자의 계정을 삭제하고 소셜 서비스와의 연동을 끊습니다.
-     *
-     * @param userId JwtAuthenticationFilter에 의해 SecurityContext에 담긴 현재 로그인 유저 PK
-     */
+    @Operation(
+            summary = "회원 탈퇴 (계정 삭제)",
+            description = "현재 로그인한 사용자의 계정을 삭제하고 소셜 서비스와의 연동을 해제(Unlink)합니다.",
+            security = @SecurityRequirement(name = "jwtAuth"),
+            responses = {
+                    @ApiResponse(responseCode = "204", description = "탈퇴 성공"),
+                    @ApiResponse(responseCode = "401", description = "인증 실패"),
+                    @ApiResponse(responseCode = "500", description = "서버 오류")
+            }
+    )
     @DeleteMapping("/me")
-    public Mono<ApiResponse<Void>> withdraw(@AuthenticationPrincipal Long userId) {
+    public Mono<RestApiResponse<Void>> withdraw(@Parameter(hidden = true) @AuthenticationPrincipal Long userId) {
         // DB 삭제 + 소셜 연동 해제(Unlink) + Redis 세션 삭제를 수행
         return withdrawUseCase.withdraw(userId).map(success -> {
-            if (success) return ApiResponse.noContent();
-            return ApiResponse.fail(ErrorMessage.WITHDRAWAL_FAILED);
+            if (success) return RestApiResponse.noContent();
+            return RestApiResponse.fail(ErrorMessage.WITHDRAWAL_FAILED);
         });
     }
 
-    /**
-     * 로그아웃: 현재 사용 중인 토큰을 무효화합니다.
-     */
+    @Operation(
+            summary = "로그아웃",
+            description = "현재 사용 중인 Access Token과 Refresh Token을 무효화하고, 브라우저에 저장된 리프레시 토큰 쿠키를 제거합니다.",
+            security = @SecurityRequirement(name = "jwtAuth"),
+            responses = {
+                    @ApiResponse(
+                            responseCode = "204",
+                            description = "로그아웃 성공",
+                            headers = @Header(
+                                    name = "Set-Cookie",
+                                    description = "리프레시 토큰 쿠키 삭제 (Max-Age=0)",
+                                    schema = @Schema(type = "string", example = "refresh_token=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax")
+                            )
+                    ),
+                    @ApiResponse(responseCode = "401", description = "이미 로그아웃되었거나 유효하지 않은 토큰입니다.")
+            }
+    )
     @PostMapping("/logout")
-    public ApiResponse<Object> logout(HttpServletRequest request, HttpServletResponse response) {
-
+    public RestApiResponse<Void> logout(
+            @Parameter(hidden = true) HttpServletRequest request,
+            @Parameter(hidden = true) HttpServletResponse response
+    ) {
+        // 1. 요청 헤더 및 쿠키에서 토큰 추출
         String accessToken = tokenExtractionUtils.extractAccessToken(request);
         String refreshToken = tokenExtractionUtils.extractRefreshToken(request);
+
+        // 2. 로그아웃 로직 수행 (Redis에서 리프레시 토큰 삭제 및 엑세스 토큰 블랙리스트 처리 등)
         logoutUseCase.logout(accessToken, refreshToken);
 
+        // 3. 클라이언트 쿠키 삭제 (Max-Age를 0으로 설정하여 즉시 만료)
         addCookieToResponse(response, "", 0);
-        return ApiResponse.success(null);
+        return RestApiResponse.noContent();
     }
 
-    /**
-     * 전역 로그아웃: 모든 계정을 비활성화한다. 그리고 현재 사용 중인 토큰을 무효화한다.
-     */
+    @Operation(
+            summary = "전역 로그아웃 (모든 기기 로그아웃)",
+            description = "현재 사용 중인 계정의 모든 세션을 비활성화합니다. 호출 시 모든 기기에서 토큰이 무효화되며, 현재 브라우저의 리프레시 토큰 쿠키도 삭제됩니다.",
+            security = @SecurityRequirement(name = "jwtAuth"),
+            responses = {
+                    @ApiResponse(
+                            responseCode = "204",
+                            description = "전역 로그아웃 성공",
+                            headers = @Header(
+                                    name = "Set-Cookie",
+                                    description = "리프레시 토큰 쿠키 삭제 (Max-Age=0)",
+                                    schema = @Schema(type = "string", example = "refresh_token=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax")
+                            )
+                    ),
+                    @ApiResponse(responseCode = "401", description = "인증 실패 또는 유효하지 않은 토큰")
+            }
+    )
     @PostMapping("/logout/all")
-    public ApiResponse<Void> globalLogout(HttpServletRequest request, HttpServletResponse response) {
+    public RestApiResponse<Void> globalLogout(
+            @Parameter(hidden = true) HttpServletRequest request,
+            @Parameter(hidden = true) HttpServletResponse response
+    ) {
 
         String accessToken = tokenExtractionUtils.extractAccessToken(request);
         logoutUseCase.globalLogout(accessToken);
         addCookieToResponse(response, "", 0);
-        return ApiResponse.success(null);
+        return RestApiResponse.noContent();
     }
 
-    /**
-     * 토큰 재발급: 액세스 토큰이 만료되었을 때 리프레시 토큰을 통해 새 토큰 세트를 발급받습니다.
-     * (Refresh Token Rotation 정책 적용)
-     */
+    @Operation(
+            summary = "토큰 재발급 (Refresh Token Rotation)",
+            description = "만료된 Access Token과 유효한 Refresh Token을 사용하여 새로운 토큰 세트(Access/Refresh)를 발급받습니다. " +
+                    "RTR 정책에 따라 기존 리프레시 토큰은 더 이상 사용할 수 없으며, 새 리프레시 토큰이 쿠키로 설정됩니다.",
+            security = @SecurityRequirement(name = "jwtAuth"),
+            responses = {
+                    @ApiResponse(
+                            responseCode = "200",
+                            description = "재발급 성공",
+                            headers = @Header(
+                                    name = "Set-Cookie",
+                                    description = "새로 발급된 리프레시 토큰 쿠키 (HttpOnly, Secure)",
+                                    schema = @Schema(type = "string", example = "refresh_token=new_token_value; Path=/; HttpOnly; Secure; SameSite=Lax")
+                            ),
+                            useReturnTypeSchema = true
+                    ),
+                    @ApiResponse(responseCode = "400", description = "리프레시 토큰이 누락되었거나 형식이 잘못된 경우"),
+                    @ApiResponse(responseCode = "401", description = "리프레시 토큰이 만료되었거나 변조되어 재로그인이 필요한 경우")
+            }
+    )
     @PostMapping("/reissue")
-    public Mono<ApiResponse<TokenResponse>> reissue(HttpServletRequest request, HttpServletResponse response) {
+    public Mono<RestApiResponse<AccessTokenResponse>> reissue(
+            @Parameter(hidden = true) HttpServletRequest request,
+            @Parameter(hidden = true) HttpServletResponse response
+    ) {
         String accessToken = tokenExtractionUtils.extractAccessToken(request);
         String refreshToken = tokenExtractionUtils.extractRefreshToken(request);
 
         if (!StringUtils.hasText(refreshToken)) {
-            // 파이프라인 내부 에러 처리를 위해 Mono.error 사용 권장
             return Mono.error(new BusinessException(ErrorMessage.JWT_TOKEN_IS_EMPTY));
         }
 
         return Mono.fromCallable(() -> reissueUseCase.reissue(accessToken, refreshToken))
                 .subscribeOn(Schedulers.boundedElastic())
                 .map(tokenResponse -> {
-                    addCookieToResponse(response, tokenResponse.refreshTokenResponse().opaqueToken(), 60 * 24 * 60 * 60);
-                    return ApiResponse.success(tokenResponse);
+                    addCookieToResponse(response, tokenResponse.refreshTokenResult().opaqueToken(), 60 * 24 * 60 * 60);
+                    return RestApiResponse.success(AccessTokenResponse.toResponse(tokenResponse.accessTokenResult()));
                 });
     }
 

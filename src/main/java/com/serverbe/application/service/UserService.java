@@ -1,7 +1,7 @@
 package com.serverbe.application.service;
 
 import com.serverbe.application.port.in.me.UpdateUserUseCase;
-import com.serverbe.application.port.out.dto.me.UserProfileResponse;
+import com.serverbe.application.port.out.dto.me.UserProfileResult;
 import com.serverbe.application.port.out.dto.me.UserUpdateCommand;
 import com.serverbe.application.port.in.me.GetUserUseCase;
 import com.serverbe.application.port.out.jpa.UserRepositoryPort;
@@ -20,15 +20,15 @@ public class UserService implements GetUserUseCase, UpdateUserUseCase {
     private final UserRepositoryPort userRepositoryPort;
 
     @Override
-    public UserProfileResponse getMyProfile(Long userId) {
+    public UserProfileResult getMyProfile(Long userId) {
         User user = userRepositoryPort.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorMessage.NOT_FOUND_USER));
-        return UserProfileResponse.from(user);
+        return UserProfileResult.from(user);
     }
 
     @Override
     @Transactional
-    public UserProfileResponse updateMyProfile(Long userId, UserUpdateCommand command) {
+    public UserProfileResult updateMyProfile(Long userId, UserUpdateCommand command) {
         User user = userRepositoryPort.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorMessage.NOT_FOUND_USER));
 
@@ -39,6 +39,6 @@ public class UserService implements GetUserUseCase, UpdateUserUseCase {
         );
 
         userRepositoryPort.save(updatedUser);
-        return UserProfileResponse.from(updatedUser);
+        return UserProfileResult.from(updatedUser);
     }
 }

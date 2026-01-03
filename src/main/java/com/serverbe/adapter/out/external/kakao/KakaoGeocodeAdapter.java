@@ -1,7 +1,7 @@
 package com.serverbe.adapter.out.external.kakao;
 
 import com.serverbe.adapter.out.external.kakao.dto.KakaoGeocodeResponse;
-import com.serverbe.application.port.out.dto.geocoding.GeocodeResponse;
+import com.serverbe.application.port.out.dto.geocoding.GeocodeResult;
 import com.serverbe.application.port.out.geocode.GeocodePort;
 import com.serverbe.infrastructure.config.properties.KakaoProperties;
 import com.serverbe.infrastructure.error.BusinessException;
@@ -34,7 +34,7 @@ public class KakaoGeocodeAdapter implements GeocodePort {
     }
 
     @Override
-    public Mono<GeocodeResponse> geocode(String address) {
+    public Mono<GeocodeResult> geocode(String address) {
         return webClient.get()
                 .uri(uriBuilder -> uriBuilder
                         .path(geocodeApiUrl)
@@ -70,8 +70,8 @@ public class KakaoGeocodeAdapter implements GeocodePort {
     }
 
 
-    private GeocodeResponse convertToGeocodeResponse(KakaoGeocodeResponse.Document document) {
-        return new GeocodeResponse(
+    private GeocodeResult convertToGeocodeResponse(KakaoGeocodeResponse.Document document) {
+        return new GeocodeResult(
                 parseCoordinate(document.y(), "latitude"),
                 parseCoordinate(document.x(), "longitude"),
                 document.addressName()

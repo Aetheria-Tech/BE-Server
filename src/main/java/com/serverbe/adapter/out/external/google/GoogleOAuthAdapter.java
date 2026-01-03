@@ -2,8 +2,8 @@ package com.serverbe.adapter.out.external.google;
 
 import com.serverbe.adapter.out.external.google.dto.GoogleTokenResponse;
 import com.serverbe.adapter.out.external.google.dto.GoogleUserInfoResponse;
-import com.serverbe.application.port.out.dto.oauth.OAuthUserInfo;
-import com.serverbe.application.port.out.dto.oauth.SocialTokenRefreshResponse;
+import com.serverbe.application.port.out.dto.oauth.OAuthUserInfoResult;
+import com.serverbe.application.port.out.dto.oauth.SocialTokenRefreshResult;
 import com.serverbe.application.port.out.oauth.OAuthClientPort;
 import com.serverbe.domain.model.user.vo.OAuthProvider;
 import com.serverbe.infrastructure.config.properties.GoogleProperties;
@@ -43,11 +43,11 @@ public class GoogleOAuthAdapter implements OAuthClientPort {
     }
 
     @Override
-    public Mono<OAuthUserInfo> getUserInfo(String code, OAuthProvider provider) {
+    public Mono<OAuthUserInfoResult> getUserInfo(String code, OAuthProvider provider) {
         // 1. 토큰 교환 (액세스 토큰과 리프레시 토큰을 모두 받아옴)
         return getGoogleTokenResponse(code)
                 .flatMap(response -> this.fetchUserInfo(response.accessToken())
-                        .map(userInfo -> new OAuthUserInfo(
+                        .map(userInfo -> new OAuthUserInfoResult(
                                 userInfo.sub(),
                                 OAuthProvider.GOOGLE,
                                 userInfo.email(),
@@ -108,7 +108,7 @@ public class GoogleOAuthAdapter implements OAuthClientPort {
     }
 
     @Override
-    public Mono<SocialTokenRefreshResponse> refreshSocialToken(OAuthProvider provider, String refreshToken) {
+    public Mono<SocialTokenRefreshResult> refreshSocialToken(OAuthProvider provider, String refreshToken) {
         MultiValueMap<String, String> formData = new LinkedMultiValueMap<>();
         formData.add("grant_type", "refresh_token");
         formData.add("client_id", googleProperties.auth().clientId());
@@ -122,7 +122,7 @@ public class GoogleOAuthAdapter implements OAuthClientPort {
                 .retrieve()
                 .onStatus(HttpStatusCode::isError, res -> res.bodyToMono(String.class)
                         .map(body -> new BusinessException(ErrorMessage.FAILED_GOOGLE_API, "Google Refresh Error: " + body)))
-                .bodyToMono(SocialTokenRefreshResponse.class);
+                .bodyToMono(SocialTokenRefreshResult.class);
     }
 
     @Override

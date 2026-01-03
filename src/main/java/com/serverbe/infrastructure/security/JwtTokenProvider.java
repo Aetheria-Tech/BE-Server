@@ -1,7 +1,7 @@
 package com.serverbe.infrastructure.security;
 
-import com.serverbe.application.port.out.dto.oauth.AccessTokenResponse;
-import com.serverbe.application.port.out.dto.oauth.RefreshTokenResponse;
+import com.serverbe.application.port.out.dto.oauth.AccessTokenResult;
+import com.serverbe.application.port.out.dto.oauth.RefreshTokenResult;
 import com.serverbe.application.port.out.security.TokenProvider;
 import com.serverbe.domain.model.user.vo.Role;
 import com.serverbe.infrastructure.config.properties.JwtProperties;
@@ -69,7 +69,7 @@ public class JwtTokenProvider implements TokenProvider {
      * @return 생성된 액세스 토큰 문자열입니다.
      */
     @Override
-    public AccessTokenResponse generateAccessToken(Long id, Role role) {
+    public AccessTokenResult generateAccessToken(Long id, Role role) {
         Date now = new Date();
         Date validity = new Date(now.getTime() + accessTokenValidityInMinute.toMillis());
 
@@ -80,7 +80,7 @@ public class JwtTokenProvider implements TokenProvider {
                 .setExpiration(validity)
                 .signWith(key, SignatureAlgorithm.HS512)
                 .compact();
-        return AccessTokenResponse.of(compact, validity.toInstant().toEpochMilli());
+        return AccessTokenResult.of(compact, validity.toInstant().toEpochMilli());
     }
 
     /**
@@ -95,11 +95,11 @@ public class JwtTokenProvider implements TokenProvider {
      * @return 생성된 리프레시 토큰 문자열과 관련 정보를 담은 {@code RefreshTokenIssueResult}입니다.
      */
     @Override
-    public RefreshTokenResponse generateRefreshToken(Long id, Role role) {
+    public RefreshTokenResult generateRefreshToken(Long id, Role role) {
         String opaqueToken = generateOpaqueToken();
         Instant expire = Instant.now().plus(refreshTokenValidateDay);
 
-        return RefreshTokenResponse.of(opaqueToken, String.valueOf(id), expire);
+        return RefreshTokenResult.of(opaqueToken, String.valueOf(id), expire);
     }
 
     private String generateOpaqueToken() {

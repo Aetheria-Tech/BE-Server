@@ -3,7 +3,7 @@ package com.serverbe.adapter.out.persistence.art;
 import com.serverbe.adapter.out.persistence.mapper.RunningArtMapper;
 import com.serverbe.adapter.out.persistence.user.JpaUserRepository;
 import com.serverbe.adapter.out.persistence.user.UserEntity;
-import com.serverbe.application.port.out.dto.art.RunningArtUpdateDto;
+import com.serverbe.application.port.in.dto.art.RunningArtUpdateCommand;
 import com.serverbe.application.port.out.jpa.RunningArtRepositoryPort;
 import com.serverbe.domain.model.art.RunningArt;
 import com.serverbe.infrastructure.error.BusinessException;
@@ -51,7 +51,7 @@ public class RunningArtPersistentAdapter implements RunningArtRepositoryPort {
 
     @Override
     @Transactional
-    public void updateMetadata(Long runningArtId, RunningArtUpdateDto dto) {
+    public void updateMetadata(Long runningArtId, RunningArtUpdateCommand dto) {
         RunningArtEntity entity = jpaRepository.findById(runningArtId)
                 .orElseThrow(() -> new BusinessException(ErrorMessage.NOT_FOUND_RUNNING_ART, "런닝아트를 조회할 수 없습니다"));
 
