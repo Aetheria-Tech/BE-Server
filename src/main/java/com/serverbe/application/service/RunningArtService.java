@@ -3,6 +3,7 @@ package com.serverbe.application.service;
 import com.serverbe.application.port.in.art.GetRunningArtUseCase;
 import com.serverbe.application.port.in.art.DeleteRunningArtUseCase;
 import com.serverbe.application.port.in.art.UpdateRunningArtUseCase;
+import com.serverbe.application.port.in.dto.art.RunningArtResult;
 import com.serverbe.application.port.in.dto.art.UpdateRunningArtCommand;
 import com.serverbe.application.port.out.dto.art.RunningArtUpdateCommand;
 import com.serverbe.application.port.out.jpa.RunningArtRepositoryPort;
@@ -24,14 +25,14 @@ public class RunningArtService implements GetRunningArtUseCase, DeleteRunningArt
 
     @Override
     @Transactional(readOnly = true)
-    public List<RunningArt> getRunningArtsByUserId(Long userId) {
-        return repositoryPort.findByUserId(userId);
+    public List<RunningArtResult> getRunningArtsByUserId(Long userId) {
+        return repositoryPort.findByUserId(userId).stream().map(RunningArtResult::toResult).toList();
     }
 
     @Override
     @Transactional(readOnly = true)
-    public RunningArt getRunningArtById(Long userId, Long runningArtId) {
-        return findAndVerifyOwner(userId, runningArtId);
+    public RunningArtResult getRunningArtById(Long userId, Long runningArtId) {
+        return RunningArtResult.toResult(findAndVerifyOwner(userId, runningArtId));
     }
 
 
