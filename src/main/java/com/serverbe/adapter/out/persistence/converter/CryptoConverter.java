@@ -1,6 +1,6 @@
 package com.serverbe.adapter.out.persistence.converter;
 
-import com.serverbe.infrastructure.security.AesEncryptor;
+import com.serverbe.application.port.out.crypto.EncryptPort;
 import jakarta.persistence.AttributeConverter;
 import jakarta.persistence.Converter;
 import lombok.RequiredArgsConstructor;
@@ -9,15 +9,15 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class CryptoConverter implements AttributeConverter<String, String> {
 
-    private final AesEncryptor aesEncryptor;
+    private final EncryptPort encryptPort;
 
     @Override
     public String convertToDatabaseColumn(String attribute) {
-        return aesEncryptor.encrypt(attribute);
+        return encryptPort.encrypt(attribute);
     }
 
     @Override
     public String convertToEntityAttribute(String dbData) {
-        return aesEncryptor.decrypt(dbData);
+        return encryptPort.decrypt(dbData);
     }
 }
