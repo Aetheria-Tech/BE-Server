@@ -4,6 +4,7 @@ import com.serverbe.adapter.out.persistence.art.RunningArtEntity;
 import com.serverbe.adapter.out.persistence.converter.CryptoConverter;
 import com.serverbe.domain.model.user.vo.OAuthProvider;
 import com.serverbe.domain.model.user.vo.Role;
+import com.serverbe.infrastructure.crypto.EncryptionContext;
 import jakarta.persistence.*;
 import lombok.*;
 import org.springframework.data.annotation.CreatedDate;
@@ -63,6 +64,13 @@ public class UserEntity {
 
     @OneToMany(mappedBy = "user")
     private List<RunningArtEntity> runningArtEntities = new ArrayList<>();
+
+    @Transient // DB에는 저장되지 않는 상태값
+    private Boolean migrationRequired = false;
+
+    public void markMigrationRequired() {
+        this.migrationRequired = true;
+    }
 
     public void addRunningArt(RunningArtEntity art) {
         this.runningArtEntities.add(art);

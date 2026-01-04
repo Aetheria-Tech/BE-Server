@@ -70,4 +70,11 @@ public class AesGcmEncryptor implements EncryptPort {
         new SecureRandom().nextBytes(iv);
         return iv;
     }
+
+    @Override
+    public boolean isLatestVersion(String cipherText) {
+        if (cipherText == null || !cipherText.contains(DELIMITER)) return false;
+        String version = cipherText.split(DELIMITER)[0];
+        return properties.activeVersion().equals(version);
+    }
 }

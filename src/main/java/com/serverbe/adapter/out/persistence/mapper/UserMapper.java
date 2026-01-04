@@ -31,7 +31,8 @@ public class UserMapper {
                 entity.getNickname(),
                 entity.getRole(),
                 entity.getStatusMessage(),
-                entity.getOauthRefreshToken()
+                entity.getOauthRefreshToken(),
+                entity.getMigrationRequired()
         );
     }
 }
