@@ -65,8 +65,9 @@ public class UserEntity {
     @OneToMany(mappedBy = "user")
     private List<RunningArtEntity> runningArtEntities = new ArrayList<>();
 
+    @Getter
     @Transient // DB에는 저장되지 않는 상태값
-    private Boolean migrationRequired = false;
+    private boolean migrationRequired = false;
 
     public void markMigrationRequired() {
         this.migrationRequired = true;

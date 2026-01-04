@@ -2,6 +2,7 @@ package com.serverbe.adapter.out.persistence.mapper;
 
 import com.serverbe.adapter.out.persistence.user.UserEntity;
 import com.serverbe.domain.model.user.User;
+import com.serverbe.infrastructure.crypto.EncryptionContext;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -23,6 +24,13 @@ public class UserMapper {
 
     // Entity -> Domain
     public User toDomain(UserEntity entity) {
+        if (entity == null) {
+            return null; // 또는 예외 처리
+        }
+
+        boolean migrationRequired = EncryptionContext.isMigrationRequired();
+        EncryptionContext.clear();
+
         return new User(
                 entity.getId(),
                 entity.getOauthId(),
@@ -32,7 +40,7 @@ public class UserMapper {
                 entity.getRole(),
                 entity.getStatusMessage(),
                 entity.getOauthRefreshToken(),
-                entity.getMigrationRequired()
+                migrationRequired
         );
     }
 }

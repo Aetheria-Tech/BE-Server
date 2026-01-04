@@ -15,7 +15,7 @@ public record User(
         Role role,
         String statusMessage,
         String oauthRefreshToken,
-        Boolean needsUpdate // 마이그레이션 필요 여부
+        boolean needsUpdate // 마이그레이션 필요 여부
 ) {
     public User renewOauthRefreshToken(String newToken) {
         return new User(

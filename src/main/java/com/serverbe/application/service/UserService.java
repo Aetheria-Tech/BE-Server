@@ -24,10 +24,6 @@ public class UserService implements GetUserUseCase, UpdateUserUseCase {
         User user = userRepositoryPort.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorMessage.NOT_FOUND_USER));
 
-        if (user.shouldBeRefreshed()) {
-            user = userRepositoryPort.save(user); // 저장 시점에 최신 키로 암호화됨
-        }
-
         return UserProfileResult.from(user);
     }
 
