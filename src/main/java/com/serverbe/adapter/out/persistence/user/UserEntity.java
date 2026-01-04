@@ -80,6 +80,10 @@ public class UserEntity {
         }
     }
 
+    public void forceUpdate() {
+        this.updatedAt = LocalDateTime.now();
+    }
+
     @Builder
     private UserEntity(
             Long id,

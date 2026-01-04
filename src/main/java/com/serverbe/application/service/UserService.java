@@ -14,12 +14,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true)
 public class UserService implements GetUserUseCase, UpdateUserUseCase {
 
     private final UserRepositoryPort userRepositoryPort;
 
     @Override
+    @Transactional
     public UserProfileResult getMyProfile(Long userId) {
         User user = userRepositoryPort.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorMessage.NOT_FOUND_USER));
@@ -28,7 +28,6 @@ public class UserService implements GetUserUseCase, UpdateUserUseCase {
     }
 
     @Override
-    @Transactional
     public UserProfileResult updateMyProfile(Long userId, UserUpdateCommand command) {
         User user = userRepositoryPort.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorMessage.NOT_FOUND_USER));
