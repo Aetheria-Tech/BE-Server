@@ -2,6 +2,8 @@ package com.serverbe.infrastructure.crypto;
 
 import com.serverbe.application.port.out.crypto.EncryptPort;
 import com.serverbe.infrastructure.config.properties.EncryptionProperties;
+import com.serverbe.infrastructure.error.BusinessException;
+import com.serverbe.infrastructure.error.ErrorMessage;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -32,12 +34,14 @@ public class AesGcmEncryptor implements EncryptPort {
             byte[] cipherText = cipher.doFinal(plainText.getBytes(StandardCharsets.UTF_8));
 
             // 최종 포맷: v1:Base64(IV):Base64(Cipher)
-            return String.format("%s%s%s%s%s",
+            return String.format(
+                    "%s%s%s%s%s",
                     properties.activeVersion(), DELIMITER,
                     Base64.getEncoder().encodeToString(iv), DELIMITER,
-                    Base64.getEncoder().encodeToString(cipherText));
+                    Base64.getEncoder().encodeToString(cipherText)
+            );
         } catch (Exception e) {
-            throw new RuntimeException("암호화 실패", e);
+            throw new BusinessException(ErrorMessage.ENCRYPTION_FAILURE, e.toString());
         }
     }
 
@@ -47,7 +51,8 @@ public class AesGcmEncryptor implements EncryptPort {
 
         try {
             String[] parts = encryptedData.split(DELIMITER);
-            if (parts.length != 3) throw new IllegalArgumentException("잘못된 암호문 포맷입니다.");
+            if (parts.length != 3)
+                throw new BusinessException(ErrorMessage.INCORRECT_CIPHERTEXT_FORMAT, "잘못된 암호화 포멧입니다.");
 
             String version = parts[0];
             byte[] iv = Base64.getDecoder().decode(parts[1]);
@@ -61,7 +66,7 @@ public class AesGcmEncryptor implements EncryptPort {
             cipher.init(Cipher.DECRYPT_MODE, keySpec, spec);
             return new String(cipher.doFinal(cipherText), StandardCharsets.UTF_8);
         } catch (Exception e) {
-            throw new RuntimeException("복호화 실패", e);
+            throw new BusinessException(ErrorMessage.DECRYPTION_FAILED, e.toString());
         }
     }
 
