@@ -2,10 +2,12 @@ package com.serverbe.infrastructure.config;
 
 import com.serverbe.infrastructure.config.converter.StringToOAuthProviderConverter;
 import com.serverbe.infrastructure.config.properties.CorsProperties;
+import com.serverbe.infrastructure.crypto.EncryptionContextInterceptor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.format.FormatterRegistry;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
+import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 /**
@@ -30,5 +32,10 @@ public class WebConfig implements WebMvcConfigurer {
     @Override
     public void addFormatters(FormatterRegistry registry) {
         registry.addConverter(new StringToOAuthProviderConverter());
+    }
+
+    @Override
+    public void addInterceptors(InterceptorRegistry registry) {
+        registry.addInterceptor(new EncryptionContextInterceptor());
     }
 }

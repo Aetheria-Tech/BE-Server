@@ -41,7 +41,7 @@ public class AesGcmEncryptor implements EncryptPort {
                     Base64.getEncoder().encodeToString(cipherText)
             );
         } catch (Exception e) {
-            throw new BusinessException(ErrorMessage.ENCRYPTION_FAILURE, e.toString());
+            throw new BusinessException(ErrorMessage.ENCRYPTION_FAILURE);
         }
     }
 
@@ -66,7 +66,7 @@ public class AesGcmEncryptor implements EncryptPort {
             cipher.init(Cipher.DECRYPT_MODE, keySpec, spec);
             return new String(cipher.doFinal(cipherText), StandardCharsets.UTF_8);
         } catch (Exception e) {
-            throw new BusinessException(ErrorMessage.DECRYPTION_FAILED, e.toString());
+            throw new BusinessException(ErrorMessage.DECRYPTION_FAILED);
         }
     }
 

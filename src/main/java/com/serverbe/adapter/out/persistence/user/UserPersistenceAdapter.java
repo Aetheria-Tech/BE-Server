@@ -74,15 +74,11 @@ public class UserPersistenceAdapter implements UserRepositoryPort {
 
         // 3. 미리 담아둔 스냅샷 변수로 마이그레이션 여부 판단
         if (needsMigration) {
-
-            // 플래그 초기화 및 엔티티 강제 수정 상태 변경
+            // 엔티티 강제 수정 상태 변경 (Dirty Checking 유도)
             entity.forceUpdate();
 
             // DB에 즉시 반영 (saveAndFlush를 통해 Converter 재실행 유도)
             jpaUserRepository.saveAndFlush(entity);
-
-            // 최신화된 엔티티를 다시 도메인으로 변환하여 반환
-            return userMapper.toDomain(entity);
         }
 
         return domainUser;

@@ -48,8 +48,7 @@ class UserPersistenceAdapterTest {
                 "닉네임",
                 Role.USER,
                 null,
-                null,
-                true
+                null
         );
 
         // Stubbing
