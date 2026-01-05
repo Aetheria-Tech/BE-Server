@@ -7,7 +7,6 @@ import java.util.Map;
 
 @ConfigurationProperties(prefix = "encryption")
 public record EncryptionProperties(
-        String secretKey,
         String algorithm,
         int tagLengthBit,
         int ivLengthByte,

@@ -14,8 +14,7 @@ public record User(
         String nickname,
         Role role,
         String statusMessage,
-        String oauthRefreshToken,
-        boolean needsUpdate // 마이그레이션 필요 여부
+        String oauthRefreshToken
 ) {
     public User renewOauthRefreshToken(String newToken) {
         return new User(
@@ -26,8 +25,7 @@ public record User(
                 this.nickname,
                 this.role,
                 this.statusMessage,
-                newToken, // 새로운 소셜 리프레시 토큰으로 교체
-                false
+                newToken // 새로운 소셜 리프레시 토큰으로 교체
         );
     }
 
@@ -48,8 +46,7 @@ public record User(
                 oauthInfo.nickname(),
                 Role.USER, // 기본 권한 설정
                 null,
-                oauthInfo.oauthRefreshToken(),
-                false
+                oauthInfo.oauthRefreshToken()
         );
     }
 
@@ -66,8 +63,7 @@ public record User(
                 oauthInfo.nickname(),        // 갱신 (닉네임은 바뀔 수 있음)
                 this.role,                   // 유지 (권한은 서버에서 관리)
                 this.statusMessage,
-                oauthInfo.oauthRefreshToken(), // 갱신 (새로 발급된 소셜 리프레시 토큰)
-                true
+                oauthInfo.oauthRefreshToken() // 갱신 (새로 발급된 소셜 리프레시 토큰)
         );
     }
 
@@ -83,12 +79,7 @@ public record User(
                 nickname,
                 this.role,
                 statusMessage,
-                this.oauthRefreshToken,
-                true
+                this.oauthRefreshToken
         );
-    }
-
-    public boolean shouldBeRefreshed() {
-        return needsUpdate;
     }
 }

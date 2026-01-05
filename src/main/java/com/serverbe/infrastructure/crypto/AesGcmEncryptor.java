@@ -18,6 +18,7 @@ import java.util.Base64;
 @RequiredArgsConstructor
 public class AesGcmEncryptor implements EncryptPort {
     private final EncryptionProperties properties;
+    private final SecureRandom secureRandom;
     private static final String DELIMITER = ":";
 
     @Override
@@ -34,10 +35,9 @@ public class AesGcmEncryptor implements EncryptPort {
             byte[] cipherText = cipher.doFinal(plainText.getBytes(StandardCharsets.UTF_8));
 
             // 최종 포맷: v1:Base64(IV):Base64(Cipher)
-            return String.format(
-                    "%s%s%s%s%s",
-                    properties.activeVersion(), DELIMITER,
-                    Base64.getEncoder().encodeToString(iv), DELIMITER,
+            return String.join(DELIMITER,
+                    properties.activeVersion(),
+                    Base64.getEncoder().encodeToString(iv),
                     Base64.getEncoder().encodeToString(cipherText)
             );
         } catch (Exception e) {
@@ -72,7 +72,7 @@ public class AesGcmEncryptor implements EncryptPort {
 
     private byte[] generateIv() {
         byte[] iv = new byte[properties.ivLengthByte()];
-        new SecureRandom().nextBytes(iv);
+        secureRandom.nextBytes(iv);
         return iv;
     }
 

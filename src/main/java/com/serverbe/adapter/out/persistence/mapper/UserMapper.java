@@ -28,9 +28,6 @@ public class UserMapper {
             return null; // 또는 예외 처리
         }
 
-        boolean migrationRequired = EncryptionContext.isMigrationRequired();
-        EncryptionContext.clear();
-
         return new User(
                 entity.getId(),
                 entity.getOauthId(),
@@ -39,8 +36,7 @@ public class UserMapper {
                 entity.getNickname(),
                 entity.getRole(),
                 entity.getStatusMessage(),
-                entity.getOauthRefreshToken(),
-                migrationRequired
+                entity.getOauthRefreshToken()
         );
     }
 }

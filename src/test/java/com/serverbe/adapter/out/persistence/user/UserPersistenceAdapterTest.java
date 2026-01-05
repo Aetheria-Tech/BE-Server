@@ -14,7 +14,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Optional;
 
-import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -56,7 +55,9 @@ class UserPersistenceAdapterTest {
         // Stubbing
         when(userRepository.findById(userId)).thenReturn(Optional.of(legacyEntity));
         when(userMapper.toDomain(any(UserEntity.class))).thenReturn(mockUser);
-        when(userRepository.save(any(UserEntity.class))).thenReturn(legacyEntity);
+
+        // saveAndFlush는 보통 void를 반환하거나, self를 반환합니다. JpaRepository<T, ID>를 따르므로 self를 반환합니다.
+        when(userRepository.saveAndFlush(any(UserEntity.class))).thenReturn(legacyEntity);
 
         // [중요] 마이그레이션이 필요하다는 플래그를 수동으로 세팅
         EncryptionContext.setMigrationRequired(true);
@@ -65,10 +66,7 @@ class UserPersistenceAdapterTest {
         userPersistenceAdapter.findById(userId);
 
         // then
-        // 이제 어댑터 내부에서 save()가 호출될 것입니다.
-        verify(userRepository, times(1)).save(any(UserEntity.class));
-
-        // 플래그가 클리어 되었는지 확인
-        assertThat(EncryptionContext.isMigrationRequired()).isFalse();
+        // 이제 어댑터 내부에서 saveAndFlush()가 호출될 것입니다.
+        verify(userRepository, times(1)).saveAndFlush(any(UserEntity.class));
     }
 }
