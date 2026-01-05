@@ -76,7 +76,6 @@ public class UserPersistenceAdapter implements UserRepositoryPort {
         if (needsMigration) {
 
             // 플래그 초기화 및 엔티티 강제 수정 상태 변경
-            EncryptionContext.clear();
             entity.forceUpdate();
 
             // DB에 즉시 반영 (saveAndFlush를 통해 Converter 재실행 유도)

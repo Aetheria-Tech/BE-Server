@@ -20,9 +20,8 @@ public class CryptoConverter implements AttributeConverter<String, String> {
 
         String encrypted = encryptPort.encrypt(attribute);
 
-        // [LOG] DB에 저장되는 암호문의 앞부분(버전 확인용)을 출력
         if (encrypted != null && encrypted.length() > 5) {
-            log.info("[Crypto] Encrypting to DB: {}", encrypted.substring(0, 5) + "...");
+            log.debug("[Crypto] DB 데이터 암호화 완료: {}", encrypted.substring(0, 5) + "...");
         }
 
         return encrypted;
@@ -32,14 +31,11 @@ public class CryptoConverter implements AttributeConverter<String, String> {
     public String convertToEntityAttribute(String dbData) {
         if (dbData == null) return null;
 
-        // [LOG] DB에서 읽어온 데이터의 버전 체크
         boolean isLatest = encryptPort.isLatestVersion(dbData);
-        log.debug("[Crypto] Loading from DB: {}, isLatest: {}",
-                dbData.substring(0, Math.min(dbData.length(), 5)) + "...", isLatest);
+        log.debug("[Crypto] DB 데이터 로드: {}, 최신 버전 여부: {}", dbData.substring(0, Math.min(dbData.length(), 5)) + "...", isLatest);
 
         if (!isLatest) {
-            log.warn("[Crypto] Migration Triggered! Legacy data detected: {}",
-                    dbData.substring(0, Math.min(dbData.length(), 5)) + "...");
+            log.warn("[Crypto] 마이그레이션 실행 대상 감지(구버전 데이터 발견): {}", dbData.substring(0, Math.min(dbData.length(), 5)) + "...");
             EncryptionContext.setMigrationRequired(true);
         }
 

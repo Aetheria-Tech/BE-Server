@@ -73,8 +73,7 @@ public class AesGcmEncryptor implements EncryptPort {
 
     @Override
     public boolean isLatestVersion(String cipherText) {
-        if (cipherText == null || !cipherText.contains(DELIMITER)) return false;
-        String version = cipherText.split(DELIMITER)[0];
-        return properties.activeVersion().equals(version);
+        if (cipherText == null) return false;
+        return cipherText.startsWith(properties.activeVersion() + DELIMITER);
     }
 }
