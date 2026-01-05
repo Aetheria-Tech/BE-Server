@@ -4,7 +4,6 @@ import com.serverbe.adapter.out.persistence.art.RunningArtEntity;
 import com.serverbe.adapter.out.persistence.converter.CryptoConverter;
 import com.serverbe.domain.model.user.vo.OAuthProvider;
 import com.serverbe.domain.model.user.vo.Role;
-import com.serverbe.infrastructure.crypto.EncryptionContext;
 import jakarta.persistence.*;
 import lombok.*;
 import org.springframework.data.annotation.CreatedDate;
@@ -64,13 +63,6 @@ public class UserEntity {
 
     @OneToMany(mappedBy = "user")
     private List<RunningArtEntity> runningArtEntities = new ArrayList<>();
-
-    public void addRunningArt(RunningArtEntity art) {
-        this.runningArtEntities.add(art);
-        if (art.getUser() != this) {
-            art.assignUser(this);
-        }
-    }
 
     public void forceUpdate() {
         this.updatedAt = LocalDateTime.now();

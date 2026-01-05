@@ -5,6 +5,7 @@ import com.serverbe.infrastructure.config.properties.EncryptionProperties;
 import com.serverbe.infrastructure.error.BusinessException;
 import com.serverbe.infrastructure.error.ErrorMessage;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.Cipher;
@@ -14,6 +15,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.util.Base64;
 
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class AesGcmEncryptor implements EncryptPort {
@@ -41,6 +43,7 @@ public class AesGcmEncryptor implements EncryptPort {
                     Base64.getEncoder().encodeToString(cipherText)
             );
         } catch (Exception e) {
+            log.error("Failed to encrypt data", e);
             throw new BusinessException(ErrorMessage.ENCRYPTION_FAILURE);
         }
     }
@@ -66,6 +69,7 @@ public class AesGcmEncryptor implements EncryptPort {
             cipher.init(Cipher.DECRYPT_MODE, keySpec, spec);
             return new String(cipher.doFinal(cipherText), StandardCharsets.UTF_8);
         } catch (Exception e) {
+            log.error("Failed to decrypt data", e);
             throw new BusinessException(ErrorMessage.DECRYPTION_FAILED);
         }
     }

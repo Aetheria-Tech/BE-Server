@@ -68,6 +68,10 @@ public class UserPersistenceAdapter implements UserRepositoryPort {
     private User mapToDomainWithMigration(UserEntity entity) {
         // 1. 매퍼 실행 전, 컨버터에 의해 세팅된 플래그를 로컬 변수에 즉시 저장(Snapshot)
         boolean needsMigration = EncryptionContext.isMigrationRequired();
+        if (needsMigration) {
+            // 플래그를 읽은 후 즉시 컨텍스트를 초기화하여, 동일 스레드의 다른 작업에 영향을 주지 않도록 합니다.
+            EncryptionContext.clear();
+        }
 
         // 2. 도메인 변환 실행 (이 과정에서 ThreadLocal 상태가 변할 수 있음)
         User domainUser = userMapper.toDomain(entity);

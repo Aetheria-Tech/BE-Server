@@ -2,7 +2,6 @@ package com.serverbe.adapter.out.persistence.mapper;
 
 import com.serverbe.adapter.out.persistence.user.UserEntity;
 import com.serverbe.domain.model.user.User;
-import com.serverbe.infrastructure.crypto.EncryptionContext;
 import org.springframework.stereotype.Component;
 
 @Component

@@ -91,7 +91,7 @@ encryption:
   tag-length-bit: 128
   iv-length-byte: 12
   key-algorithm: AES
-  active-version: v1
+  active-version: v2
   keys:
     v1: ${ENCRYPTION_SECRET_KEY_V1} # 기존 키
     v2: ${ENCRYPTION_SECRET_KEY_V2} # 새로 발급할 키
