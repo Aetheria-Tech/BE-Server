@@ -18,6 +18,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 public class WebConfig implements WebMvcConfigurer {
 
     private final CorsProperties corsProperties;
+    private final EncryptionContextInterceptor encryptionContextInterceptor;
 
     @Override
     public void addCorsMappings(CorsRegistry registry) {
@@ -36,6 +37,6 @@ public class WebConfig implements WebMvcConfigurer {
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
-        registry.addInterceptor(new EncryptionContextInterceptor());
+        registry.addInterceptor(encryptionContextInterceptor);
     }
 }

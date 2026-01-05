@@ -78,9 +78,9 @@ public class UserPersistenceAdapter implements UserRepositoryPort {
 
         // 3. 미리 담아둔 스냅샷 변수로 마이그레이션 여부 판단
         if (needsMigration) {
+            log.debug("[Adapter] 암호화 마이그레이션 실행. User ID: {}", entity.getId());
             // 엔티티 강제 수정 상태 변경 (Dirty Checking 유도)
             entity.forceUpdate();
-
             // DB에 즉시 반영 (saveAndFlush를 통해 Converter 재실행 유도)
             jpaUserRepository.saveAndFlush(entity);
         }
