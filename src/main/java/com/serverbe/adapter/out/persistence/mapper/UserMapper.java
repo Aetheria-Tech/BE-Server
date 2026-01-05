@@ -23,6 +23,10 @@ public class UserMapper {
 
     // Entity -> Domain
     public User toDomain(UserEntity entity) {
+        if (entity == null) {
+            return null; // 또는 예외 처리
+        }
+
         return new User(
                 entity.getId(),
                 entity.getOauthId(),

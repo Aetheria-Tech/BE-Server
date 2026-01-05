@@ -13,8 +13,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
+@Transactional
 @RequiredArgsConstructor
-@Transactional(readOnly = true)
 public class UserService implements GetUserUseCase, UpdateUserUseCase {
 
     private final UserRepositoryPort userRepositoryPort;
@@ -23,11 +23,11 @@ public class UserService implements GetUserUseCase, UpdateUserUseCase {
     public UserProfileResult getMyProfile(Long userId) {
         User user = userRepositoryPort.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorMessage.NOT_FOUND_USER));
+
         return UserProfileResult.from(user);
     }
 
     @Override
-    @Transactional
     public UserProfileResult updateMyProfile(Long userId, UserUpdateCommand command) {
         User user = userRepositoryPort.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorMessage.NOT_FOUND_USER));

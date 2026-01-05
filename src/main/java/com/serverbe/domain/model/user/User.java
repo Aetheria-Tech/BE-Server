@@ -14,7 +14,7 @@ public record User(
         String nickname,
         Role role,
         String statusMessage,
-        String oauthRefreshToken // 추가
+        String oauthRefreshToken
 ) {
     public User renewOauthRefreshToken(String newToken) {
         return new User(

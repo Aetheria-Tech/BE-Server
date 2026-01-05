@@ -64,11 +64,8 @@ public class UserEntity {
     @OneToMany(mappedBy = "user")
     private List<RunningArtEntity> runningArtEntities = new ArrayList<>();
 
-    public void addRunningArt(RunningArtEntity art) {
-        this.runningArtEntities.add(art);
-        if (art.getUser() != this) {
-            art.assignUser(this);
-        }
+    public void forceUpdate() {
+        this.updatedAt = LocalDateTime.now();
     }
 
     @Builder
