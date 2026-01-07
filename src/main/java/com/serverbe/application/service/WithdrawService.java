@@ -17,6 +17,11 @@ import reactor.core.scheduler.Schedulers;
 
 import java.util.List;
 
+/**
+ * @author Duskafka
+ * @responsiblity 회원탈퇴를 수행하는 책임
+ * @see WithdrawUseCase
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -27,6 +32,14 @@ public class WithdrawService implements WithdrawUseCase {
     private final List<OAuthClientPort> oAuthClients;
     private final TokenPersistencePort tokenPersistencePort;
 
+    /**
+     * @param userId 탈퇴할 사용자의 ID(PK)
+     * @return 회원 탈퇴가 성공하였는지 여부를 응답합니다.
+     * @FR UC-AUTH-03 회원 탈퇴
+     * @implNote 외부 OAuth 서버에 회원 탈퇴를 요청합니다.
+     * @implSpec 이 메소드는 회원탈퇴가 외부 OAuth 서버에서 진행된 후 데이터베이스에서 정보 삭제를 위해 별도 스레드에서 작업을 수행합니다.
+     * @see WithdrawUseCase#withdraw(Long)
+     */
     @Override
     @Transactional
     public Mono<Boolean> withdraw(Long userId) {
@@ -52,7 +65,11 @@ public class WithdrawService implements WithdrawUseCase {
                 });
     }
 
-    // Provider에 맞는 구현체를 찾는 헬퍼 메서드
+    /**
+     * @param provider 구현체를 찾는데 필요한 Enum
+     * @return {@code Provider}에 맞는 {@code OAuthClientPort} 구현체
+     * @implNote Provider에 맞는 구현체를 찾는 헬퍼 메서드
+     */
     private OAuthClientPort getClient(OAuthProvider provider) {
         return oAuthClients.stream()
                 .filter(client -> client.supports(provider))
