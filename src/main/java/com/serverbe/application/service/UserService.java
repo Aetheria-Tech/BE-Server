@@ -22,7 +22,10 @@ public class UserService implements GetUserUseCase, UpdateUserUseCase {
     @Transactional
     public UserProfileResult getMyProfile(Long userId) {
         User user = userRepositoryPort.findById(userId)
-                .orElseThrow(() -> new BusinessException(ErrorMessage.NOT_FOUND_USER));
+                .orElseThrow(() -> new BusinessException(
+                        ErrorMessage.NOT_FOUND_USER,
+                        String.format("사용자(ID: %d)를 찾을 수 없습니다.", userId))
+                );
 
         return UserProfileResult.from(user);
     }
@@ -31,7 +34,10 @@ public class UserService implements GetUserUseCase, UpdateUserUseCase {
     @Transactional
     public UserProfileResult updateMyProfile(Long userId, UserUpdateCommand command) {
         User user = userRepositoryPort.findById(userId)
-                .orElseThrow(() -> new BusinessException(ErrorMessage.NOT_FOUND_USER));
+                .orElseThrow(() -> new BusinessException(
+                        ErrorMessage.NOT_FOUND_USER,
+                        String.format("사용자(ID: %d)를 찾을 수 없습니다.", userId))
+                );
 
         // 도메인 모델의 비즈니스 로직 호출 후 저장
         User updatedUser = user.updateProfile(

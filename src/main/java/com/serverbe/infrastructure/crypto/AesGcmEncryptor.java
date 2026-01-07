@@ -54,8 +54,9 @@ public class AesGcmEncryptor implements EncryptPort {
 
         try {
             String[] parts = encryptedData.split(DELIMITER);
-            if (parts.length != 3)
+            if (parts.length != 3) {
                 throw new BusinessException(ErrorMessage.INCORRECT_CIPHERTEXT_FORMAT);
+            }
 
             String version = parts[0];
             byte[] iv = Base64.getDecoder().decode(parts[1]);

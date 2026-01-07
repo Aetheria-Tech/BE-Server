@@ -59,21 +59,23 @@ public class RunningArtService implements GetRunningArtUseCase, DeleteRunningArt
     /**
      * {@code RunningArt} 엔티티를 찾고 소유자가 맞는지 검증하는 메소드.
      *
-     * @param userId 사용자의 ID (PK)
+     * @param userId       사용자의 ID (PK)
      * @param runningArtId 조회할 {@code RunningArt}의 ID (PK)
+     * @return {@code RunningArt} 엔티티 자체를 리턴합니다.
      * @implNote {@code RunningArt} 엔티티를 그대로 응답하기 때문에 절대 외부에서 사용하면 안됨.
      * @implNote {@code @Transactional} 애노테이션 내부에서 사용하지 않으면 오류 발생
-     * @return {@code RunningArt} 엔티티 자체를 리턴합니다.
-     * */
+     */
     private RunningArt findAndVerifyOwner(Long userId, Long runningArtId) {
         RunningArt runningArt = repositoryPort.findById(runningArtId)
                 .orElseThrow(() -> new BusinessException(
-                                ErrorMessage.NOT_FOUND_RUNNING_ART,
-                                String.format("런닝아트(%d)를 찾지 못했습니다.", runningArtId)
-                        )
+                        ErrorMessage.NOT_FOUND_RUNNING_ART,
+                        String.format("런닝아트(%d)를 찾지 못했습니다.", runningArtId))
                 );
         if (!runningArt.getUserId().equals(userId)) {
-            throw new BusinessException(ErrorMessage.USER_IS_NOT_OWNER_OF_RUNNING_ART, "사용자는 런닝아트의 주인이 아닙니다");
+            throw new BusinessException(
+                    ErrorMessage.USER_IS_NOT_OWNER_OF_RUNNING_ART,
+                    String.format("사용자(ID: %d)는 해당 런닝아트(ID: %d)에 대한 권한이 없습니다.", userId, runningArtId)
+            );
         }
         return runningArt;
     }
