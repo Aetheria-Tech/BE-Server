@@ -19,7 +19,7 @@ import java.util.List;
 
 /**
  * @author Duskafka
- * @responsiblity 회원탈퇴를 수행하는 책임
+ * @responsibility 회원탈퇴를 수행하는 책임
  * @see WithdrawUseCase
  */
 @Slf4j
@@ -35,10 +35,11 @@ public class WithdrawService implements WithdrawUseCase {
     /**
      * @param userId 탈퇴할 사용자의 ID(PK)
      * @return 회원 탈퇴가 성공하였는지 여부를 응답합니다.
-     * @FR UC-AUTH-03 회원 탈퇴
+     * @responsibility 사용자의 회원 탈퇴 요청을 수행한다.
+     * @requirement UC-AUTH-03: 회원 탈퇴
      * @implNote 외부 OAuth 서버에 회원 탈퇴를 요청합니다.
      * @implSpec 이 메소드는 회원탈퇴가 외부 OAuth 서버에서 진행된 후 데이터베이스에서 정보 삭제를 위해 별도 스레드에서 작업을 수행합니다.
-     * @see WithdrawUseCase#withdraw(Long)
+     * @see WithdrawUseCase#withdraw(Long) 구현하는 유즈케이스
      */
     @Override
     @Transactional

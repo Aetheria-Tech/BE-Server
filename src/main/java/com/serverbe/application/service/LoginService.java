@@ -1,6 +1,7 @@
 package com.serverbe.application.service;
 
 import com.serverbe.application.port.out.dto.oauth.AccessTokenResult;
+import com.serverbe.application.port.out.dto.oauth.OAuthUserInfoResult;
 import com.serverbe.application.port.out.dto.oauth.RefreshTokenResult;
 import com.serverbe.application.port.out.dto.oauth.TokenResult;
 import com.serverbe.application.port.out.oauth.OAuthClientPort;
@@ -24,7 +25,7 @@ import java.util.List;
 
 /**
  * @author Duskafka
- * @responsiblity 로그인 및 회원가입을 수행해주는 책임
+ * @responsibility 로그인 및 회원가입을 수행해주는 책임
  * @see LoginUseCase
  */
 @Slf4j
@@ -55,11 +56,14 @@ public class LoginService implements LoginUseCase {
      * @param code     OAuth 서버에서 응답해준 로그인 코드로 이를 사용해서 사용자 정보를 OAuth 서버에서 받아옵니다.
      * @param provider KAKAO 또는 GOOGLE 같은 로그인 방식을 식별할 수 있는 Enum
      * @return 액세스 토큰 정보, 리프레시 토큰 정보, 사용자 권한 정보를 담은 DTO
-     * @FR UC-AUTH-01 로그인 및 회원가입
-     * @responsiblity 로그인을 수행하는 책임을 가진 메소드
-     * @implSpec 비동기 스레드에서 작업을 진행하다가 JPA로 데이터베이스를 조회할 때 전용 스레드 풀로 작업을 넘긴다.
-     * 따라서 이 메소드 스레드 흐름은 다음과 같다 {@code 비동기 -> 동기 -> 비동기}
-     * @see LoginUseCase#login(String, OAuthProvider)
+     * @requirement UC-AUTH-01: 로그인 및 회원가입
+     * @responsibility 로그인을 수행하는 책임을 가진 메소드
+     * @implSpec 비동기 스레드에서 작업을 시작하여, DB 접근 시 Bounded Elastic 스케줄러로 전환하여 Blocking I/O를 처리한다.
+     * 사용자 식별은 'Email'이 아닌 'OAuth Provider + OAuth ID' 조합을 고유 키로 사용한다.
+     * 이는 동일 이메일 사용자가 다른 소셜 서비스를 통해 가입할 경우, 의도치 않은 계정 탈취(Account Takeover)를 방지하기 위함이다.
+     * 기존 사용자가 존재할 경우 소셜 프로필 정보를 최신으로 업데이트하며, 존재하지 않을 경우 신규 회원으로 가입 처리한다.
+     * @see LoginUseCase#login(String, OAuthProvider) 구현하는 유즈케이스
+     * @see <a href="https://tools.ietf.org/html/rfc6749">The OAuth 2.0 Authorization Framework</a>
      */
     @Override
     @Transactional
@@ -94,7 +98,7 @@ public class LoginService implements LoginUseCase {
     /**
      * @param provider KAKAO 또는 GOOGLE 같은 로그인 방식을 식별할 수 있는 Enum
      * @return 로그인을 진행할 수 있는 URL을 응답한다.
-     * @responsiblity 각 로그인 방식(OAuth 서버)에 따라 다른 로그인 URL을 응답하는 책임을 가진 메소드
+     * @responsibility 각 로그인 방식(OAuth 서버)에 따라 다른 로그인 URL을 응답하는 책임을 가진 메소드
      * @see LoginUseCase#getSocialLoginUrl(OAuthProvider)
      */
     @Override
@@ -104,7 +108,7 @@ public class LoginService implements LoginUseCase {
 
     /**
      * @param provider KAKAO 또는 GOOGLE 같은 로그인 방식을 식별할 수 있는 Enum
-     * @responsiblity 요청에 알맞은 {@code OAuthClientPort}를 찾도록 도와주는 책임을 가진다.
+     * @responsibility 요청에 알맞은 {@code OAuthClientPort}를 찾도록 도와주는 책임을 가진다.
      * @implNote Provider(KAKAO, GOOGLE)에 맞는 구현체를 List에서 찾아 반환합니다.
      * @see com.serverbe.adapter.out.external.google.GoogleOAuthAdapter
      * @see com.serverbe.adapter.out.external.kakao.KakaoOAuthAdapter

@@ -12,7 +12,7 @@ import java.time.Instant;
 
 /**
  * @author Duskafka
- * @responsiblity 로그아웃을 수행하는 책임
+ * @responsibility 로그아웃을 수행하는 책임
  * @see LogoutUseCase
  */
 @Service
@@ -25,8 +25,8 @@ public class LogoutService implements LogoutUseCase {
     /**
      * @param accessToken  사용자가 로그아웃에 사용한 액세스 토큰
      * @param refreshToken 사용자가 로그아웃을 요청한 리프레시 토큰
-     * @FR UC-AUTH-02 현재 기기 로그아웃
-     * @responsiblity 단일 기기(현재 기기)에서 로그아웃을 시키는 책임
+     * @requirement UC-AUTH-02: 현재 기기 로그아웃
+     * @responsibility 단일 기기(현재 기기)에서 로그아웃을 시키는 책임
      * @implNote Redis에 접근하여 저장된 리프레시 토큰을 무효화하고 액세스 토큰을 블랙리스트에 등록한다.
      * @see LogoutUseCase#logout(String, String)
      */
@@ -50,8 +50,8 @@ public class LogoutService implements LogoutUseCase {
 
     /**
      * @param accessToken 사용자가 로그아웃에 사용한 액세스 토큰
-     * @FR UC-AUTH-03 모든 기기 로그아웃
-     * @responsiblity 모든 기기에서 로그아웃을 시키는 책임
+     * @requirement UC-AUTH-03: 모든 기기 로그아웃
+     * @responsibility 모든 기기에서 로그아웃을 시키는 책임
      * @implNote Redis에 접근하여 사용자의 ID로 등록된 리프레시 토큰을 모두 무효하고 액세스 토큰을 블랙리스트에 등록시킨다.
      * @see LogoutUseCase#globalLogout(String)
      */
