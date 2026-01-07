@@ -1,6 +1,6 @@
 package com.serverbe.application.port.out.geocode;
 
-import com.serverbe.application.port.out.dto.geocoding.GeocodeResponse;
+import com.serverbe.application.port.out.dto.geocoding.GeocodeResult;
 import reactor.core.publisher.Mono;
 
 /**
@@ -12,5 +12,5 @@ public interface GeocodePort {
      * @param address 주소 (예: 서울특별시 강남구 ...)
      * @return 위도/경도 정보를 담은 Mono
      */
-    Mono<GeocodeResponse> geocode(String address);
+    Mono<GeocodeResult> geocode(String address);
 }

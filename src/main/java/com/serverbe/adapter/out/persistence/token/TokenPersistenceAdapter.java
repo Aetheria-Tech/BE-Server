@@ -13,7 +13,7 @@ import java.util.List;
 public class TokenPersistenceAdapter implements TokenPersistencePort {
 
     private final RedisTemplate<String, Object> redisTemplate;
-    private final int MAX_TOKEN;
+    private final int maxToken;
     private final String rtPrefix;
     private final String rtSuffix;
     private final String blPrefix;
@@ -23,7 +23,7 @@ public class TokenPersistenceAdapter implements TokenPersistencePort {
             RedisTemplate<String, Object> redisTemplate,
             RedisProperties redisProperties) {
         this.redisTemplate = redisTemplate;
-        this.MAX_TOKEN = redisProperties.auth().maxToken();
+        this.maxToken = redisProperties.auth().maxToken();
         this.rtPrefix = redisProperties.auth().prefix();
         this.rtSuffix = redisProperties.auth().suffix();
         this.blPrefix = redisProperties.blacklist().prefix();
@@ -38,7 +38,7 @@ public class TokenPersistenceAdapter implements TokenPersistencePort {
         Long currentSize = redisTemplate.opsForList().size(key);
 
         // 2. 최대 개수(max-token)를 초과하면 가장 오래된 토큰(왼쪽) 삭제 (FIFO)
-        if (currentSize != null && currentSize >= MAX_TOKEN) {
+        if (currentSize != null && currentSize >= maxToken) {
             redisTemplate.opsForList().leftPop(key);
         }
 

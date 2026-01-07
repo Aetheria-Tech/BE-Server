@@ -1,11 +1,14 @@
 package com.serverbe.adapter.in.web;
 
-import com.serverbe.application.port.out.dto.geocoding.GeocodeResponse;
+import com.serverbe.adapter.in.web.dto.geocode.GeocodeResponse;
 import com.serverbe.application.port.out.geocode.GeocodePort;
-import com.serverbe.infrastructure.common.ApiResponse;
+import com.serverbe.infrastructure.common.response.RestApiResponse;
 import com.serverbe.infrastructure.util.AddressValidator;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -21,12 +24,28 @@ public class GeocodeController {
 
     private final GeocodePort geocodePort;
 
-    @Operation(summary = "주소를 위경도로 변환 (지오코딩)")
+    @Operation(
+            summary = "주소를 위경도로 변환 (지오코딩)",
+            description = "텍스트 주소를 입력받아 해당 위치의 위도(latitude), 경도(longitude) 및 표준 주소를 반환합니다.",
+            responses = {
+                    @ApiResponse(
+                            responseCode = "200",
+                            description = "변환 성공",
+                            useReturnTypeSchema = true
+                    ),
+                    @ApiResponse(responseCode = "400", description = "유효하지 않은 주소 형식이거나 빈 값인 경우"),
+                    @ApiResponse(responseCode = "500", description = "외부 지도 API 서버 에러 또는 위치를 찾을 수 없는 경우")
+            }
+    )
     @GetMapping
-    public Mono<ApiResponse<GeocodeResponse>> geocode(@RequestParam(name = "address") String address) {
+    public Mono<RestApiResponse<GeocodeResponse>> geocode(
+            @Parameter(description = "변환할 도로명 또는 지번 주소", example = "서울특별시 강남구 테헤란로 427", required = true)
+            @RequestParam(name = "address") @NotBlank String address
+    ) {
         AddressValidator.validate(address);
         // 외부 API 호출이므로 비동기 체인(Mono)을 그대로 반환합니다.
         return geocodePort.geocode(address)
-                .map(ApiResponse::success);
+                .map(GeocodeResponse::toResponse)
+                .map(RestApiResponse::success);
     }
 }

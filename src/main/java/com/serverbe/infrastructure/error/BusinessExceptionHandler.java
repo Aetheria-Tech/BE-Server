@@ -1,6 +1,6 @@
 package com.serverbe.infrastructure.error;
 
-import com.serverbe.infrastructure.common.ApiResponse;
+import com.serverbe.infrastructure.common.response.RestApiResponse;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -29,14 +29,14 @@ public class BusinessExceptionHandler {
      * - `ErrorMessage`를 포함하여, 예측 가능한 예외 상황을 처리합니다.
      */
     @ExceptionHandler(BusinessException.class)
-    public ResponseEntity<ApiResponse<Void>> handleBusinessException(BusinessException e) {
+    public ResponseEntity<RestApiResponse<Void>> handleBusinessException(BusinessException e) {
         var errorMessage = e.getErrorMessage();
 
         // 4xx, 5xx 등 예측된 비즈니스 예외는 WARN 레벨로 기록합니다.
         log.warn("[WARN] BusinessException -> {}", errorMessage.getMessage());
 
         return ResponseEntity.status(errorMessage.getStatus())
-                .body(ApiResponse.fail(errorMessage, errorMessage.getMessage()));
+                .body(RestApiResponse.fail(errorMessage, errorMessage.getMessage()));
     }
 
     /**
@@ -44,7 +44,7 @@ public class BusinessExceptionHandler {
      * - FieldErrors와 GlobalErrors를 모두 처리하여 상세한 메시지를 반환합니다.
      */
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ApiResponse<Void>> handleMethodArgumentNotValidException(MethodArgumentNotValidException e) {
+    public ResponseEntity<RestApiResponse<Void>> handleMethodArgumentNotValidException(MethodArgumentNotValidException e) {
         // FieldErrors: "email: 이메일 형식이 아닙니다."
         String detailedErrorMessage = e.getBindingResult().getFieldErrors().stream()
                 .map(error -> String.format("[%s]: %s", error.getField(), error.getDefaultMessage()))
@@ -68,7 +68,7 @@ public class BusinessExceptionHandler {
         log.warn("[WARN] MethodArgumentNotValidException -> {}", finalMessage);
 
         return ResponseEntity.status(ErrorMessage.INVALID_REQUEST_PARAMETER.getStatus())
-                .body(ApiResponse.fail(ErrorMessage.INVALID_REQUEST_PARAMETER, finalMessage));
+                .body(RestApiResponse.fail(ErrorMessage.INVALID_REQUEST_PARAMETER, finalMessage));
     }
 
     /**
@@ -76,7 +76,7 @@ public class BusinessExceptionHandler {
      * (e.g., @RequestParam, @PathVariable)
      */
     @ExceptionHandler(ConstraintViolationException.class)
-    public ResponseEntity<ApiResponse<Void>> handleConstraintViolationException(ConstraintViolationException e) {
+    public ResponseEntity<RestApiResponse<Void>> handleConstraintViolationException(ConstraintViolationException e) {
 
         String detailedErrorMessage = e.getConstraintViolations().stream()
                 .map(violation -> {
@@ -93,47 +93,47 @@ public class BusinessExceptionHandler {
         log.warn("[WARN] ConstraintViolationException -> {}", detailedErrorMessage);
 
         return ResponseEntity.status(ErrorMessage.INVALID_REQUEST_PARAMETER.getStatus())
-                .body(ApiResponse.fail(ErrorMessage.INVALID_REQUEST_PARAMETER, detailedErrorMessage));
+                .body(RestApiResponse.fail(ErrorMessage.INVALID_REQUEST_PARAMETER, detailedErrorMessage));
     }
 
     /**
      * 필수 요청 파라미터(@RequestParam)가 누락된 경우
      */
     @ExceptionHandler(MissingServletRequestParameterException.class)
-    public ResponseEntity<ApiResponse<Void>> handleMissingServletRequestParameterException(MissingServletRequestParameterException e) {
+    public ResponseEntity<RestApiResponse<Void>> handleMissingServletRequestParameterException(MissingServletRequestParameterException e) {
 
         String detailedErrorMessage = String.format("필수 파라미터 [%s](이)가 누락되었습니다.", e.getParameterName());
 
         log.warn("[WARN] MissingServletRequestParameterException -> {}", detailedErrorMessage);
 
         return ResponseEntity.status(ErrorMessage.INVALID_REQUEST_PARAMETER.getStatus())
-                .body(ApiResponse.fail(ErrorMessage.INVALID_REQUEST_PARAMETER, detailedErrorMessage));
+                .body(RestApiResponse.fail(ErrorMessage.INVALID_REQUEST_PARAMETER, detailedErrorMessage));
     }
 
     /**
      * 잘못된 JSON 형식을 요청한 경우
      */
     @ExceptionHandler(HttpMessageNotReadableException.class)
-    public ResponseEntity<ApiResponse<Void>> handleHttpMessageNotReadableException(HttpMessageNotReadableException e) {
+    public ResponseEntity<RestApiResponse<Void>> handleHttpMessageNotReadableException(HttpMessageNotReadableException e) {
 
         // e.getMessage()는 너무 길고 복잡하며 내부 구현을 노출할 수 있으므로, ErrorMessage의 기본 메시지를 사용합니다.
         log.warn("[WARN] HttpMessageNotReadableException -> {}", e.getMostSpecificCause().getMessage());
 
         return ResponseEntity.status(ErrorMessage.MALFORMED_JSON_REQUEST.getStatus())
-                .body(ApiResponse.fail(ErrorMessage.MALFORMED_JSON_REQUEST));
+                .body(RestApiResponse.fail(ErrorMessage.MALFORMED_JSON_REQUEST));
     }
 
     /**
      * 그 외 모든 예외 (Catch-all 500)
      */
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ApiResponse<Void>> handleException(Exception e) {
+    public ResponseEntity<RestApiResponse<Void>> handleException(Exception e) {
         // [중요] 처리되지 않은 500번대 서버 오류는 ERROR 레벨로 기록하고,
         // 클라이언트에게는 상세한 예외 내용을 노출하지 않습니다.
         log.error("[ERROR] Unhandled Exception", e); // 스택 트레이스 전체를 기록
 
         return ResponseEntity.status(ErrorMessage.INTERNAL_SERVER_ERROR.getStatus())
-                .body(ApiResponse.fail(ErrorMessage.INTERNAL_SERVER_ERROR));
+                .body(RestApiResponse.fail(ErrorMessage.INTERNAL_SERVER_ERROR));
     }
 
     /**
@@ -141,10 +141,10 @@ public class BusinessExceptionHandler {
      * JwtAuthenticationFilter에서 handlerExceptionResolver.resolveException()을 통해 전달된 예외도 여기서 처리됩니다.
      */
     @ExceptionHandler({AuthenticationException.class, InsufficientAuthenticationException.class})
-    public ResponseEntity<ApiResponse<Void>> handleAuthenticationException(Exception e) {
+    public ResponseEntity<RestApiResponse<Void>> handleAuthenticationException(Exception e) {
         log.warn("[WARN] Unauthorized -> {}", e.getMessage());
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(ApiResponse.fail(ErrorMessage.UNAUTHORIZED));
+                .body(RestApiResponse.fail(ErrorMessage.UNAUTHORIZED));
     }
 
     /**
@@ -152,9 +152,9 @@ public class BusinessExceptionHandler {
      * 권한이 없는 사용자가 특정 API에 접근할 때 발생합니다.
      */
     @ExceptionHandler(AccessDeniedException.class)
-    public ResponseEntity<ApiResponse<Void>> handleAccessDeniedException(AccessDeniedException e) {
+    public ResponseEntity<RestApiResponse<Void>> handleAccessDeniedException(AccessDeniedException e) {
         log.warn("[WARN] Access Denied -> {}", e.getMessage());
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                .body(ApiResponse.fail(ErrorMessage.ACCESS_DENIED));
+                .body(RestApiResponse.fail(ErrorMessage.ACCESS_DENIED));
     }
 }

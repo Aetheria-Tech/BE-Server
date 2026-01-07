@@ -1,10 +1,11 @@
 package com.serverbe.application.service;
 
-import com.serverbe.application.port.out.dto.me.UserProfileResponse;
+import com.serverbe.application.port.in.me.UpdateUserUseCase;
+import com.serverbe.application.port.out.dto.me.UserProfileResult;
 import com.serverbe.application.port.out.dto.me.UserUpdateCommand;
-import com.serverbe.application.port.in.me.UserUseCase;
+import com.serverbe.application.port.in.me.GetUserUseCase;
 import com.serverbe.application.port.out.jpa.UserRepositoryPort;
-import com.serverbe.domain.model.User;
+import com.serverbe.domain.model.user.User;
 import com.serverbe.infrastructure.error.BusinessException;
 import com.serverbe.infrastructure.error.ErrorMessage;
 import lombok.RequiredArgsConstructor;
@@ -13,23 +14,30 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true)
-public class UserService implements UserUseCase {
+public class UserService implements GetUserUseCase, UpdateUserUseCase {
 
     private final UserRepositoryPort userRepositoryPort;
 
     @Override
-    public UserProfileResponse getMyProfile(Long userId) {
+    @Transactional
+    public UserProfileResult getMyProfile(Long userId) {
         User user = userRepositoryPort.findById(userId)
-                .orElseThrow(() -> new BusinessException(ErrorMessage.NOT_FOUND_RUNNER));
-        return UserProfileResponse.from(user);
+                .orElseThrow(() -> new BusinessException(
+                        ErrorMessage.NOT_FOUND_USER,
+                        String.format("사용자(ID: %d)를 찾을 수 없습니다.", userId))
+                );
+
+        return UserProfileResult.from(user);
     }
 
     @Override
     @Transactional
-    public UserProfileResponse updateMyProfile(Long userId, UserUpdateCommand command) {
+    public UserProfileResult updateMyProfile(Long userId, UserUpdateCommand command) {
         User user = userRepositoryPort.findById(userId)
-                .orElseThrow(() -> new BusinessException(ErrorMessage.NOT_FOUND_RUNNER));
+                .orElseThrow(() -> new BusinessException(
+                        ErrorMessage.NOT_FOUND_USER,
+                        String.format("사용자(ID: %d)를 찾을 수 없습니다.", userId))
+                );
 
         // 도메인 모델의 비즈니스 로직 호출 후 저장
         User updatedUser = user.updateProfile(
@@ -38,6 +46,6 @@ public class UserService implements UserUseCase {
         );
 
         userRepositoryPort.save(updatedUser);
-        return UserProfileResponse.from(updatedUser);
+        return UserProfileResult.from(updatedUser);
     }
 }

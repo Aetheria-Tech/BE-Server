@@ -1,4 +1,4 @@
-package com.serverbe.infrastructure.common;
+package com.serverbe.infrastructure.common.response;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.serverbe.infrastructure.error.ErrorMessage;
@@ -12,7 +12,7 @@ import org.springframework.http.HttpStatus;
  * @param data       성공 시 반환할 데이터 (성공 시에만 JSON에 포함)
  * @param error      실패 시 반환할 에러 정보 (실패 시에만 JSON에 포함)
  */
-public record ApiResponse<T>(
+public record RestApiResponse<T>(
         boolean success,
 
         HttpStatus httpStatus,
@@ -26,16 +26,16 @@ public record ApiResponse<T>(
     /**
      * 성공 응답 - 데이터를 포함하는 경우 (200 OK)
      */
-    public static <T> ApiResponse<T> success(T data) {
-        return new ApiResponse<>(true, HttpStatus.OK, data, null);
+    public static <T> RestApiResponse<T> success(T data) {
+        return new RestApiResponse<>(true, HttpStatus.OK, data, null);
     }
 
 
     /**
      * 실패 응답 - ErrorMessage Enum의 기본 메시지 사용
      */
-    public static <T> ApiResponse<Void> fail(ErrorMessage errorMessage) {
-        return new ApiResponse<>(
+    public static <T> RestApiResponse<Void> fail(ErrorMessage errorMessage) {
+        return new RestApiResponse<>(
                 false,
                 errorMessage.getStatus(),
                 null,
@@ -47,8 +47,8 @@ public record ApiResponse<T>(
      * 실패 응답 - 상세 사유(Reason)를 직접 지정
      * (유효성 검사 실패 시 필드별 에러 메시지를 전달할 때 유용)
      */
-    public static ApiResponse<Void> fail(ErrorMessage errorMessage, String reason) {
-        return new ApiResponse<>(
+    public static RestApiResponse<Void> fail(ErrorMessage errorMessage, String reason) {
+        return new RestApiResponse<>(
                 false,
                 errorMessage.getStatus(),
                 null,
@@ -56,8 +56,8 @@ public record ApiResponse<T>(
         );
     }
 
-    public static ApiResponse<Void> noContent() {
-        return new ApiResponse<>(
+    public static RestApiResponse<Void> noContent() {
+        return new RestApiResponse<>(
                 true,
                 HttpStatus.NO_CONTENT,
                 null,

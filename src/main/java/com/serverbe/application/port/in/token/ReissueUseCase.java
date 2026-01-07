@@ -1,7 +1,7 @@
 package com.serverbe.application.port.in.token;
 
-import com.serverbe.application.port.out.dto.oauth.TokenResponse;
+import com.serverbe.application.port.out.dto.oauth.TokenResult;
 
 public interface ReissueUseCase {
-    TokenResponse reissue(String accessToken, String refreshToken);
+    TokenResult reissue(String accessToken, String refreshToken);
 }

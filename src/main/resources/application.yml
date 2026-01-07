@@ -24,7 +24,7 @@ springdoc:
   swagger-ui:
     path: /swagger-ui.html                      # 스웨거 접근 경로
   api-docs:
-    path: /api-docs                             # openAPI 접근 경로. default 값은 /v3/kapi-docs 이다.
+    path: /v3/api-docs                          # openAPI 접근 경로
   show-actuator: true                           # Spring Actuator의 endpoint까지 보여줄 것인지?
   default-consumes-media-type: application/json # request media type 의 기본 값
   default-produces-media-type: application/json # response media type 의 기본 값
@@ -88,10 +88,13 @@ google:
 # 암호화
 encryption:
   algorithm: ${ENCRYPTION_ALGORITHM}
-  secret-key: ${ENCRYPTION_SECRET_KEY} # 32자 이상의 보안키
   tag-length-bit: 128
   iv-length-byte: 12
   key-algorithm: AES
+  active-version: v2
+  keys:
+    v1: ${ENCRYPTION_SECRET_KEY_V1} # 기존 키
+    v2: ${ENCRYPTION_SECRET_KEY_V2} # 새로 발급할 키
 
 # CORS
 cors:

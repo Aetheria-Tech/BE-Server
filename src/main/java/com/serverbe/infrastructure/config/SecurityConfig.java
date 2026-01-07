@@ -53,9 +53,9 @@ public class SecurityConfig {
                                 "/api/v1/auth/callback/**",
                                 "/api/v1/auth/reissue"
                         ).permitAll()
-
+    
                         // Swagger 문서 경로는 모두 허용
-                        .requestMatchers("/v3/api-docs/**", "/swagger-ui/**").permitAll()
+                        .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html","/v3/api-docs.yaml").permitAll()
 
                         // 로그아웃과 회원 탈퇴는 반드시 인증이 필요함
                         .requestMatchers("/api/v1/auth/logout", "/api/v1/auth/me").authenticated()

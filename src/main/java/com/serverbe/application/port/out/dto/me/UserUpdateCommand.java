@@ -5,4 +5,5 @@ public record UserUpdateCommand(
     String nickname,
     String profileImageUrl,
     String statusMessage
-) {}
+) {
+}

@@ -1,7 +1,7 @@
 package com.serverbe.application.port.out.jpa;
 
-import com.serverbe.domain.model.User;
-import com.serverbe.domain.model.vo.OAuthProvider;
+import com.serverbe.domain.model.user.User;
+import com.serverbe.domain.model.user.vo.OAuthProvider;
 
 import java.util.Optional;
 
