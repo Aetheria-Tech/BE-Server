@@ -16,7 +16,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 
 @Service
-@Transactional
 @RequiredArgsConstructor
 public class RunningArtService implements GetRunningArtUseCase, DeleteRunningArtUseCase, UpdateRunningArtUseCase {
     private final RunningArtRepositoryPort repositoryPort;
@@ -36,6 +35,7 @@ public class RunningArtService implements GetRunningArtUseCase, DeleteRunningArt
 
 
     @Override
+    @Transactional
     public void deleteRunningArt(Long userId, Long runningArtId) {
         findAndVerifyOwner(userId, runningArtId);
 
@@ -43,6 +43,7 @@ public class RunningArtService implements GetRunningArtUseCase, DeleteRunningArt
     }
 
     @Override
+    @Transactional
     public void updateRunningArt(Long userId, Long runningArtId, RunningArtUpdateCommand command) {
         findAndVerifyOwner(userId, runningArtId);
 
@@ -50,10 +51,20 @@ public class RunningArtService implements GetRunningArtUseCase, DeleteRunningArt
     }
 
     @Override
+    @Transactional
     public void deleteAllRunningArtsByUserId(Long userId) {
         repositoryPort.deleteByUserId(userId);
     }
 
+    /**
+     * {@code RunningArt} 엔티티를 찾고 소유자가 맞는지 검증하는 메소드.
+     *
+     * @param userId 사용자의 ID (PK)
+     * @param runningArtId 조회할 {@code RunningArt}의 ID (PK)
+     * @implNote {@code RunningArt} 엔티티를 그대로 응답하기 때문에 절대 외부에서 사용하면 안됨.
+     * @implNote {@code @Transactional} 애노테이션 내부에서 사용하지 않으면 오류 발생
+     * @return {@code RunningArt} 엔티티 자체를 리턴합니다.
+     * */
     private RunningArt findAndVerifyOwner(Long userId, Long runningArtId) {
         RunningArt runningArt = repositoryPort.findById(runningArtId)
                 .orElseThrow(() -> new BusinessException(

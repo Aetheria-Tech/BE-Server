@@ -15,7 +15,6 @@ import java.util.Optional;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-@Transactional
 public class UserPersistenceAdapter implements UserRepositoryPort {
 
     private final JpaUserRepository jpaUserRepository;

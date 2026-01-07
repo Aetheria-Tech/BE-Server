@@ -17,7 +17,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Duration;
 
 @Service
-@Transactional
 public class ReissueService implements ReissueUseCase {
 
     private final TokenPersistencePort tokenPersistencePort;
@@ -33,6 +32,7 @@ public class ReissueService implements ReissueUseCase {
     }
 
     @Override
+    @Transactional
     public TokenResult reissue(String accessToken, String refreshToken) {
         // 1. 리프레시 토큰 자체의 유효성 검증
         if (!tokenResolver.validateRefreshToken(refreshToken)) {

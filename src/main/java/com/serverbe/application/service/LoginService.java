@@ -24,7 +24,6 @@ import java.util.List;
 
 @Slf4j
 @Service
-@Transactional
 public class LoginService implements LoginUseCase {
 
     private final List<OAuthClientPort> oAuthClients;
@@ -48,6 +47,7 @@ public class LoginService implements LoginUseCase {
     }
 
     @Override
+    @Transactional
     public Mono<TokenResult> login(String code, OAuthProvider provider) {
         // 1. 외부 소셜 서버(카카오/구글) 어댑터 선택 (Strategy Pattern 적용)
         OAuthClientPort client = getClient(provider);
