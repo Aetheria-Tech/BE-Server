@@ -46,6 +46,7 @@ public class AuthController {
     private final ReissueUseCase reissueUseCase;
     private final TokenExtractionUtils tokenExtractionUtils;
     private final String refreshTokenCookie;
+    private final long refreshTokenCookieExpireSeconds;
 
     public AuthController(
             LoginUseCase loginUseCase,
@@ -61,6 +62,7 @@ public class AuthController {
         this.reissueUseCase = reissueUseCase;
         this.tokenExtractionUtils = tokenExtractionUtils;
         this.refreshTokenCookie = jwtProperties.refreshToken().cookie();
+        this.refreshTokenCookieExpireSeconds = jwtProperties.refreshToken().expirationDays().toSeconds();
     }
 
     @Operation(
@@ -127,7 +129,7 @@ public class AuthController {
         // 3. 우리 서비스 전용 액세스/리프레시 토큰 발급 및 리프레시 토큰 Redis 저장
         return loginUseCase.login(code, provider)
                 .map(tokenResponse -> {
-                    addCookieToResponse(response, tokenResponse.refreshTokenResult().opaqueToken(), 60 * 24 * 60 * 60);
+                    addCookieToResponse(response, tokenResponse.refreshTokenResult().opaqueToken(), refreshTokenCookieExpireSeconds);
                     return RestApiResponse.success(AccessTokenResponse.toResponse(tokenResponse.accessTokenResult()));
                 });
     }
@@ -249,7 +251,7 @@ public class AuthController {
         return Mono.fromCallable(() -> reissueUseCase.reissue(accessToken, refreshToken))
                 .subscribeOn(Schedulers.boundedElastic())
                 .map(tokenResponse -> {
-                    addCookieToResponse(response, tokenResponse.refreshTokenResult().opaqueToken(), 60 * 24 * 60 * 60);
+                    addCookieToResponse(response, tokenResponse.refreshTokenResult().opaqueToken(), refreshTokenCookieExpireSeconds);
                     return RestApiResponse.success(AccessTokenResponse.toResponse(tokenResponse.accessTokenResult()));
                 });
     }
