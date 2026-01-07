@@ -88,10 +88,13 @@ google:
 # 암호화
 encryption:
   algorithm: ${ENCRYPTION_ALGORITHM}
-  secret-key: ${ENCRYPTION_SECRET_KEY} # 32자 이상의 보안키
   tag-length-bit: 128
   iv-length-byte: 12
   key-algorithm: AES
+  active-version: v2
+  keys:
+    v1: ${ENCRYPTION_SECRET_KEY_V1} # 기존 키
+    v2: ${ENCRYPTION_SECRET_KEY_V2} # 새로 발급할 키
 
 # CORS
 cors:
