@@ -19,8 +19,10 @@ import java.util.Base64;
 import java.util.Date;
 
 /**
- * 이 클래스는 Spring Security의 {@link Authentication} 정보를 기반으로
+ * @author Duskafka
+ * @responsibility 이 클래스는 Spring Security의 {@link Authentication} 정보를 기반으로
  * 액세스 토큰(Access Token)과 리프레시 토큰(Refresh Token)을 생성하는 역할을 수행합니다.
+ * @see TokenProvider
  */
 @Slf4j
 @Component
@@ -56,17 +58,20 @@ public class JwtTokenProvider implements TokenProvider {
     }
 
     /**
-     * 주어진 {@link Authentication} 객체를 사용하여 **액세스 토큰**을 생성합니다.
+     * 주어진 {@link Authentication} 객체를 사용하여 액세스 토큰을 생성합니다.
      *
      * <p>액세스 토큰에는 다음 정보가 포함됩니다:</p>
      * <ul>
      * <li>Subject (sub): 사용자 ID ({@code authentication.getName()})</li>
      * <li>Issued At (iat): 토큰 발급 시간</li>
-     * <li>Expiration (exp): 토큰 만료 시간 ({@code ACCESS_TOKEN_VALIDITY_IN_HOUR} 기준)</li>
+     * <li>Expiration (exp): 토큰 만료 시간 ({@link JwtTokenProvider#accessTokenValidityInMinute} 기준)</li>
      * <li>Custom Claim: "roles" (사용자의 권한 목록)</li>
      * </ul>
      *
-     * @return 생성된 액세스 토큰 문자열입니다.
+     * @param id   사용자의 고유 식별자
+     * @param role 사용자의 권한.
+     * @return 생성된 액세스 토큰 정보를 담은 {@link AccessTokenResult} DTO
+     * @responsibility {@link Authentication} 객체를 사용하여 액세스 토큰을 생성한다.
      */
     @Override
     public AccessTokenResult generateAccessToken(Long id, Role role) {
@@ -88,11 +93,13 @@ public class JwtTokenProvider implements TokenProvider {
      * <ul>
      * <li>Subject (sub): 사용자 ID ({@code authentication.getName()})</li>
      * <li>Issued At (iat): 토큰 발급 시간</li>
-     * <li>Expiration (exp): 토큰 만료 시간 ({@code REFRESH_TOKEN_VALIDATE_DAY} 기준)</li>
+     * <li>Expiration (exp): 토큰 만료 시간 ({@link JwtTokenProvider#refreshTokenValidateDay} 기준)</li>
      * <li>Custom Claim: "jti" (JWT ID, 토큰의 고유 식별자)</li>
      * </ul>
      *
-     * @return 생성된 리프레시 토큰 문자열과 관련 정보를 담은 {@code RefreshTokenIssueResult}입니다.
+     * @param id   사용자의 고유 식별자
+     * @param role 사용자의 권한
+     * @return 생성된 리프레시 토큰 문자열과 관련 정보를 담은 {@link RefreshTokenResult} DTO
      */
     @Override
     public RefreshTokenResult generateRefreshToken(Long id, Role role) {
@@ -102,6 +109,10 @@ public class JwtTokenProvider implements TokenProvider {
         return RefreshTokenResult.of(opaqueToken, String.valueOf(id), expire);
     }
 
+    /**
+     * @return 생성된 OpaqueToken
+     * @responsibility OpaqueToken을 생성하는 책임
+     */
     private String generateOpaqueToken() {
         byte[] randomBytes = new byte[refreshTokenLength];
         secureRandom.nextBytes(randomBytes);

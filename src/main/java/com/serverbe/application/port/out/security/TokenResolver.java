@@ -8,11 +8,11 @@ import java.time.Instant;
 
 public interface TokenResolver {
     /**
-     * @param token 액세스 토큰
-     * @return 추출된 {@code Authentication} 객체
-     * @responsibility JWT 토큰에서 {@code Authentication} 객체를 추출하는 책임.
+     * @param accessToken 액세스 토큰
+     * @return 추출된 {@link Authentication} 객체
+     * @responsibility JWT 토큰에서 {@link Authentication} 객체를 추출하는 책임.
      */
-    Authentication getAuthentication(String token);
+    Authentication getAuthentication(String accessToken);
 
     /**
      * @param accessToken 검증할 액세스 토큰
@@ -29,23 +29,23 @@ public interface TokenResolver {
     boolean validateRefreshToken(String refreshToken);
 
     /**
-     * @param token 고유 식별자를 추출할 액세스 토큰
+     * @param accessToken 고유 식별자를 추출할 액세스 토큰
      * @return 추출한 고유 식별자(ID)
      * @responsibility 액세스 토큰의 Claim 부분에서 사용자 고유 식별자를 가져오는 역할 책임.
      */
-    Long getIdFromToken(String token);
+    Long getIdFromToken(String accessToken);
 
     /**
-     * @param token 추출에 사용할 액세스 토큰
+     * @param accessToken 추출에 사용할 액세스 토큰
      * @return 추출한 Role 객체(Enum)
-     * @responsibility 토큰에서 권한 목록(roles)을 추출하는 책임.
+     * @responsibility 토큰에서 {@link Role}을 추출하는 책임.
      */
-    Role getRoleFromToken(String token);
+    Role getRoleFromToken(String accessToken);
 
     /**
-     * @param token 액세스 토큰
+     * @param accessToken 액세스 토큰
      * @return 만료 시간 (Instant)
-     * @responsibility 액세스 토큰에서 만료 시간을 추출하는 책임.
+     * @responsibility 액세스 토큰에서 {@link Instant}을 추출하는 책임.
      */
-    Instant getExpirationFromToken(String token);
+    Instant getExpirationFromToken(String accessToken);
 }

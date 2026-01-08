@@ -36,17 +36,17 @@ public class JwtTokenResolver implements TokenResolver {
     }
 
     /**
-     * 액세스 토큰에서 {@code Authentication} 객체를 추출하는 메소드.
+     * 액세스 토큰에서 {@link Authentication} 객체를 추출하는 메소드.
      *
-     * @param token 액세스 토큰
-     * @return 추출된 {@code Authentication} 객체
-     * @responsibility JWT 토큰에서 {@code Authentication} 객체를 추출하는 책임.
+     * @param accessToken 액세스 토큰
+     * @return 추출된 {@link Authentication} 객체
+     * @responsibility JWT 토큰에서 {@link Authentication} 객체를 추출하는 책임.
      * @implNote 액세스 토큰만 사용 가능한 메소드임 (리프레시 토큰은 JWT 토큰이 아니기 때문)
      */
     @Override
-    public Authentication getAuthentication(String token) {
-        Long userId = this.getIdFromToken(token);
-        Role role = this.getRoleFromToken(token);
+    public Authentication getAuthentication(String accessToken) {
+        Long userId = this.getIdFromToken(accessToken);
+        Role role = this.getRoleFromToken(accessToken);
 
         List<SimpleGrantedAuthority> authorities = List.of(
                 new SimpleGrantedAuthority(role.name())
@@ -87,17 +87,17 @@ public class JwtTokenResolver implements TokenResolver {
     /**
      * 토큰에서 사용자 고유 식별자(ID)를 추출합니다.
      *
-     * @param token 고유 식별자를 추출할 액세스 토큰
+     * @param accessToken 고유 식별자를 추출할 액세스 토큰
      * @return 추출한 고유 식별자(ID)
      * @throws BusinessException 서명 오류나 잘못된 형식은 예외 처리한다.
      * @implSpec 토큰 파싱 중 만료된 토큰에서 ID 추출을 시도할 경우에 로깅하고 값을 추출함. 이는 토큰 재발급에 기존에 사용했던 액세스 토큰도 사용하기 때문.
-     * @responsibility 액세스 토큰의 Claim 부분에서 사용자 고유 식별자를 가져오는 역할 책임.
+     * @responsibility 액세스 토큰의 {@link Claims} 부분에서 사용자 고유 식별자를 가져오는 역할 책임.
      */
     @Override
-    public Long getIdFromToken(String token) {
+    public Long getIdFromToken(String accessToken) {
         try {
             // 1. 일반적인 파싱 시도 (만료되지 않은 경우)
-            return Long.valueOf(getClaims(token).getSubject());
+            return Long.valueOf(getClaims(accessToken).getSubject());
         } catch (ExpiredJwtException e) {
             // 2. 만료된 경우 ExpiredJwtException 내부의 Claims에서 Subject 추출
             log.info("만료된 토큰에서 ID 추출 시도: {}", e.getClaims().getSubject());
@@ -115,8 +115,8 @@ public class JwtTokenResolver implements TokenResolver {
      *
      * @param sub JWT 토큰에서 추출한 Subject 값.
      * @return 추출한 사용자 고유 식별자
-     * @throws BusinessException 만약 Subject를 Long으로 파싱하지 못했을 때 예외를 발생시킨다.
-     * @responsibility Subject 값을 Long으로 파싱한다.
+     * @throws BusinessException 만약 {@link javax.security.auth.Subject}를 Long으로 파싱하지 못했을 때 예외를 발생시킨다.
+     * @responsibility {@link javax.security.auth.Subject} 값을 Long으로 파싱한다.
      */
     private Long parseId(String sub) {
         try {
@@ -130,13 +130,13 @@ public class JwtTokenResolver implements TokenResolver {
     }
 
     /**
-     * @param token 추출에 사용할 액세스 토큰
-     * @return 추출한 Role 객체(Enum)
-     * @responsibility 토큰에서 권한 목록(roles)을 추출하는 책임.
+     * @param accessToken 추출에 사용할 액세스 토큰
+     * @return 추출한 {@link Role} 객체
+     * @responsibility 토큰에서 권한 목록({@link Role})을 추출하는 책임.
      */
     @Override
-    public Role getRoleFromToken(String token) {
-        Claims claims = getClaims(token);
+    public Role getRoleFromToken(String accessToken) {
+        Claims claims = getClaims(accessToken);
 
         // JwtProperties에 정의된 authorityKey(예: "auth")로 값을 가져옴
         String roleStr = claims.get(roles, String.class);
@@ -169,15 +169,15 @@ public class JwtTokenResolver implements TokenResolver {
     /**
      * 토큰으로부터 만료 시간을 추출합니다.
      *
-     * @param token 액세스 토큰
-     * @return 만료 시간 (Instant)
-     * @responsibility 액세스 토큰에서 만료 시간을 추출하는 책임.
+     * @param accessToken 액세스 토큰
+     * @return 만료 시간 ({@link Instant})
+     * @responsibility 액세스 토큰에서 만료 시간({@link Instant})을 추출하는 책임.
      */
     @Override
-    public Instant getExpirationFromToken(String token) {
+    public Instant getExpirationFromToken(String accessToken) {
         try {
             // 새로 빌드하지 않고 주입받은 parser를 그대로 사용합니다.
-            return parser.parseClaimsJws(token).getBody().getExpiration().toInstant();
+            return parser.parseClaimsJws(accessToken).getBody().getExpiration().toInstant();
         } catch (ExpiredJwtException e) {
             // 이미 만료된 경우에도 Redis 블랙리스트 TTL 설정을 위해 만료 시점을 추출합니다.
             return e.getClaims().getExpiration().toInstant();
