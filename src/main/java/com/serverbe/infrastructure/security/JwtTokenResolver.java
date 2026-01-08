@@ -17,7 +17,9 @@ import java.time.Instant;
 import java.util.List;
 
 /**
- * JWT 토큰의 유효성을 검증하고 내부 정보를 추출하는 통합 컴포넌트입니다.
+ * @author Duskafka
+ * @responsibility JWT 토큰의 유효성을 검증하고 내부 정보를 추출하는 통합하는 책임
+ * @see TokenResolver
  */
 @Slf4j
 @Component
@@ -33,6 +35,14 @@ public class JwtTokenResolver implements TokenResolver {
         this.refreshTokenLength = jwtProperties.refreshToken().byteLength();
     }
 
+    /**
+     * 액세스 토큰에서 {@code Authentication} 객체를 추출하는 메소드.
+     *
+     * @param token 액세스 토큰
+     * @return 추출된 {@code Authentication} 객체
+     * @responsibility JWT 토큰에서 {@code Authentication} 객체를 추출하는 책임.
+     * @implNote 액세스 토큰만 사용 가능한 메소드임 (리프레시 토큰은 JWT 토큰이 아니기 때문)
+     */
     @Override
     public Authentication getAuthentication(String token) {
         Long userId = this.getIdFromToken(token);
@@ -46,7 +56,10 @@ public class JwtTokenResolver implements TokenResolver {
     }
 
     /**
-     * 토큰의 서명 및 구조적 유효성을 검증합니다.
+     * @param accessToken 검증할 액세스 토큰
+     * @return 액세스 토큰 값이 유효하다면 true, 아니라면 false
+     * @responsibility 토큰의 서명 및 구조적 유효성을 검증하는 책임.
+     * @implSpec 만약 토큰이 유효하지 않다면 로그를 찍고 false 값을 리턴한다.
      */
     @Override
     public boolean validateAccessToken(String accessToken) {
@@ -60,13 +73,25 @@ public class JwtTokenResolver implements TokenResolver {
         }
     }
 
+    /**
+     * @param refreshToken 검증할 리프레시 토큰
+     * @return 리프레시 토큰이 유효하면 true, 아니라면 false
+     * @responsibility 리프레시 토큰을 검증하는 메소드.
+     * @implSpec 토큰의 길이가 유효한지 검증합니다.
+     */
     @Override
     public boolean validateRefreshToken(String refreshToken) {
-            return StringUtils.hasText(refreshToken) && refreshToken.length() == refreshTokenLength;
+        return StringUtils.hasText(refreshToken) && refreshToken.length() == refreshTokenLength;
     }
 
     /**
      * 토큰에서 사용자 고유 식별자(ID)를 추출합니다.
+     *
+     * @param token 고유 식별자를 추출할 액세스 토큰
+     * @return 추출한 고유 식별자(ID)
+     * @throws BusinessException 서명 오류나 잘못된 형식은 예외 처리한다.
+     * @implSpec 토큰 파싱 중 만료된 토큰에서 ID 추출을 시도할 경우에 로깅하고 값을 추출함. 이는 토큰 재발급에 기존에 사용했던 액세스 토큰도 사용하기 때문.
+     * @responsibility 액세스 토큰의 Claim 부분에서 사용자 고유 식별자를 가져오는 역할 책임.
      */
     @Override
     public Long getIdFromToken(String token) {
@@ -85,6 +110,14 @@ public class JwtTokenResolver implements TokenResolver {
         }
     }
 
+    /**
+     * String을 Long으로 파싱하면서 Subject 형식이 올바르지 않다면 예외를 발생시킨다.
+     *
+     * @param sub JWT 토큰에서 추출한 Subject 값.
+     * @return 추출한 사용자 고유 식별자
+     * @throws BusinessException 만약 Subject를 Long으로 파싱하지 못했을 때 예외를 발생시킨다.
+     * @responsibility Subject 값을 Long으로 파싱한다.
+     */
     private Long parseId(String sub) {
         try {
             return Long.valueOf(sub);
@@ -97,8 +130,11 @@ public class JwtTokenResolver implements TokenResolver {
     }
 
     /**
-     * 토큰에서 권한 목록(roles)을 추출합니다.
+     * @param token 추출에 사용할 액세스 토큰
+     * @return 추출한 Role 객체(Enum)
+     * @responsibility 토큰에서 권한 목록(roles)을 추출하는 책임.
      */
+    @Override
     public Role getRoleFromToken(String token) {
         Claims claims = getClaims(token);
 
@@ -112,6 +148,10 @@ public class JwtTokenResolver implements TokenResolver {
     /**
      * 내부적으로 토큰을 파싱하여 Claims를 반환합니다.
      * 파싱 과정에서 서명 검증 및 만료 체크가 자동으로 이루어집니다.
+     *
+     * @param token 파싱할 액세스 토큰
+     * @return 파싱한 {@code Claims} 객체
+     * @responsibility 토큰을 파싱하여 서명 검증 및 만료 체크를 한다.
      */
     private Claims getClaims(String token) {
         try {
@@ -128,8 +168,10 @@ public class JwtTokenResolver implements TokenResolver {
 
     /**
      * 토큰으로부터 만료 시간을 추출합니다.
-     * * @param token JWT 토큰
+     *
+     * @param token 액세스 토큰
      * @return 만료 시간 (Instant)
+     * @responsibility 액세스 토큰에서 만료 시간을 추출하는 책임.
      */
     @Override
     public Instant getExpirationFromToken(String token) {
