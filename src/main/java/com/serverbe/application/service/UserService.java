@@ -25,6 +25,7 @@ public class UserService implements GetUserUseCase, UpdateUserUseCase {
     private final UserRepositoryPort userRepositoryPort;
 
     /**
+     * @param userId 조회할 사용자의 ID
      * @return 사용자를 조회하고 외부에 노출해도 되는 정보 (이메일, 닉네임, 상태 메시지)만 매핑하여 외부에 응답함.
      * @throws BusinessException 사용자를 조회하지 못하였을 때 예외 발생
      * @responsibility 사용자의 회원 정보를 조회하는 책임
@@ -46,6 +47,8 @@ public class UserService implements GetUserUseCase, UpdateUserUseCase {
     }
 
     /**
+     * @param userId 수정할 사용자의 ID
+     * @param command 수정할 정보를 담은 DTO
      * @return 사용자 정보를 수정하고 외부에 노출하도 되는 정보 (이메일, 닉네임, 상태 메시지)만 매핑하여 외부에 응답한다.
      * @throws BusinessException 사용자를 조회하지 못했을 때 예외 예외 발생
      * @responsibility 사용자의 정보를 수정하는 책임
