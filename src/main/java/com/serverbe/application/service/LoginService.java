@@ -1,7 +1,6 @@
 package com.serverbe.application.service;
 
 import com.serverbe.application.port.out.dto.oauth.AccessTokenResult;
-import com.serverbe.application.port.out.dto.oauth.OAuthUserInfoResult;
 import com.serverbe.application.port.out.dto.oauth.RefreshTokenResult;
 import com.serverbe.application.port.out.dto.oauth.TokenResult;
 import com.serverbe.application.port.out.oauth.OAuthClientPort;

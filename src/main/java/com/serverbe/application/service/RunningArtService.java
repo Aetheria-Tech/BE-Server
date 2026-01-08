@@ -28,6 +28,7 @@ public class RunningArtService implements GetRunningArtUseCase, DeleteRunningArt
     private final RunningArtRepositoryPort repositoryPort;
 
     /**
+     * @param userId 런닝 아트를 조회할 사용자의 ID
      * @return 런닝 아트 정보 DTO
      * @implNote 사용자의 ID로 런닝 아트를 조회하고 일치하는 항목들만 가져온다.
      * @implSpec 조회에 순수 JPA만 사용한다. 추후 필요하다면 Querydsl의 Projection 기능을 사용해서 필요한 필드만 가져올 수 있도록 구현해야 한다.
@@ -104,7 +105,7 @@ public class RunningArtService implements GetRunningArtUseCase, DeleteRunningArt
      * @throws BusinessException 런닝 아트를 조회하지 못하거나 조회를 요청한 사람에게 소유권이 없을 때 예외가 발생함.
      * @implNote {@code RunningArt} 엔티티를 그대로 응답하기 때문에 절대 외부에서 사용하면 안됨.
      * @implNote {@code @Transactional} 애노테이션 내부에서 사용하지 않으면 오류 발생
-     * @responsibility
+     * @responsibility 런닝 아트를 조회하고 사용자가 일치하는지 검증한다.
      */
     private RunningArt findAndVerifyOwner(Long userId, Long runningArtId) {
         RunningArt runningArt = repositoryPort.findById(runningArtId)

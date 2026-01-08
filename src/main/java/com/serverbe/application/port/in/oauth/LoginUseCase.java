@@ -7,7 +7,7 @@ import reactor.core.publisher.Mono;
 
 public interface LoginUseCase {
     /**
-     * @FR UC-AUTH-01 로그인 및 회원가입
+     * @requirement UC-AUTH-01 로그인 및 회원가입
      * @param code OAuth 제공자로부터 받은 인가 코드
      * @param provider KAKAO, GOOGLE 등
      * @return 우리 서버가 발급한 JWT 토큰 세트

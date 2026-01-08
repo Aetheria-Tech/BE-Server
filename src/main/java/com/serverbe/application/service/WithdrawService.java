@@ -45,7 +45,8 @@ public class WithdrawService implements WithdrawUseCase {
     @Transactional
     public Mono<Boolean> withdraw(Long userId) {
         return Mono.fromCallable(() -> userRepositoryPort.findById(userId)
-                        .orElseThrow(() -> new BusinessException(ErrorMessage.NOT_FOUND_USER)))
+                        .orElseThrow(() -> new BusinessException(ErrorMessage.NOT_FOUND_USER))
+                )
                 .subscribeOn(Schedulers.boundedElastic()) // 블로킹 DB 조회를 별도 스레드에서 실행
                 .flatMap(user -> {
                     OAuthClientPort client = getClient(user.provider());

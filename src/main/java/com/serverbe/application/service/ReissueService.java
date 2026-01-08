@@ -16,6 +16,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 
+/**
+ * @author Duskafka
+ * @responsibility 토큰 재발급 사용사례를 구현함
+ * @see ReissueUseCase
+ */
 @Service
 public class ReissueService implements ReissueUseCase {
 
@@ -31,6 +36,16 @@ public class ReissueService implements ReissueUseCase {
         this.REFRESH_TOKEN_EXPIRATION_DAYS = jwtProperties.refreshToken().expirationDays();
     }
 
+    /**
+     * @param accessToken  값은 유효하지만 기간이 지난 액세스 토큰(Redis에 블랙리스트로 등록되어있으면 안 됨)
+     * @param refreshToken 값이 유효한 리프레시 토큰(Redis에 등록되어 있어야 함)
+     * @return 재발급된 토큰 번들
+     * @throws BusinessException 이미 사용되었거나 유효하지 않은 토큰일 때 발생.
+     * @requirement UC-TKN-01: 토큰 재발급
+     * @responsibility 토큰을 재발급하는 책임
+     * @implSpec 중간에 Redis에 접근하여 액세스 토큰을 블랙리스트 처리하고 기존 리프레시 토큰을 삭제하고 새로 등록함.
+     * @see ReissueUseCase#reissue(String, String) 구현하는 유즈케이스
+     */
     @Override
     @Transactional
     public TokenResult reissue(String accessToken, String refreshToken) {
