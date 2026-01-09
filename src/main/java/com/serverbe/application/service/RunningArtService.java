@@ -117,7 +117,7 @@ public class RunningArtService implements GetRunningArtUseCase, DeleteRunningArt
                         ErrorMessage.NOT_FOUND_RUNNING_ART,
                         String.format("런닝아트(%d)를 찾지 못했습니다.", runningArtId))
                 );
-        if (!runningArt.getUserId().equals(userId)) {
+        if (!runningArt.userId().equals(userId)) {
             throw new BusinessException(
                     ErrorMessage.USER_IS_NOT_OWNER_OF_RUNNING_ART,
                     String.format("사용자(ID: %d)는 해당 런닝아트(ID: %d)에 대한 권한이 없습니다.", userId, runningArtId)
