@@ -18,8 +18,8 @@ import java.time.Duration;
 
 /**
  * @author Duskafka
- * @responsibility 토큰 재발급 사용사례를 구현함
- * @see ReissueUseCase
+ * @responsibility 만료된 액세스 토큰과 유효한 리프레시 토큰을 대조하여 새로운 토큰 세트를 재발급합니다.
+ * @implSpec {@link ReissueUseCase}의 구현체이며, <b>RTR(Refresh Token Rotation)</b> 전략을 통해 보안성을 강화합니다.
  */
 @Service
 public class ReissueService implements ReissueUseCase {
@@ -29,7 +29,15 @@ public class ReissueService implements ReissueUseCase {
     private final TokenResolver tokenResolver;
     private final Duration REFRESH_TOKEN_EXPIRATION_DAYS;
 
-    public ReissueService(TokenPersistencePort tokenPersistencePort, TokenProvider tokenProvider, TokenResolver tokenResolver, JwtProperties jwtProperties) {
+    /**
+     * @implSpec {@link JwtProperties}로부터 설정을 읽어와 리프레시 토큰의 유효 기간을 초기화합니다.
+     */
+    public ReissueService(
+            TokenPersistencePort tokenPersistencePort,
+            TokenProvider tokenProvider,
+            TokenResolver tokenResolver,
+            JwtProperties jwtProperties
+    ) {
         this.tokenPersistencePort = tokenPersistencePort;
         this.tokenProvider = tokenProvider;
         this.tokenResolver = tokenResolver;
@@ -37,19 +45,22 @@ public class ReissueService implements ReissueUseCase {
     }
 
     /**
-     * @param accessToken  값은 유효하지만 기간이 지난 액세스 토큰(Redis에 블랙리스트로 등록되어있으면 안 됨)
-     * @param refreshToken 값이 유효한 리프레시 토큰(Redis에 등록되어 있어야 함)
-     * @return 재발급된 토큰 번들
-     * @throws BusinessException 이미 사용되었거나 유효하지 않은 토큰일 때 발생.
      * @requirement UC-TKN-01: 토큰 재발급
-     * @responsibility 토큰을 재발급하는 책임
-     * @implSpec 중간에 Redis에 접근하여 액세스 토큰을 블랙리스트 처리하고 기존 리프레시 토큰을 삭제하고 새로 등록함.
-     * @see ReissueUseCase#reissue(String, String) 구현하는 유즈케이스
+     * @responsibility 토큰의 유효성을 검증하고 RTR 정책에 따라 신규 토큰 쌍을 발행합니다.
+     * @implSpec
+     * 1. <b>리프레시 토큰 검증</b>: {@link TokenResolver}를 통해 토큰의 구조적 유효성을 확인합니다.<br>
+     * 2. <b>재사용 감지</b>: 저장소에 토큰이 없을 경우 탈취 시도로 간주하여 해당 사용자의 모든 세션을 종료합니다.<br>
+     * 3. <b>토큰 교체</b>: 기존 리프레시 토큰을 삭제하고 신규 토큰 세트를 생성하여 저장합니다.
+     * @implNote 리프레시 토큰은 일회용(One-time use)으로 관리됩니다.
+     * @param accessToken  만료된 액세스 토큰
+     * @param refreshToken 현재 유효한 리프레시 토큰
+     * @return 재발급된 토큰 묶음 {@link TokenResult}
+     * @throws BusinessException 토큰이 유효하지 않거나, 이미 사용된 토큰으로 확인될 경우 발생
+     * @see ReissueUseCase#reissue(String, String)
      */
     @Override
     @Transactional
     public TokenResult reissue(String accessToken, String refreshToken) {
-        // 1. 리프레시 토큰 자체의 유효성 검증
         if (!tokenResolver.validateRefreshToken(refreshToken)) {
             throw new BusinessException(ErrorMessage.REFRESH_TOKEN_NOT_EXIST);
         }
@@ -57,27 +68,20 @@ public class ReissueService implements ReissueUseCase {
         Long userId = tokenResolver.getIdFromToken(accessToken);
         Role role = tokenResolver.getRoleFromToken(accessToken);
 
-        // 2. [보안 핵심] 리스트 내 존재 여부 확인 (재사용 감지)
-        // 리스트에 토큰이 없다는 것은 이미 사용되었거나(RTR), 만료되어 밀려난 토큰임
         if (!tokenPersistencePort.existsRefreshToken(userId, refreshToken)) {
-            // 탈취된 토큰을 재사용하려는 시도로 간주하고 모든 세션 무효화 (보안 조치)
             tokenPersistencePort.deleteRefreshToken(userId);
             throw new BusinessException(ErrorMessage.INVALID_REFRESH_TOKEN, "이미 사용되었거나 유효하지 않은 토큰입니다.");
         }
 
-        // 3. 새로운 토큰 한 쌍 생성
         AccessTokenResult newAccessToken = tokenProvider.generateAccessToken(userId, role);
         RefreshTokenResult newRefreshTokenResult = tokenProvider.generateRefreshToken(userId, role);
 
-        // 4. [RTR 핵심] 기존 토큰은 제거하고 새 토큰 저장
-        // 사용된 기존 토큰만 리스트에서 삭제
         tokenPersistencePort.removeSpecificRefreshToken(userId, refreshToken);
 
-        // 새로운 리프레시 토큰을 리스트에 추가 (이때 MAX_TOKEN 정책이 어댑터에서 적용됨)
         tokenPersistencePort.saveRefreshToken(
                 userId,
                 newRefreshTokenResult.opaqueToken(),
-                REFRESH_TOKEN_EXPIRATION_DAYS // Duration (60일)
+                REFRESH_TOKEN_EXPIRATION_DAYS
         );
 
         return TokenResult.of(

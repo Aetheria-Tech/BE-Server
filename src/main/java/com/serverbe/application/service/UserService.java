@@ -13,10 +13,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * @author Duskafka
- * @responsibility 사용자 사용사례를 구현한다.
- * @see GetUserUseCase
- * @see UpdateUserUseCase
+ * @responsibility 사용자 프로필 조회 및 수정을 담당하는 유스케이스 구현 클래스입니다.
+ * @implSpec {@link GetUserUseCase}, {@link UpdateUserUseCase} 인터페이스를 구현합니다.
  */
 @Service
 @RequiredArgsConstructor
@@ -25,14 +23,12 @@ public class UserService implements GetUserUseCase, UpdateUserUseCase {
     private final UserRepositoryPort userRepositoryPort;
 
     /**
-     * @param userId 조회할 사용자의 ID
-     * @return 사용자를 조회하고 외부에 노출해도 되는 정보 (이메일, 닉네임, 상태 메시지)만 매핑하여 외부에 응답함.
-     * @throws BusinessException 사용자를 조회하지 못하였을 때 예외 발생
-     * @responsibility 사용자의 회원 정보를 조회하는 책임
-     * @implSpec {@code UserRepositoryPort} 구현체인 {@code UserPersistenceAdapter}에서 사용자 정보를 가져온 후 암호화가 이번 버전이 아니면 최신화를 하는 알고리즘이 있음
-     * @implNote 데이터베이스에서 사용자 정보를 조회하고 {@code UserProfileResult} DTO로 매핑하여 응답한다.
+     * @param userId 조회할 사용자의 식별자
+     * @return 공개 프로필 정보 (이메일, 닉네임, 상태 메시지 등)
      * @requirement UC-USER-01: 사용자 정보 조회
-     * @see GetUserUseCase#getMyProfile(Long)
+     * @responsibility 특정 사용자의 프로필 정보를 조회하여 외부 응답용 DTO로 변환합니다.
+     * @implSpec {@link UserRepositoryPort#findById(Long)} 호출 시, 어댑터 레벨에서 암호화 버전 마이그레이션이 투명하게 수행됩니다.
+     * @implNote 조회된 도메인 엔티티를 {@link UserProfileResult}로 매핑하여 반환함으로써 캡슐화를 유지합니다.
      */
     @Override
     @Transactional
@@ -47,15 +43,14 @@ public class UserService implements GetUserUseCase, UpdateUserUseCase {
     }
 
     /**
-     * @param userId 수정할 사용자의 ID
-     * @param command 수정할 정보를 담은 DTO
-     * @return 사용자 정보를 수정하고 외부에 노출하도 되는 정보 (이메일, 닉네임, 상태 메시지)만 매핑하여 외부에 응답한다.
-     * @throws BusinessException 사용자를 조회하지 못했을 때 예외 예외 발생
-     * @responsibility 사용자의 정보를 수정하는 책임
-     * @implSpec {@code UserRepositoryPort} 구현체인 {@code UserPersistenceAdapter}에서 사용자 정보를 가져온 후 암호화가 이번 버전이 아니면 최신화를 하는 알고리즘이 있음
-     * @implNote 사용자의 정보를 수정한다. 이 과정에서 {@code User} 도메인의 업데이트 메소드를 사용한다.
+     * @param userId  수정할 사용자의 식별자
+     * @param command 수정할 필드 정보를 담은 DTO
+     * @return 수정이 완료된 프로필 정보
      * @requirement UC-USER-02: 사용자 정보 수정
-     * @see UpdateUserUseCase#updateMyProfile(Long, UserUpdateCommand)
+     * @responsibility 사용자의 닉네임과 상태 메시지를 업데이트하고 변경 사항을 영속화합니다.
+     * @implSpec 1. {@link User} 도메인 모델의 내부 비즈니스 로직({@code updateProfile})을 호출하여 상태를 변경합니다.<br>
+     * 2. 변경된 도메인 모델을 포트를 통해 저장소에 반영합니다.
+     * @implNote 정보 수정 후 최신화된 프로필 정보를 즉시 반환하여 클라이언트의 데이터 동기화를 돕습니다.
      */
     @Override
     @Transactional
