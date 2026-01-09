@@ -6,12 +6,11 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 
 /**
- * 에러가 발생했을 때 HTTP 상태 코드와 메시지를 반환하는 열거형
- *
- * <li>열거형의 접미어로 Exception을 붙이지 않는다.</li>
- * <li>네이밍 일관성을 가지게 한다. NOT_FOUND_XXX, INVALID_XXX, FAILED_XXX, DUPLICATE_XXX 등으로 통일</li>
- *
  * @author duskafka
+ * @responsibility 애플리케이션 전역에서 발생하는 예외 상황에 대한 <b>표준 에러 코드와 HTTP 상태 코드, 메시지</b>를 정의합니다.
+ * @implSpec 1. 열거형 상수 이름에 {@code Exception} 접미사를 붙이지 않습니다.<br>
+ * 2. <b>네이밍 일관성</b>을 위해 {@code NOT_FOUND_XXX}, {@code INVALID_XXX}, {@code FAILED_XXX}, {@code DUPLICATE_XXX} 형식을 준수합니다.<br>
+ * 3. 각 상수는 {@link com.serverbe.infrastructure.common.response.RestApiResponse}를 통해 클라이언트에게 전달되는 실제 응답의 기초가 됩니다.
  */
 @Getter
 @RequiredArgsConstructor(access = AccessLevel.PROTECTED)
@@ -26,8 +25,8 @@ public enum ErrorMessage {
     FORBIDDEN_IMAGE_METADATA(HttpStatus.FORBIDDEN, "IMAGE_METADATA_002", "이미지 메타데이터에 대한 권한이 없습니다."),
 
     // EXTERNAL API
-    WITHDRAWAL_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "EXTERNAL_001","회원 탈퇴 서버에서 회원 탈퇴를 실패했습니다."),
-    EXTERNAL_API_SERVER_ERROR(HttpStatus.BAD_GATEWAY, "EXTERNAL_002","외부 API 응답이 잘못되었습니다."),
+    WITHDRAWAL_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "EXTERNAL_001", "회원 탈퇴 서버에서 회원 탈퇴를 실패했습니다."),
+    EXTERNAL_API_SERVER_ERROR(HttpStatus.BAD_GATEWAY, "EXTERNAL_002", "외부 API 응답이 잘못되었습니다."),
 
     // KAKAO / API
     NOT_FOUND_KAKAO_TOKEN(HttpStatus.NOT_FOUND, "KAKAO_001", "카카오 토큰을 찾을 수 없습니다."),
@@ -37,8 +36,8 @@ public enum ErrorMessage {
     FAILED_GOOGLE_API(HttpStatus.BAD_GATEWAY, "GOOGLE_001", "구글 API 호출에 실패했습니다."),
 
     // GEOCODING
-    FAILED_GEOCODING_API(HttpStatus.BAD_GATEWAY, "GEOCODE_001","지오코딩 API 호출에 실패했습니다."),
-    INVALID_ADDRESS(HttpStatus.BAD_REQUEST, "GEOCODE_002","주소가 올바르지 않습니다"),
+    FAILED_GEOCODING_API(HttpStatus.BAD_GATEWAY, "GEOCODE_001", "지오코딩 API 호출에 실패했습니다."),
+    INVALID_ADDRESS(HttpStatus.BAD_REQUEST, "GEOCODE_002", "주소가 올바르지 않습니다"),
 
 
     // USER
@@ -73,7 +72,16 @@ public enum ErrorMessage {
     ;
 
 
+    /**
+     * HTTP 응답 상태 코드
+     */
     private final HttpStatus status;
+    /**
+     * 프론트엔드와 약속된 커스텀 비즈니스 에러 코드
+     */
     private final String code;
+    /**
+     * 사용자에게 노출할 에러 메시지
+     */
     private final String message;
 }

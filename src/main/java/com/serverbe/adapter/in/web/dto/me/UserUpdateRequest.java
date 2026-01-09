@@ -10,9 +10,6 @@ public record UserUpdateRequest(
         @Size(min = 2, max = 20, message = "닉네임은 2자 이상 20자 이하로 입력해주세요.")
         String nickname,
 
-        @Schema(description = "변경할 프로필 이미지 URL", example = "https://cdn.server.com/profiles/user1.png")
-        String profileImageUrl,
-
         @Schema(description = "변경할 상태 메시지", example = "오늘도 달립니다!")
         @Size(max = 100, message = "상태 메시지는 100자 이하로 입력해주세요.")
         String statusMessage
@@ -23,7 +20,6 @@ public record UserUpdateRequest(
     public UserUpdateCommand toCommand() {
         return new UserUpdateCommand(
                 this.nickname,
-                this.profileImageUrl,
                 this.statusMessage
         );
     }
