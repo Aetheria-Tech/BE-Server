@@ -72,7 +72,7 @@ public class WithdrawService implements WithdrawUseCase {
                 .filter(client -> client.supports(provider))
                 .findFirst()
                 .orElseThrow(() -> {
-                    log.error("[보안/설정 오류] 지원하지 않는 소셜 로그인 방식 요청: {}", provider);
+                    log.error("[SECURITY/CONFIG ERROR] 지원하지 않는 소셜 로그인 방식 요청: {}", provider);
                     return new BusinessException(ErrorMessage.INTERNAL_SERVER_ERROR);
                 });
     }
