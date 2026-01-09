@@ -5,12 +5,12 @@ import com.serverbe.infrastructure.error.ErrorMessage;
 import org.springframework.http.HttpStatus;
 
 /**
- * 전역 공통 응답 규격 (Record)
- *
- * @param success    성공 여부
- * @param httpStatus 상태 코드
- * @param data       성공 시 반환할 데이터 (성공 시에만 JSON에 포함)
- * @param error      실패 시 반환할 에러 정보 (실패 시에만 JSON에 포함)
+ * @param success    API 호출 성공 여부
+ * @param httpStatus HTTP 상태 코드 {@link HttpStatus}
+ * @param data       성공 시 반환할 데이터 객체 (성공 시에만 포함)
+ * @param error      실패 시 반환할 에러 상세 정보 {@link ApiError} (실패 시에만 포함)
+ * @param <T>        반환할 데이터의 타입
+ * @responsibility 시스템 전체에서 사용하는 <b>표준 REST API 응답 규격</b>을 정의합니다.
  */
 public record RestApiResponse<T>(
         boolean success,
@@ -24,7 +24,10 @@ public record RestApiResponse<T>(
         ApiError error
 ) {
     /**
-     * 성공 응답 - 데이터를 포함하는 경우 (200 OK)
+     * @param data 클라이언트에 전달할 본문 데이터
+     * @param <T>  데이터 타입
+     * @return {@link HttpStatus#OK} 상태를 가진 {@link RestApiResponse} 인스턴스
+     * @responsibility 성공 데이터가 포함된 <b>200 OK</b> 응답 객체를 생성합니다.
      */
     public static <T> RestApiResponse<T> success(T data) {
         return new RestApiResponse<>(true, HttpStatus.OK, data, null);
@@ -32,7 +35,9 @@ public record RestApiResponse<T>(
 
 
     /**
-     * 실패 응답 - ErrorMessage Enum의 기본 메시지 사용
+     * @param errorMessage 서버에서 정의한 에러 메시지 정보
+     * @return 에러 코드와 메시지가 포함된 응답 객체
+     * @responsibility {@link ErrorMessage} 정의에 기초한 실패 응답 객체를 생성합니다.
      */
     public static <T> RestApiResponse<Void> fail(ErrorMessage errorMessage) {
         return new RestApiResponse<>(
@@ -44,8 +49,11 @@ public record RestApiResponse<T>(
     }
 
     /**
-     * 실패 응답 - 상세 사유(Reason)를 직접 지정
-     * (유효성 검사 실패 시 필드별 에러 메시지를 전달할 때 유용)
+     * @param errorMessage 서버에서 정의한 에러 메시지 정보 {@link ErrorMessage}
+     * @param reason       클라이언트에게 전달할 구체적인 실패 사유
+     * @return 상세 사유가 포함된 실패 응답 객체
+     * @responsibility 기본 에러 정의 외에 <b>추가적인 상세 사유</b>를 포함하는 실패 응답 객체를 생성합니다.
+     * @implNote 유효성 검사 실패 시 필드별 구체적인 오류 사유를 전달할 때 주로 사용합니다.
      */
     public static RestApiResponse<Void> fail(ErrorMessage errorMessage, String reason) {
         return new RestApiResponse<>(
@@ -56,6 +64,10 @@ public record RestApiResponse<T>(
         );
     }
 
+    /**
+     * @return {@link HttpStatus#NO_CONTENT} 상태를 가진 응답 객체
+     * @responsibility 데이터 반환이 없는 성공 응답(204 No Content) 객체를 생성합니다.
+     */
     public static RestApiResponse<Void> noContent() {
         return new RestApiResponse<>(
                 true,
@@ -66,7 +78,9 @@ public record RestApiResponse<T>(
     }
 
     /**
-     * 에러 응답의 상세 구조를 담는 내부 Record
+     * @param code    서버 정의 비즈니스 에러 코드
+     * @param message 에러에 대한 설명 또는 사유
+     * @responsibility 실패 응답 시 클라이언트가 인지할 수 있는 <b>에러 상세 정보</b>를 담는 내부 객체입니다.
      */
     public record ApiError(
             String code,

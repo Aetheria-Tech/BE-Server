@@ -6,9 +6,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
-import org.springframework.security.access.AccessDeniedException; // 수정됨
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.InsufficientAuthenticationException;
-import org.springframework.security.core.AuthenticationException; // 수정됨
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -18,21 +18,24 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
- * 애플리케이션 전역에서 발생하는 예외를 처리하는 RestControllerAdvice 입니다.
+ * @responsibility 애플리케이션 전역에서 발생하는 예외를 가로채어 공통 응답 규격인 {@link RestApiResponse} 형태로 변환하여 반환합니다.
+ * @implSpec 1. <b>비즈니스 예외</b>: {@link BusinessException}을 통해 의도된 에러 상황을 처리합니다.<br>
+ * 2. <b>유효성 검증</b>: Bean Validation 실패 시 필드별 상세 에러 메시지를 생성합니다.<br>
+ * 3. <b>보안 예외</b>: 인증/인가 실패에 대한 적절한 HTTP 상태 코드를 매핑합니다.<br>
+ * 4. <b>로깅 전략</b>: 4xx 계열은 WARN 레벨로, 5xx 계열 및 미처리 예외는 ERROR 레벨로 스택 트레이스와 함께 기록합니다.
  */
 @Slf4j
 @RestControllerAdvice
 public class BusinessExceptionHandler {
 
     /**
-     * 커스텀 비즈니스 예외 (BusinessException)
-     * - `ErrorMessage`를 포함하여, 예측 가능한 예외 상황을 처리합니다.
+     * @param e {@link BusinessException} 인스턴스
+     * @return {@link ErrorMessage}에 정의된 상태 코드와 메시지를 포함한 응답
+     * @responsibility 커스텀 비즈니스 예외를 처리합니다.
      */
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<RestApiResponse<Void>> handleBusinessException(BusinessException e) {
         var errorMessage = e.getErrorMessage();
-
-        // 4xx, 5xx 등 예측된 비즈니스 예외는 WARN 레벨로 기록합니다.
         log.warn("[WARN] BusinessException -> {}", errorMessage.getMessage());
 
         return ResponseEntity.status(errorMessage.getStatus())
@@ -40,22 +43,21 @@ public class BusinessExceptionHandler {
     }
 
     /**
-     * {@code @Valid} 로 유효성 검사에 실패한 경우 (RequestBody DTO)
-     * - FieldErrors와 GlobalErrors를 모두 처리하여 상세한 메시지를 반환합니다.
+     * @param e {@link MethodArgumentNotValidException}
+     * @return 400 Bad Request와 상세 필드 에러 메시지
+     * @responsibility <b>@Valid</b> 어노테이션을 통한 DTO 유효성 검사 실패 시 호출됩니다.
+     * @implNote 여러 필드에서 발생한 에러를 스트림으로 수집하여 <b>"[필드명]: 메시지"</b> 형태의 상세 정보를 제공합니다.
      */
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<RestApiResponse<Void>> handleMethodArgumentNotValidException(MethodArgumentNotValidException e) {
-        // FieldErrors: "email: 이메일 형식이 아닙니다."
         String detailedErrorMessage = e.getBindingResult().getFieldErrors().stream()
                 .map(error -> String.format("[%s]: %s", error.getField(), error.getDefaultMessage()))
                 .collect(Collectors.joining(", "));
 
-        // GlobalErrors: "passwordConfirm: 비밀번호가 일치하지 않습니다."
         String globalErrorMessage = e.getBindingResult().getGlobalErrors().stream()
                 .map(error -> String.format("[%s]: %s", error.getObjectName(), error.getDefaultMessage()))
                 .collect(Collectors.joining(", "));
 
-        // 두 에러 메시지를 결합
         String combinedMessage = Stream.of(detailedErrorMessage, globalErrorMessage)
                 .filter(s -> !s.isEmpty())
                 .collect(Collectors.joining("; "));
@@ -64,7 +66,6 @@ public class BusinessExceptionHandler {
                 ? ErrorMessage.INVALID_REQUEST_PARAMETER.getMessage()
                 : combinedMessage;
 
-        // 400번대 클라이언트 오류는 WARN 레벨로 기록합니다.
         log.warn("[WARN] MethodArgumentNotValidException -> {}", finalMessage);
 
         return ResponseEntity.status(ErrorMessage.INVALID_REQUEST_PARAMETER.getStatus())
@@ -72,15 +73,13 @@ public class BusinessExceptionHandler {
     }
 
     /**
-     * {@code @Validated} 로 유효성 검사에 실패한 경우 (메서드 파라미터)
-     * (e.g., @RequestParam, @PathVariable)
+     * @param e {@link ConstraintViolationException}
+     * @responsibility <b>@Validated</b>를 통한 메서드 파라미터 유효성 검사 실패 시 호출됩니다.
      */
     @ExceptionHandler(ConstraintViolationException.class)
     public ResponseEntity<RestApiResponse<Void>> handleConstraintViolationException(ConstraintViolationException e) {
-
         String detailedErrorMessage = e.getConstraintViolations().stream()
                 .map(violation -> {
-                    // Path API를 사용하여 마지막 노드 추출
                     var pathIterator = violation.getPropertyPath().iterator();
                     String parameterName = "";
                     while (pathIterator.hasNext()) {
@@ -97,13 +96,12 @@ public class BusinessExceptionHandler {
     }
 
     /**
-     * 필수 요청 파라미터(@RequestParam)가 누락된 경우
+     * @param e {@link MissingServletRequestParameterException}
+     * @responsibility 필수 요청 파라미터가 누락된 경우를 처리합니다.
      */
     @ExceptionHandler(MissingServletRequestParameterException.class)
     public ResponseEntity<RestApiResponse<Void>> handleMissingServletRequestParameterException(MissingServletRequestParameterException e) {
-
         String detailedErrorMessage = String.format("필수 파라미터 [%s](이)가 누락되었습니다.", e.getParameterName());
-
         log.warn("[WARN] MissingServletRequestParameterException -> {}", detailedErrorMessage);
 
         return ResponseEntity.status(ErrorMessage.INVALID_REQUEST_PARAMETER.getStatus())
@@ -111,12 +109,11 @@ public class BusinessExceptionHandler {
     }
 
     /**
-     * 잘못된 JSON 형식을 요청한 경우
+     * @param e {@link HttpMessageNotReadableException}
+     * @responsibility JSON 형식이 잘못되어 역직렬화에 실패한 경우를 처리합니다.
      */
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<RestApiResponse<Void>> handleHttpMessageNotReadableException(HttpMessageNotReadableException e) {
-
-        // e.getMessage()는 너무 길고 복잡하며 내부 구현을 노출할 수 있으므로, ErrorMessage의 기본 메시지를 사용합니다.
         log.warn("[WARN] HttpMessageNotReadableException -> {}", e.getMostSpecificCause().getMessage());
 
         return ResponseEntity.status(ErrorMessage.MALFORMED_JSON_REQUEST.getStatus())
@@ -124,21 +121,20 @@ public class BusinessExceptionHandler {
     }
 
     /**
-     * 그 외 모든 예외 (Catch-all 500)
+     * @param e {@link Exception}
+     * @responsibility 처리되지 않은 모든 런타임 예외를 위한 최후의 방어선입니다.
+     * @implNote 보안상의 이유로 클라이언트에게는 상세 스택 트레이스를 숨기고 <b>500 Internal Server Error</b> 규격만 반환합니다.
      */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<RestApiResponse<Void>> handleException(Exception e) {
-        // [중요] 처리되지 않은 500번대 서버 오류는 ERROR 레벨로 기록하고,
-        // 클라이언트에게는 상세한 예외 내용을 노출하지 않습니다.
-        log.error("[ERROR] Unhandled Exception", e); // 스택 트레이스 전체를 기록
+        log.error("[ERROR] Unhandled Exception", e);
 
         return ResponseEntity.status(ErrorMessage.INTERNAL_SERVER_ERROR.getStatus())
                 .body(RestApiResponse.fail(ErrorMessage.INTERNAL_SERVER_ERROR));
     }
 
     /**
-     * Spring Security 인증 실패 처리 (401 Unauthorized)
-     * JwtAuthenticationFilter에서 handlerExceptionResolver.resolveException()을 통해 전달된 예외도 여기서 처리됩니다.
+     * @responsibility <b>401 Unauthorized</b> 관련 보안 예외를 처리합니다.
      */
     @ExceptionHandler({AuthenticationException.class, InsufficientAuthenticationException.class})
     public ResponseEntity<RestApiResponse<Void>> handleAuthenticationException(Exception e) {
@@ -148,8 +144,7 @@ public class BusinessExceptionHandler {
     }
 
     /**
-     * Spring Security 인가 실패 처리 (403 Forbidden)
-     * 권한이 없는 사용자가 특정 API에 접근할 때 발생합니다.
+     * @responsibility <b>403 Forbidden</b> 관련 보안 예외를 처리합니다.
      */
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<RestApiResponse<Void>> handleAccessDeniedException(AccessDeniedException e) {
