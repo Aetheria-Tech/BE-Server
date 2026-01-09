@@ -116,7 +116,7 @@ public class GoogleOAuthAdapter implements OAuthClientPort {
     /**
      * 소셜 서비스와 우리 앱의 연동을 해제합니다.
      *
-     * @param provider          사용자가 사용사는 통신 방법
+     * @param provider          사용자가 사용하는 통신 방법
      * @param oauthId           사용자의 OAuthID
      * @param oauthRefreshToken 사용자의 OAuth 리프레시 토큰 (Google은 리프레시 토큰을 사용한다)
      * @return {@code Boolean}으로 회원 탈퇴에 성공했다면 {@code True}, 실패했다면 {@code False}를 응답한다

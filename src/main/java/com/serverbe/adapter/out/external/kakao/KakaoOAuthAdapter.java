@@ -105,7 +105,6 @@ public class KakaoOAuthAdapter implements OAuthClientPort {
      * @param refreshToken 유저 정보를 받아오는데 필요한 리프레시 토큰
      * @implSpec 외부 서버와 통신하기 때문에 {@link WebClient}를 사용하며 리액티브 스트림으로 응답한다.
      * @responsibility 액세스 토큰을 사용해서 카카오 OAuth 서버에 사용자 정보 요청을 한다.
-     * @
      */
     private Mono<OAuthUserInfoResult> fetchUserInfo(String accessToken, String refreshToken) {
         return webClient.get()
@@ -128,7 +127,7 @@ public class KakaoOAuthAdapter implements OAuthClientPort {
     /**
      * 소셜 서비스와 우리 앱의 연동을 해제합니다.
      *
-     * @param provider          사용자가 사용사는 통신 방법
+     * @param provider          사용자가 사용하는 통신 방법
      * @param oauthId           사용자의 OAuthID
      * @param oauthRefreshToken 사용자의 OAuth 리프레시 토큰 (Google은 리프레시 토큰을 사용한다)
      * @return {@code Boolean}으로 회원 탈퇴에 성공했다면 {@code True}, 실패했다면 {@code False}를 응답한다
@@ -181,7 +180,7 @@ public class KakaoOAuthAdapter implements OAuthClientPort {
      *
      * @param provider 사용자가 사용하는 OAuth 서버
      * @return 이 어댑터를 사용해야 한다면 true, 아니라면 false
-     * @responsibility 만약 {@link OAuthProvider}가 {@code GOOGLE}이라면 이 어댑터를 사용할 수 있도록 한다.
+     * @responsibility 만약 {@link OAuthProvider}가 {@code KAKAO}이라면 이 어댑터를 사용할 수 있도록 한다.
      */
     @Override
     public boolean supports(OAuthProvider provider) {
