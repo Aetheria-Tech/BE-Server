@@ -74,7 +74,7 @@ public class WithdrawService implements WithdrawUseCase {
                 .filter(client -> client.supports(provider))
                 .findFirst()
                 .orElseThrow(() -> {
-                    log.error("[SECURITY/CONFIG ERROR] 지원하지 않는 소셜 로그인 방식 요청: {}", provider);
+                    log.warn("[SECURITY/CONFIG ERROR] 지원하지 않는 소셜 로그인 방식 요청: {}", provider);
                     return new AuthException(AuthErrorCode.UNSUPPORTED_SOCIAL_LOGIN);
                 });
     }

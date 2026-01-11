@@ -47,7 +47,7 @@ public class UserDataCleanupManager {
 
             log.info("[DATA CLEANUP] 유저의 모든 데이터가 성공적으로 파기되었습니다. UserID: {}", userId);
         } catch (Exception e) {
-            log.error("[DATA CLEANUP] 유저 데이터 파기 중 오류가 발생했습니다. UserID: {}, Error: {}", userId, e.getMessage());
+            log.error("[DATA CLEANUP] 유저 데이터 파기 중 오류가 발생했습니다. UserID: {}", userId, e);
             throw e; // 트랜잭션 롤백을 위해 예외를 재발생시킵니다.
         }
     }

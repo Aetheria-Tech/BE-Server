@@ -42,7 +42,7 @@ public class GeocodeController {
             @Parameter(description = "변환할 도로명 또는 지번 주소", example = "서울특별시 강남구 테헤란로 427", required = true)
             @RequestParam(name = "address") @NotBlank String address
     ) {
-        Address addressDomain = new Address(address);
+        new Address(address); // 유효성 검사 수행
         // 외부 API 호출이므로 비동기 체인(Mono)을 그대로 반환합니다.
         return geocodePort.geocode(address)
                 .map(GeocodeResponse::toResponse)

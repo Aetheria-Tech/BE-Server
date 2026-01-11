@@ -38,10 +38,8 @@ public class ReissueService implements ReissueUseCase {
      *                           - INVALID_REFRESH_TOKEN: 저장소에 토큰이 없거나 이미 사용된 경우 (재사용 감지)
      * @requirement <b>UC-TKN-01: 토큰 재발급 및 세션 갱신</b>
      * @responsibility 만료된 액세스 토큰에서 유저 정보를 복구하고, 리프레시 토큰의 생존 여부를 대조하여 안전하게 세션을 연장합니다.
-     * @implNote 본 메서드는 {@link Transactional} 내에서 실행되어, 기존 토큰의 삭제와 신규 토큰의 저장이 원자적(Atomic)으로 이루어짐을 보장합니다.
      */
     @Override
-    @Transactional
     public TokenResult reissue(String accessToken, String refreshToken) {
         // 1. 리프레시 토큰의 구조적 유효성(형식, 서명 등) 선검증
         validateTokenFormat(refreshToken);

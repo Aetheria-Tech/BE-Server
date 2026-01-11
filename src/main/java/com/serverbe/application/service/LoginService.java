@@ -101,7 +101,7 @@ public class LoginService implements LoginUseCase {
                 .findFirst()
                 .orElseThrow(() -> {
                     log.warn("[SECURITY ALERT] 미지원 인증 요청: Provider={}", provider);
-                    return new AuthException(AuthErrorCode.UNSUPPORTED_SOCIAL_LOGIN, "지원하지 않는 소셜 로그인입니다.");
+                    return new AuthException(AuthErrorCode.UNSUPPORTED_SOCIAL_LOGIN);
                 });
     }
 }
