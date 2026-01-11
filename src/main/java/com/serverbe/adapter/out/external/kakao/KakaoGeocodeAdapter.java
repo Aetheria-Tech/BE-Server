@@ -3,9 +3,10 @@ package com.serverbe.adapter.out.external.kakao;
 import com.serverbe.adapter.out.external.kakao.dto.KakaoGeocodeResponse;
 import com.serverbe.application.port.out.dto.geocoding.GeocodeResult;
 import com.serverbe.application.port.out.geocode.GeocodePort;
+import com.serverbe.domain.exception.external.ExternalApiErrorCode;
+import com.serverbe.domain.exception.external.ExternalApiException;
 import com.serverbe.infrastructure.config.properties.KakaoProperties;
-import com.serverbe.infrastructure.error.BusinessException;
-import com.serverbe.infrastructure.error.ErrorMessage;
+import com.serverbe.domain.exception.BusinessException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Component;
@@ -46,7 +47,7 @@ public class KakaoGeocodeAdapter implements GeocodePort {
      * @responsibility 입력된 주소를 바탕으로 카카오 지오코딩 API를 호출하여 좌표 정보를 반환합니다.
      * @implSpec 1. GET 요청을 통해 주소 쿼리를 전달하며, 헤더에 'KakaoAK' 인증 키를 포함합니다.<br>
      * 2. HTTP 상태 코드가 에러(4xx, 5xx)인 경우 이를 가로채 서비스 전용 예외인 {@link BusinessException}으로 변환합니다.
-     * @implNote 4xx 에러 발생 시 사용자가 잘못된 주소를 입력한 것으로 간주하여 {@link ErrorMessage#INVALID_ADDRESS}를 반환합니다.
+     * @implNote 4xx 에러 발생 시 사용자가 잘못된 주소를 입력한 것으로 간주하여 {@link ExternalApiErrorCode#INVALID_ADDRESS}를 반환합니다.
      */
     @Override
     public Mono<GeocodeResult> geocode(String address) {
@@ -63,9 +64,9 @@ public class KakaoGeocodeAdapter implements GeocodePort {
                                 .flatMap(errorBody -> {
                                     log.error("Kakao Geocoding API error: status={}, body={}", response.statusCode(), errorBody);
                                     if (response.statusCode().is4xxClientError()) {
-                                        return Mono.error(new BusinessException(ErrorMessage.INVALID_ADDRESS, "잘못된 주소로 요청했습니다."));
+                                        return Mono.error(new ExternalApiException(ExternalApiErrorCode.INVALID_ADDRESS, "잘못된 주소로 요청했습니다."));
                                     }
-                                    return Mono.error(new BusinessException(ErrorMessage.FAILED_GEOCODING_API));
+                                    return Mono.error(new ExternalApiException(ExternalApiErrorCode.FAILED_GEOCODING_API));
                                 })
                 )
                 .bodyToMono(KakaoGeocodeResponse.class)
@@ -82,7 +83,7 @@ public class KakaoGeocodeAdapter implements GeocodePort {
      */
     private Mono<KakaoGeocodeResponse.Document> extractFirstDocument(KakaoGeocodeResponse response) {
         if (response.documents() == null || response.documents().isEmpty()) {
-            return Mono.error(new BusinessException(ErrorMessage.INVALID_ADDRESS, "해당 주소에 대한 검색 결과가 없습니다."));
+            return Mono.error(new ExternalApiException(ExternalApiErrorCode.INVALID_ADDRESS, "해당 주소에 대한 검색 결과가 없습니다."));
         }
         return Mono.just(response.documents().get(0));
     }
@@ -111,7 +112,7 @@ public class KakaoGeocodeAdapter implements GeocodePort {
         try {
             return Double.parseDouble(value);
         } catch (NumberFormatException | NullPointerException e) {
-            throw new BusinessException(ErrorMessage.EXTERNAL_API_SERVER_ERROR, fieldName + " 파싱 실패: " + value);
+            throw new ExternalApiException(ExternalApiErrorCode.EXTERNAL_API_SERVER_ERROR, fieldName + " 파싱 실패: " + value);
         }
     }
 }

@@ -3,8 +3,9 @@ package com.serverbe.adapter.in.web.filter;
 
 import com.serverbe.application.port.out.security.TokenResolver;
 import com.serverbe.application.port.out.token.TokenPersistencePort;
-import com.serverbe.infrastructure.error.BusinessException;
-import com.serverbe.infrastructure.error.ErrorMessage;
+import com.serverbe.domain.exception.BusinessException;
+import com.serverbe.domain.exception.auth.AuthErrorCode;
+import com.serverbe.domain.exception.auth.AuthException;
 import com.serverbe.infrastructure.util.TokenExtractionUtils;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.http.HttpServletRequest;
@@ -70,7 +71,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 // 1. 블랙리스트 확인을 인증 객체 등록보다 먼저 수행 (Fail-Fast)
                 if (tokenPersistencePort.isBlacklisted(token)) {
                     log.warn("[JWT Filter] 로그아웃된 토큰으로 접근 시도: {}", token);
-                    throw new BusinessException(ErrorMessage.UNAUTHORIZED, "이미 로그아웃된 토큰입니다.");
+                    throw new AuthException(AuthErrorCode.JWT_TOKEN_IS_LOGOUT);
                 }
 
                 // 2. 모든 검증을 마친 후 인증 객체 등록

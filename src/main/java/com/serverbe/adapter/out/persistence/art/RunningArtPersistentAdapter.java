@@ -5,9 +5,10 @@ import com.serverbe.adapter.out.persistence.user.JpaUserRepository;
 import com.serverbe.adapter.out.persistence.user.UserEntity;
 import com.serverbe.application.port.in.dto.art.RunningArtUpdateCommand;
 import com.serverbe.application.port.out.jpa.RunningArtRepositoryPort;
+import com.serverbe.domain.exception.art.ArtErrorCode;
+import com.serverbe.domain.exception.art.ArtException;
 import com.serverbe.domain.model.art.RunningArt;
-import com.serverbe.infrastructure.error.BusinessException;
-import com.serverbe.infrastructure.error.ErrorMessage;
+import com.serverbe.domain.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
@@ -83,7 +84,7 @@ public class RunningArtPersistentAdapter implements RunningArtRepositoryPort {
     @Override
     public void updateMetadata(Long runningArtId, RunningArtUpdateCommand dto) {
         RunningArtEntity entity = jpaRepository.findById(runningArtId)
-                .orElseThrow(() -> new BusinessException(ErrorMessage.NOT_FOUND_RUNNING_ART, "런닝아트를 조회할 수 없습니다"));
+                .orElseThrow(() -> new ArtException(ArtErrorCode.NOT_FOUND_RUNNING_ART, "런닝아트를 조회할 수 없습니다"));
 
         entity.updateMetadata(dto.title(), dto.content());
     }

@@ -1,7 +1,7 @@
 package com.serverbe.infrastructure.common.response;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.serverbe.infrastructure.error.ErrorMessage;
+import com.serverbe.domain.exception.ErrorCode;
 import org.springframework.http.HttpStatus;
 
 /**
@@ -39,7 +39,7 @@ public record RestApiResponse<T>(
      * @return 에러 코드와 메시지가 포함된 응답 객체
      * @responsibility {@link ErrorMessage} 정의에 기초한 실패 응답 객체를 생성합니다.
      */
-    public static <T> RestApiResponse<Void> fail(ErrorMessage errorMessage) {
+    public static <T> RestApiResponse<Void> fail(ErrorCode errorMessage) {
         return new RestApiResponse<>(
                 false,
                 errorMessage.getStatus(),
@@ -55,7 +55,7 @@ public record RestApiResponse<T>(
      * @responsibility 기본 에러 정의 외에 <b>추가적인 상세 사유</b>를 포함하는 실패 응답 객체를 생성합니다.
      * @implNote 유효성 검사 실패 시 필드별 구체적인 오류 사유를 전달할 때 주로 사용합니다.
      */
-    public static RestApiResponse<Void> fail(ErrorMessage errorMessage, String reason) {
+    public static RestApiResponse<Void> fail(ErrorCode errorMessage, String reason) {
         return new RestApiResponse<>(
                 false,
                 errorMessage.getStatus(),

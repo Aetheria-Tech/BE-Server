@@ -5,10 +5,10 @@ import com.serverbe.adapter.out.external.google.dto.GoogleUserInfoResponse;
 import com.serverbe.application.port.out.dto.oauth.OAuthUserInfoResult;
 import com.serverbe.application.port.out.dto.oauth.SocialTokenRefreshResult;
 import com.serverbe.application.port.out.oauth.OAuthClientPort;
+import com.serverbe.domain.exception.external.ExternalApiErrorCode;
+import com.serverbe.domain.exception.external.ExternalApiException;
 import com.serverbe.domain.model.user.vo.OAuthProvider;
 import com.serverbe.infrastructure.config.properties.GoogleProperties;
-import com.serverbe.infrastructure.error.BusinessException;
-import com.serverbe.infrastructure.error.ErrorMessage;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
@@ -95,7 +95,7 @@ public class GoogleOAuthAdapter implements OAuthClientPort {
                 .body(BodyInserters.fromFormData(formData))
                 .retrieve()
                 .onStatus(HttpStatusCode::isError, res -> res.bodyToMono(String.class)
-                        .map(body -> new BusinessException(ErrorMessage.FAILED_GOOGLE_API, "Google Token Error: " + body)))
+                        .map(body -> new ExternalApiException(ExternalApiErrorCode.FAILED_SOCIAL_API, "Google Token Error: " + body)))
                 .bodyToMono(GoogleTokenResponse.class);
     }
 
@@ -126,7 +126,7 @@ public class GoogleOAuthAdapter implements OAuthClientPort {
     @Override
     public Mono<Boolean> unlink(OAuthProvider provider, String oauthId, String oauthRefreshToken) {
         if (oauthRefreshToken == null || oauthRefreshToken.isBlank()) {
-            throw new BusinessException(ErrorMessage.INVALID_REFRESH_TOKEN, "구글 리프레시 토큰이 없어 연동 해제가 불가능합니다.");
+            throw new ExternalApiException(ExternalApiErrorCode.INVALID_REFRESH_TOKEN, "구글 리프레시 토큰이 없어 연동 해제가 불가능합니다.");
         }
 
         return webClient.post()
@@ -135,7 +135,7 @@ public class GoogleOAuthAdapter implements OAuthClientPort {
                 .body(BodyInserters.fromFormData("token", oauthRefreshToken)) // 리프레시 토큰 전송
                 .retrieve()
                 .onStatus(HttpStatusCode::isError, response -> response.bodyToMono(String.class)
-                        .flatMap(error -> Mono.error(new BusinessException(ErrorMessage.FAILED_GOOGLE_API, error))))
+                        .flatMap(error -> Mono.error(new ExternalApiException(ExternalApiErrorCode.FAILED_SOCIAL_API, error))))
                 .toBodilessEntity()
                 .map(response -> true)
                 // 에러 발생 시(BusinessException 포함) 흐름을 끊지 않고 false로 치환하고 싶다면 아래 주석 활용
@@ -161,7 +161,7 @@ public class GoogleOAuthAdapter implements OAuthClientPort {
                 .body(BodyInserters.fromFormData(formData))
                 .retrieve()
                 .onStatus(HttpStatusCode::isError, res -> res.bodyToMono(String.class)
-                        .map(body -> new BusinessException(ErrorMessage.FAILED_GOOGLE_API, "Google Refresh Error: " + body)))
+                        .map(body -> new ExternalApiException(ExternalApiErrorCode.FAILED_SOCIAL_API, "Google Refresh Error: " + body)))
                 .bodyToMono(SocialTokenRefreshResult.class);
     }
 

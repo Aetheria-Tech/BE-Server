@@ -1,10 +1,11 @@
 package com.serverbe.infrastructure.security;
 
 import com.serverbe.application.port.out.security.TokenResolver;
+import com.serverbe.domain.exception.auth.AuthErrorCode;
+import com.serverbe.domain.exception.auth.AuthException;
 import com.serverbe.domain.model.user.vo.Role;
 import com.serverbe.infrastructure.config.properties.JwtProperties;
-import com.serverbe.infrastructure.error.BusinessException;
-import com.serverbe.infrastructure.error.ErrorMessage;
+import com.serverbe.domain.exception.BusinessException;
 import io.jsonwebtoken.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -109,7 +110,7 @@ public class JwtTokenResolver implements TokenResolver {
         } catch (Exception e) {
             // 3. 서명 오류나 잘못된 형식 등은 예외 처리
             log.error("토큰 파싱 중 오류 발생: {}", e.getMessage());
-            throw new BusinessException(ErrorMessage.JWT_TOKEN_IS_INVALID, "유효하지 않은 토큰입니다.");
+            throw new AuthException(AuthErrorCode.JWT_TOKEN_IS_INVALID, "유효하지 않은 토큰입니다.");
         }
     }
 
@@ -117,8 +118,8 @@ public class JwtTokenResolver implements TokenResolver {
         try {
             return Long.valueOf(sub);
         } catch (NumberFormatException e) {
-            throw new BusinessException(
-                    ErrorMessage.JWT_SUBJECT_IS_NOT_NUMBER,
+            throw new AuthException(
+                    AuthErrorCode.JWT_SUBJECT_IS_NOT_NUMBER,
                     "JWT 토큰의 Subject 형식이 올바르지 않습니다."
             );
         }
@@ -146,13 +147,13 @@ public class JwtTokenResolver implements TokenResolver {
     private Claims getClaims(String token) {
         try {
             if (token == null || token.isBlank()) {
-                throw new BusinessException(ErrorMessage.JWT_TOKEN_IS_EMPTY);
+                throw new AuthException(AuthErrorCode.JWT_TOKEN_IS_EMPTY);
             }
             return parser.parseClaimsJws(token).getBody();
         } catch (ExpiredJwtException e) {
-            throw new BusinessException(ErrorMessage.JWT_TOKEN_EXPIRED, "토큰이 만료되었습니다.");
+            throw new AuthException(AuthErrorCode.JWT_TOKEN_EXPIRED, "토큰이 만료되었습니다.");
         } catch (JwtException e) {
-            throw new BusinessException(ErrorMessage.JWT_TOKEN_IS_INVALID, e.getMessage());
+            throw new AuthException(AuthErrorCode.JWT_TOKEN_IS_INVALID, e.getMessage());
         }
     }
 
@@ -171,7 +172,7 @@ public class JwtTokenResolver implements TokenResolver {
             // 이미 만료된 경우에도 Redis 블랙리스트 TTL 설정을 위해 만료 시점을 추출합니다.
             return e.getClaims().getExpiration().toInstant();
         } catch (JwtException e) {
-            throw new BusinessException(ErrorMessage.JWT_TOKEN_IS_INVALID, e.getMessage());
+            throw new AuthException(AuthErrorCode.JWT_TOKEN_IS_INVALID, e.getMessage());
         }
     }
 }

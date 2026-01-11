@@ -4,9 +4,11 @@ import com.serverbe.application.port.out.oauth.OAuthClientPort;
 import com.serverbe.application.port.in.oauth.WithdrawUseCase;
 import com.serverbe.application.port.out.jpa.UserRepositoryPort;
 import com.serverbe.application.service.helper.UserDataCleanupManager;
+import com.serverbe.domain.exception.auth.AuthErrorCode;
+import com.serverbe.domain.exception.auth.AuthException;
+import com.serverbe.domain.exception.user.UserErrorCode;
+import com.serverbe.domain.exception.user.UserException;
 import com.serverbe.domain.model.user.vo.OAuthProvider;
-import com.serverbe.infrastructure.error.BusinessException;
-import com.serverbe.infrastructure.error.ErrorMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -41,7 +43,7 @@ public class WithdrawService implements WithdrawUseCase {
     @Override
     public Mono<Boolean> withdraw(Long userId) {
         return Mono.fromCallable(() -> userRepositoryPort.findById(userId)
-                        .orElseThrow(() -> new BusinessException(ErrorMessage.NOT_FOUND_USER)))
+                        .orElseThrow(() -> new UserException(UserErrorCode.NOT_FOUND_USER)))
                 .subscribeOn(Schedulers.boundedElastic())
                 .flatMap(user -> {
                     OAuthClientPort client = getClient(user.provider());
@@ -73,7 +75,7 @@ public class WithdrawService implements WithdrawUseCase {
                 .findFirst()
                 .orElseThrow(() -> {
                     log.error("[SECURITY/CONFIG ERROR] 지원하지 않는 소셜 로그인 방식 요청: {}", provider);
-                    return new BusinessException(ErrorMessage.INTERNAL_SERVER_ERROR);
+                    return new AuthException(AuthErrorCode.UNSUPPORTED_SOCIAL_LOGIN);
                 });
     }
 }

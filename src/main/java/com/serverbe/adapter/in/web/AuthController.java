@@ -5,11 +5,14 @@ import com.serverbe.application.port.in.oauth.LogoutUseCase;
 import com.serverbe.application.port.in.oauth.LoginUseCase;
 import com.serverbe.application.port.in.oauth.WithdrawUseCase;
 import com.serverbe.application.port.in.token.ReissueUseCase;
+import com.serverbe.domain.exception.auth.AuthErrorCode;
+import com.serverbe.domain.exception.auth.AuthException;
+import com.serverbe.domain.exception.external.ExternalApiErrorCode;
+import com.serverbe.domain.exception.server.ServerErrorCode;
+import com.serverbe.domain.exception.server.ServerExcepetion;
 import com.serverbe.domain.model.user.vo.OAuthProvider;
 import com.serverbe.infrastructure.common.response.RestApiResponse;
 import com.serverbe.infrastructure.config.properties.JwtProperties;
-import com.serverbe.infrastructure.error.BusinessException;
-import com.serverbe.infrastructure.error.ErrorMessage;
 import com.serverbe.infrastructure.util.TokenExtractionUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -91,7 +94,7 @@ public class AuthController {
                         response.sendRedirect(redirectUrl);
                         return Mono.empty();
                     } catch (IOException e) {
-                        return Mono.error(new BusinessException(ErrorMessage.INTERNAL_SERVER_ERROR, e.getMessage()));
+                        return Mono.error(new ServerExcepetion(ServerErrorCode.INTERNAL_SERVER_ERROR));
                     }
                 });
     }
@@ -149,7 +152,7 @@ public class AuthController {
         // DB 삭제 + 소셜 연동 해제(Unlink) + Redis 세션 삭제를 수행
         return withdrawUseCase.withdraw(userId).map(success -> {
             if (success) return RestApiResponse.noContent();
-            return RestApiResponse.fail(ErrorMessage.WITHDRAWAL_FAILED);
+            return RestApiResponse.fail(ExternalApiErrorCode.FAILED_SOCIAL_API, "외부 서버의 문제로 연동 해제에 실패했습니다.");
         });
     }
 
@@ -245,7 +248,7 @@ public class AuthController {
         String refreshToken = tokenExtractionUtils.extractRefreshToken(request);
 
         if (!StringUtils.hasText(refreshToken)) {
-            return Mono.error(new BusinessException(ErrorMessage.JWT_TOKEN_IS_EMPTY));
+            return Mono.error(new AuthException(AuthErrorCode.JWT_TOKEN_IS_EMPTY));
         }
 
         return Mono.fromCallable(() -> reissueUseCase.reissue(accessToken, refreshToken))

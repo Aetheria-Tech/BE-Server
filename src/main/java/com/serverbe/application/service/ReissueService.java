@@ -5,9 +5,10 @@ import com.serverbe.application.port.out.dto.oauth.TokenResult;
 import com.serverbe.application.port.out.security.TokenProvider;
 import com.serverbe.application.port.out.security.TokenResolver;
 import com.serverbe.application.service.helper.AuthSessionManager;
+import com.serverbe.domain.exception.auth.AuthErrorCode;
+import com.serverbe.domain.exception.auth.AuthException;
 import com.serverbe.domain.model.user.vo.Role;
-import com.serverbe.infrastructure.error.BusinessException;
-import com.serverbe.infrastructure.error.ErrorMessage;
+import com.serverbe.domain.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -77,8 +78,8 @@ public class ReissueService implements ReissueUseCase {
             // [보안 조치] 해당 유저의 모든 기기에서 즉시 로그아웃 처리
             authSessionManager.terminateAllSessions(userId);
 
-            throw new BusinessException(
-                    ErrorMessage.INVALID_REFRESH_TOKEN,
+            throw new AuthException(
+                    AuthErrorCode.INVALID_REFRESH_TOKEN,
                     "보안 위협이 감지되었거나 유효하지 않은 세션입니다. 다시 로그인해주세요."
             );
         }
@@ -91,7 +92,7 @@ public class ReissueService implements ReissueUseCase {
     private void validateTokenFormat(String refreshToken) {
         if (!tokenResolver.validateRefreshToken(refreshToken)) {
             log.warn("[SECURITY ALERT] 부적절한 형식의 리프레시 토큰 접근.");
-            throw new BusinessException(ErrorMessage.REFRESH_TOKEN_NOT_EXIST);
+            throw new AuthException(AuthErrorCode.REFRESH_TOKEN_NOT_EXIST);
         }
     }
 

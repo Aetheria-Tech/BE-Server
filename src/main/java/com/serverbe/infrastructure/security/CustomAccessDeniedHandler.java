@@ -1,8 +1,8 @@
 package com.serverbe.infrastructure.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.serverbe.domain.exception.auth.AuthErrorCode;
 import com.serverbe.infrastructure.common.response.RestApiResponse;
-import com.serverbe.infrastructure.error.ErrorMessage;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -29,7 +29,7 @@ public class CustomAccessDeniedHandler implements AccessDeniedHandler {
      * @param accessDeniedException 발생한 인가 예외
      * @throws IOException 응답 스트림 작성 중 오류 발생 시
      * @responsibility 접근 거부 예외 발생 시, HTTP 응답 상태 코드를 403으로 설정하고 에러 메시지를 응답 바디에 작성합니다.
-     * @implNote 브라우저나 클라이언트가 에러 구조를 파악할 수 있도록 <b>Content-Type을 application/json</b>으로 강제하며, {@link ErrorMessage#ACCESS_DENIED}를 사용합니다.
+     * @implNote 브라우저나 클라이언트가 에러 구조를 파악할 수 있도록 <b>Content-Type을 application/json</b>으로 강제하며, {@link AuthErrorCode#ACCESS_DENIED}를 사용합니다.
      */
     @Override
     public void handle(
@@ -42,7 +42,7 @@ public class CustomAccessDeniedHandler implements AccessDeniedHandler {
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setCharacterEncoding("UTF-8");
 
-        var apiResponse = RestApiResponse.fail(ErrorMessage.ACCESS_DENIED, "해당 리소스에 대한 접근 권한이 없습니다.");
+        var apiResponse = RestApiResponse.fail(AuthErrorCode.ACCESS_DENIED, "해당 리소스에 대한 접근 권한이 없습니다.");
 
         // ObjectMapper를 사용하여 객체를 JSON 문자열로 직렬화 후 응답
         response.getWriter().write(objectMapper.writeValueAsString(apiResponse));

@@ -2,10 +2,12 @@ package com.serverbe.application.service;
 
 import com.serverbe.application.port.out.oauth.OAuthClientPort;
 import com.serverbe.application.port.out.jpa.UserRepositoryPort;
+import com.serverbe.domain.exception.auth.AuthErrorCode;
+import com.serverbe.domain.exception.auth.AuthException;
+import com.serverbe.domain.exception.user.UserErrorCode;
+import com.serverbe.domain.exception.user.UserException;
 import com.serverbe.domain.model.user.User;
 import com.serverbe.domain.model.user.vo.OAuthProvider;
-import com.serverbe.infrastructure.error.BusinessException;
-import com.serverbe.infrastructure.error.ErrorMessage;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,7 +30,7 @@ public class SocialTokenService {
     public Mono<String> getFreshAccessToken(Long userId) {
         // 1. 유저 조회 (암호화된 토큰은 Converter에 의해 자동 복호화됨)
         User user = userRepositoryPort.findById(userId)
-                .orElseThrow(() -> new BusinessException(ErrorMessage.NOT_FOUND_USER));
+                .orElseThrow(() -> new UserException(UserErrorCode.NOT_FOUND_USER));
 
         // 2. 유저의 제공자(KAKAO, GOOGLE)를 지원하는 어댑터 선택
         OAuthClientPort client = getClient(user.provider());
@@ -53,6 +55,6 @@ public class SocialTokenService {
         return oAuthClients.stream()
                 .filter(client -> client.supports(provider)) // 클래스 이름이 아닌 명시적 지원 여부 확인
                 .findFirst()
-                .orElseThrow(() -> new BusinessException(ErrorMessage.INTERNAL_SERVER_ERROR, "지원하지 않는 소셜 로그인입니다."));
+                .orElseThrow(() -> new AuthException(AuthErrorCode.UNSUPPORTED_SOCIAL_LOGIN, "지원하지 않는 소셜 로그인입니다."));
     }
 }
