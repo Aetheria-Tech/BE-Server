@@ -9,7 +9,7 @@ import com.serverbe.domain.exception.auth.AuthErrorCode;
 import com.serverbe.domain.exception.auth.AuthException;
 import com.serverbe.domain.exception.external.ExternalApiErrorCode;
 import com.serverbe.domain.exception.server.ServerErrorCode;
-import com.serverbe.domain.exception.server.ServerExcepetion;
+import com.serverbe.domain.exception.server.ServerException;
 import com.serverbe.domain.model.user.vo.OAuthProvider;
 import com.serverbe.infrastructure.common.response.RestApiResponse;
 import com.serverbe.infrastructure.config.properties.JwtProperties;
@@ -94,7 +94,7 @@ public class AuthController {
                         response.sendRedirect(redirectUrl);
                         return Mono.empty();
                     } catch (IOException e) {
-                        return Mono.error(new ServerExcepetion(ServerErrorCode.INTERNAL_SERVER_ERROR));
+                        return Mono.error(new ServerException(ServerErrorCode.INTERNAL_SERVER_ERROR));
                     }
                 });
     }

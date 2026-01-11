@@ -9,7 +9,7 @@ import com.serverbe.application.port.out.oauth.OAuthClientPort;
 import com.serverbe.domain.exception.external.ExternalApiErrorCode;
 import com.serverbe.domain.exception.external.ExternalApiException;
 import com.serverbe.domain.exception.server.ServerErrorCode;
-import com.serverbe.domain.exception.server.ServerExcepetion;
+import com.serverbe.domain.exception.server.ServerException;
 import com.serverbe.domain.model.user.vo.OAuthProvider;
 import com.serverbe.infrastructure.config.properties.KakaoProperties;
 import com.serverbe.domain.exception.BusinessException;
@@ -64,7 +64,7 @@ public class KakaoOAuthAdapter implements OAuthClientPort {
     @Override
     public Mono<OAuthUserInfoResult> getUserInfo(String code, OAuthProvider provider) {
         if (provider != OAuthProvider.KAKAO) {
-            return Mono.error(new ServerExcepetion(
+            return Mono.error(new ServerException(
                     ServerErrorCode.INTERNAL_SERVER_ERROR,
                     "카카오 어댑터는 카카오 로그인만 처리할 수 있습니다."
             ));
