@@ -1,8 +1,6 @@
-package com.serverbe.infrastructure.config;
+package com.serverbe.infrastructure.security;
 
 import com.serverbe.adapter.in.web.filter.JwtAuthenticationFilter;
-import com.serverbe.infrastructure.security.CustomAccessDeniedHandler;
-import com.serverbe.infrastructure.security.CustomAuthenticationEntryPoint;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
