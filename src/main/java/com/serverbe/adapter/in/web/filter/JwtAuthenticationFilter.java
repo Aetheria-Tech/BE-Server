@@ -6,7 +6,7 @@ import com.serverbe.application.port.out.token.TokenPersistencePort;
 import com.serverbe.domain.exception.BusinessException;
 import com.serverbe.domain.exception.auth.AuthErrorCode;
 import com.serverbe.domain.exception.auth.AuthException;
-import com.serverbe.infrastructure.util.TokenExtractionUtils;
+import com.serverbe.infrastructure.security.TokenExtractor;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -29,7 +29,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final TokenResolver tokenResolver;
     private final TokenPersistencePort tokenPersistencePort;
-    private final TokenExtractionUtils tokenExtractionUtils;
+    private final TokenExtractor tokenExtractor;
     private final HandlerExceptionResolver handlerExceptionResolver;
 
     /**
@@ -38,13 +38,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     public JwtAuthenticationFilter(
             TokenResolver tokenResolver,
             TokenPersistencePort tokenPersistencePort,
-            TokenExtractionUtils tokenExtractionUtils,
+            TokenExtractor tokenExtractor,
             @Qualifier("handlerExceptionResolver") HandlerExceptionResolver handlerExceptionResolver
     ) {
         this.tokenResolver = tokenResolver;
         this.tokenPersistencePort = tokenPersistencePort;
         this.handlerExceptionResolver = handlerExceptionResolver;
-        this.tokenExtractionUtils = tokenExtractionUtils;
+        this.tokenExtractor = tokenExtractor;
     }
 
     /**
@@ -53,7 +53,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
      * @param filterChain 서블릿 필터 체인
      * @throws BusinessException 토큰이 블랙리스트에 등록되어 있거나 인증 과정에서 문제가 발생할 경우 발생
      * @responsibility 요청에서 토큰을 추출하고, 유효성 검증 및 블랙리스트 대조 후 인증 객체를 등록합니다.
-     * @implSpec 1. <b>토큰 추출</b>: {@link TokenExtractionUtils}를 통해 헤더에서 Bearer 토큰을 가져옵니다.<br>
+     * @implSpec 1. <b>토큰 추출</b>: {@link TokenExtractor}를 통해 헤더에서 Bearer 토큰을 가져옵니다.<br>
      * 2. <b>블랙리스트 검사</b>: 유효한 토큰이라도 이미 로그아웃된 토큰인지 {@link TokenPersistencePort#isBlacklisted(String)}로 확인합니다.<br>
      * 3. <b>인증 등록</b>: 모든 검증이 완료되면 {@link SecurityContextHolder}에 인증 정보를 저장합니다.
      */
@@ -63,7 +63,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             HttpServletResponse response,
             FilterChain filterChain
     ) {
-        String token = tokenExtractionUtils.extractAccessToken(request);
+        String token = tokenExtractor.extractAccessToken(request);
 
         try {
             if (StringUtils.hasText(token) && tokenResolver.validateAccessToken(token)) {

@@ -2,8 +2,8 @@ package com.serverbe.adapter.in.web;
 
 import com.serverbe.adapter.in.web.dto.geocode.GeocodeResponse;
 import com.serverbe.application.port.out.geocode.GeocodePort;
+import com.serverbe.domain.model.address.Address;
 import com.serverbe.infrastructure.common.response.RestApiResponse;
-import com.serverbe.infrastructure.util.AddressValidator;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -42,7 +42,7 @@ public class GeocodeController {
             @Parameter(description = "변환할 도로명 또는 지번 주소", example = "서울특별시 강남구 테헤란로 427", required = true)
             @RequestParam(name = "address") @NotBlank String address
     ) {
-        AddressValidator.validate(address);
+        Address addressDomain = new Address(address);
         // 외부 API 호출이므로 비동기 체인(Mono)을 그대로 반환합니다.
         return geocodePort.geocode(address)
                 .map(GeocodeResponse::toResponse)

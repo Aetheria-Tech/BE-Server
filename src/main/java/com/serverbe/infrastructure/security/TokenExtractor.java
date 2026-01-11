@@ -1,4 +1,4 @@
-package com.serverbe.infrastructure.util;
+package com.serverbe.infrastructure.security;
 
 import com.serverbe.infrastructure.config.properties.JwtProperties;
 import jakarta.servlet.http.Cookie;
@@ -18,7 +18,7 @@ import java.util.Arrays;
  */
 @Slf4j
 @Component
-public class TokenExtractionUtils {
+public class TokenExtractor {
     private final String bearerPrefix;
     private final String refreshTokenCookie;
 
@@ -26,7 +26,7 @@ public class TokenExtractionUtils {
      * @responsibility 시스템 설정({@link JwtProperties})을 주입받아 토큰 추출에 필요한 접두어와 쿠키 이름을 초기화합니다.
      * @param jwtProperties JWT 관련 환경 설정 정보
      */
-    public TokenExtractionUtils(JwtProperties jwtProperties) {
+    public TokenExtractor(JwtProperties jwtProperties) {
         this.bearerPrefix = jwtProperties.accessToken().prefix();
         this.refreshTokenCookie = jwtProperties.refreshToken().cookie();
     }

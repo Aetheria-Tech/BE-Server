@@ -13,7 +13,7 @@ import com.serverbe.domain.exception.server.ServerExcepetion;
 import com.serverbe.domain.model.user.vo.OAuthProvider;
 import com.serverbe.infrastructure.common.response.RestApiResponse;
 import com.serverbe.infrastructure.config.properties.JwtProperties;
-import com.serverbe.infrastructure.util.TokenExtractionUtils;
+import com.serverbe.infrastructure.security.TokenExtractor;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.headers.Header;
@@ -47,7 +47,7 @@ public class AuthController {
     private final WithdrawUseCase withdrawUseCase;
     private final LogoutUseCase logoutUseCase;
     private final ReissueUseCase reissueUseCase;
-    private final TokenExtractionUtils tokenExtractionUtils;
+    private final TokenExtractor tokenExtractor;
     private final String refreshTokenCookie;
     private final long refreshTokenCookieExpireSeconds;
 
@@ -56,14 +56,14 @@ public class AuthController {
             WithdrawUseCase withdrawUseCase,
             LogoutUseCase logoutUseCase,
             ReissueUseCase reissueUseCase,
-            TokenExtractionUtils tokenExtractionUtils,
+            TokenExtractor tokenExtractor,
             JwtProperties jwtProperties
     ) {
         this.loginUseCase = loginUseCase;
         this.withdrawUseCase = withdrawUseCase;
         this.logoutUseCase = logoutUseCase;
         this.reissueUseCase = reissueUseCase;
-        this.tokenExtractionUtils = tokenExtractionUtils;
+        this.tokenExtractor = tokenExtractor;
         this.refreshTokenCookie = jwtProperties.refreshToken().cookie();
         this.refreshTokenCookieExpireSeconds = jwtProperties.refreshToken().expirationDays().toSeconds();
     }
@@ -179,8 +179,8 @@ public class AuthController {
             @Parameter(hidden = true) HttpServletResponse response
     ) {
         // 1. 요청 헤더 및 쿠키에서 토큰 추출
-        String accessToken = tokenExtractionUtils.extractAccessToken(request);
-        String refreshToken = tokenExtractionUtils.extractRefreshToken(request);
+        String accessToken = tokenExtractor.extractAccessToken(request);
+        String refreshToken = tokenExtractor.extractRefreshToken(request);
 
         // 2. 로그아웃 로직 수행 (Redis에서 리프레시 토큰 삭제 및 엑세스 토큰 블랙리스트 처리 등)
         logoutUseCase.logout(accessToken, refreshToken);
@@ -213,7 +213,7 @@ public class AuthController {
             @Parameter(hidden = true) HttpServletResponse response
     ) {
 
-        String accessToken = tokenExtractionUtils.extractAccessToken(request);
+        String accessToken = tokenExtractor.extractAccessToken(request);
         logoutUseCase.globalLogout(accessToken);
         addCookieToResponse(response, "", 0);
         return RestApiResponse.noContent();
@@ -244,8 +244,8 @@ public class AuthController {
             @Parameter(hidden = true) HttpServletRequest request,
             @Parameter(hidden = true) HttpServletResponse response
     ) {
-        String accessToken = tokenExtractionUtils.extractAccessToken(request);
-        String refreshToken = tokenExtractionUtils.extractRefreshToken(request);
+        String accessToken = tokenExtractor.extractAccessToken(request);
+        String refreshToken = tokenExtractor.extractRefreshToken(request);
 
         if (!StringUtils.hasText(refreshToken)) {
             return Mono.error(new AuthException(AuthErrorCode.JWT_TOKEN_IS_EMPTY));
