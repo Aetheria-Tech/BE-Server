@@ -22,6 +22,22 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @RequiredArgsConstructor
 public class SecurityConfig {
 
+    private static final String[] SWAGGER_PATHS = {
+            "/v3/api-docs/**",
+            "/swagger-ui/**",
+            "/swagger-ui.html",
+            "/v3/api-docs.yaml"
+    };
+
+    private static final String[] LOGIN_PATHS = {
+            "/api/v1/auth/login/**",
+            "/api/v1/auth/callback/**"
+    };
+
+    private static final String[] TOKEN_PATHS = {
+            "/api/v1/auth/reissue"
+    };
+
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final CustomAuthenticationEntryPoint authenticationEntryPoint;
     private final CustomAccessDeniedHandler accessDeniedHandler;
@@ -64,19 +80,12 @@ public class SecurityConfig {
                 // HTTP 요청 권한 설정
                 .authorizeHttpRequests(auth -> auth
                         .dispatcherTypeMatchers(jakarta.servlet.DispatcherType.ASYNC).permitAll()
-                        // 인증 없이 접근 가능한 경로
-                        .requestMatchers(
-                                "/api/v1/auth/login/**",
-                                "/api/v1/auth/callback/**",
-                                "/api/v1/auth/reissue"
-                        ).permitAll()
-
+                        // 토큰은 인증 업이 접근 가능
+                        .requestMatchers(TOKEN_PATHS).permitAll()
                         // Swagger 문서 경로는 모두 허용
-                        .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs.yaml").permitAll()
-
-                        // 로그아웃과 회원 탈퇴는 반드시 인증이 필요함
-                        .requestMatchers("/api/v1/auth/logout", "/api/v1/auth/me").authenticated()
-
+                        .requestMatchers(SWAGGER_PATHS).permitAll()
+                        // 로그인은 인증 없이 접근 가능
+                        .requestMatchers(LOGIN_PATHS).permitAll()
                         // 그 외 모든 요청은 인증 필요
                         .anyRequest().authenticated()
                 )
