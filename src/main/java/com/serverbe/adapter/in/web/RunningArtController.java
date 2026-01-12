@@ -15,10 +15,11 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springdoc.core.annotations.ParameterObject;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
 
 @Tag(name = "Running Art", description = "런닝 아트 관리 API")
 @RestController
@@ -45,8 +46,12 @@ public class RunningArtController {
             }
     )
     @GetMapping("/me")
-    public RestApiResponse<List<RunningArtResponse>> getByUserId(@Parameter(hidden = true) @AuthenticationPrincipal Long userId) {
-        return RestApiResponse.success(getRunningArtUseCase.getRunningArtsByUserId(userId).stream().map(RunningArtResponse::toResponse).toList());
+    public RestApiResponse<Page<RunningArtResponse>> getByUserId(
+            @Parameter(hidden = true) @AuthenticationPrincipal Long userId,
+            @ParameterObject Pageable pageable
+    ) {
+        return RestApiResponse.success(getRunningArtUseCase.getRunningArtsByUserId(userId, pageable)
+                .map(RunningArtResponse::toResponse));
     }
 
     @Operation(
