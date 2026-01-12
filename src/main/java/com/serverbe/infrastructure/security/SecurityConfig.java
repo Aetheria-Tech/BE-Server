@@ -80,7 +80,7 @@ public class SecurityConfig {
                 // HTTP 요청 권한 설정
                 .authorizeHttpRequests(auth -> auth
                         .dispatcherTypeMatchers(jakarta.servlet.DispatcherType.ASYNC).permitAll()
-                        // 토큰은 인증 업이 접근 가능
+                        // 토큰은 인증 없이 접근 가능
                         .requestMatchers(TOKEN_PATHS).permitAll()
                         // Swagger 문서 경로는 모두 허용
                         .requestMatchers(SWAGGER_PATHS).permitAll()

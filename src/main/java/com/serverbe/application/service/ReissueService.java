@@ -77,7 +77,7 @@ public class ReissueService implements ReissueUseCase {
             authSessionManager.terminateAllSessions(userId);
 
             throw new AuthException(
-                    AuthErrorCode.INVALID_REFRESH_TOKEN,
+                    AuthErrorCode.REISSUE_FAILED,
                     "보안 위협이 감지되었거나 유효하지 않은 세션입니다. 다시 로그인해주세요."
             );
         }

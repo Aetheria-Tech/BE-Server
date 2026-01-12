@@ -88,8 +88,8 @@ public class AuthSessionManager {
      * @implNote 이 과정이 성공하면 기존 토큰은 더 이상 사용할 수 없으며, 재사용 시 보안 위협으로 간주됩니다.
      */
     public void rotateSession(Long userId, String oldRefreshToken, String newRefreshToken) {
-        tokenPersistencePort.removeSpecificRefreshToken(userId, oldRefreshToken);
         tokenPersistencePort.saveRefreshToken(userId, newRefreshToken, refreshTokenExpirationDays);
+        tokenPersistencePort.removeSpecificRefreshToken(userId, oldRefreshToken);
         log.info("[SESSION] 리프레시 토큰 교체(RTR)를 완료했습니다. UserID: {}", userId);
     }
 }
