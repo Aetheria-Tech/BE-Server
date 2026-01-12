@@ -11,10 +11,10 @@ import com.serverbe.domain.exception.art.ArtException;
 import com.serverbe.domain.model.art.RunningArt;
 import com.serverbe.domain.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
 
 /**
  * @responsibility 사용자가 생성한 런닝 아트(GPS 궤적 데이터 기반 기록)의 생명주기를 관리하고 접근 권한을 제어합니다.
@@ -29,7 +29,7 @@ public class RunningArtService implements GetRunningArtUseCase, DeleteRunningArt
      * @requirement UC-ART-03: 사용자의 전체 런닝 아트 조회 요청
      * @responsibility 특정 사용자가 보유한 모든 런닝 아트 목록을 조회합니다.
      * @implSpec
-     * 1. {@link RunningArtRepositoryPort#findByUserId(Long)}를 통해 해당 유저의 엔티티 목록을 획득합니다.<br>
+     * 1. {@link RunningArtRepositoryPort#findByUserId(Long, Pageable)}를 통해 해당 유저의 엔티티 목록을 획득합니다.<br>
      * 2. Java Stream API를 활용하여 도메인 모델을 {@link RunningArtResult} DTO로 일괄 변환합니다.
      * @implNote 현재 순수 JPA로 구현되어 있으며, 대량 데이터 조회 시 성능 최적화가 필요할 경우 Querydsl Projection 도입을 고려해야 합니다.
      * @param userId 런닝 아트를 조회할 사용자의 고유 식별자
@@ -37,8 +37,8 @@ public class RunningArtService implements GetRunningArtUseCase, DeleteRunningArt
      */
     @Override
     @Transactional(readOnly = true)
-    public List<RunningArtResult> getRunningArtsByUserId(Long userId) {
-        return repositoryPort.findByUserId(userId).stream().map(RunningArtResult::toResult).toList();
+    public Page<RunningArtResult> getRunningArtsByUserId(Long userId , Pageable pageable) {
+        return repositoryPort.findByUserId(userId, pageable).map(RunningArtResult::toResult);
     }
 
     /**

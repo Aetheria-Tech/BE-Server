@@ -10,6 +10,8 @@ import com.serverbe.domain.exception.art.ArtException;
 import com.serverbe.domain.model.art.RunningArt;
 import com.serverbe.domain.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -62,16 +64,15 @@ public class RunningArtPersistentAdapter implements RunningArtRepositoryPort {
     }
 
     /**
+     * @param pageable 페이징 정보
      * @return 조회된 {@link RunningArt} 도메인 리스트
      * @responsibility 저장된 모든 런닝아트 목록을 조회합니다.
      * @implSpec {@link JpaRunningArtRepository#findAll()}을 통해 전체 엔티티를 조회한 후 Stream API를 사용하여 도메인 목록으로 변환합니다.
      * @implNote 데이터 양이 많을 경우 성능 저하의 원인이 될 수 있으므로 페이징 처리를 권장합니다.
      */
     @Override
-    public List<RunningArt> findAll() {
-        return jpaRepository.findAll().stream()
-                .map(mapper::toDomain)
-                .toList();
+    public Page<RunningArt> findAll(Pageable pageable) {
+        return jpaRepository.findAll(pageable).map(mapper::toDomain);
     }
 
     /**
@@ -111,15 +112,14 @@ public class RunningArtPersistentAdapter implements RunningArtRepositoryPort {
     }
 
     /**
-     * @param userId 조회할 사용자의 고유 ID
+     * @param pageable 페이징 정보
+     * @param userId   조회할 사용자의 고유 ID
      * @return 해당 사용자의 {@link List<RunningArt>} 목록
      * @responsibility 특정 사용자가 생성한 런닝아트 목록을 조회합니다.
      * @implSpec 엔티티 간의 연관 관계 필드(User)를 기반으로 명명 규칙에 따른 JPA 쿼리 메서드를 사용합니다.
      */
     @Override
-    public List<RunningArt> findByUserId(Long userId) {
-        return jpaRepository.findByUser_Id(userId).stream()
-                .map(mapper::toDomain)
-                .toList();
+    public Page<RunningArt> findByUserId(Long userId, Pageable pageable) {
+        return jpaRepository.findByUser_Id(userId, pageable).map(mapper::toDomain);
     }
 }
