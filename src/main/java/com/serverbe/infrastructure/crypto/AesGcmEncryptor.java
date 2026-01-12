@@ -1,9 +1,9 @@
 package com.serverbe.infrastructure.crypto;
 
 import com.serverbe.application.port.out.crypto.EncryptPort;
+import com.serverbe.domain.exception.crypto.CryptoErrorCode;
+import com.serverbe.domain.exception.crypto.CryptoException;
 import com.serverbe.infrastructure.config.properties.EncryptionProperties;
-import com.serverbe.infrastructure.error.BusinessException;
-import com.serverbe.infrastructure.error.ErrorMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -60,7 +60,7 @@ public class AesGcmEncryptor implements EncryptPort {
             );
         } catch (Exception e) {
             log.error("Failed to encrypt data", e);
-            throw new BusinessException(ErrorMessage.ENCRYPTION_FAILURE);
+            throw new CryptoException(CryptoErrorCode.ENCRYPTION_FAILURE);
         }
     }
 
@@ -71,7 +71,7 @@ public class AesGcmEncryptor implements EncryptPort {
      * @implSpec 1. 구분자({@code :})를 기준으로 암호문을 분리하여 버전, IV, 암호문 데이터를 추출합니다.<br>
      * 2. 추출된 버전에 해당하는 복호화 키를 {@link EncryptionProperties#getKeyByVersion(String)}에서 조회합니다.<br>
      * 3. GCM 모드의 인증 태그(Auth Tag) 검증을 포함하여 복호화를 진행합니다.
-     * @implNote 암호문 형식이 올바르지 않거나 버전 정보가 시스템에 존재하지 않는 경우 {@link BusinessException}이 발생합니다.
+     * @implNote 암호문 형식이 올바르지 않거나 버전 정보가 시스템에 존재하지 않는 경우 {@link CryptoException}이 발생합니다.
      */
     @Override
     public String decrypt(String encryptedData) {
@@ -80,7 +80,7 @@ public class AesGcmEncryptor implements EncryptPort {
         try {
             String[] parts = encryptedData.split(DELIMITER);
             if (parts.length != 3) {
-                throw new BusinessException(ErrorMessage.INCORRECT_CIPHERTEXT_FORMAT);
+                throw new CryptoException(CryptoErrorCode.INCORRECT_CIPHERTEXT_FORMAT);
             }
 
             String version = parts[0];
@@ -96,7 +96,7 @@ public class AesGcmEncryptor implements EncryptPort {
             return new String(cipher.doFinal(cipherText), StandardCharsets.UTF_8);
         } catch (Exception e) {
             log.error("Failed to decrypt data", e);
-            throw new BusinessException(ErrorMessage.DECRYPTION_FAILED);
+            throw new CryptoException(CryptoErrorCode.DECRYPTION_FAILED);
         }
     }
 

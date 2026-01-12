@@ -1,8 +1,9 @@
 package com.serverbe.infrastructure.security;
 
+import com.serverbe.domain.exception.auth.AuthErrorCode;
+import com.serverbe.domain.exception.auth.AuthException;
 import com.serverbe.infrastructure.config.properties.JwtProperties;
-import com.serverbe.infrastructure.error.BusinessException;
-import com.serverbe.infrastructure.error.ErrorMessage;
+import com.serverbe.domain.exception.BusinessException;
 import io.jsonwebtoken.JwtParser;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
@@ -44,16 +45,16 @@ public class JwtKeyManager {
             // Base64 인코딩된 비밀 키 문자열을 바이트 배열로 디코딩
             keyBytes = Decoders.BASE64.decode(jwtProperties.secret());
         } catch (IllegalArgumentException e) {
-            throw new BusinessException(
-                    ErrorMessage.INTERNAL_SERVER_ERROR,
+            throw new AuthException(
+                    AuthErrorCode.JWT_KEY_INVALID,
                     "jwt.secret은 Base64 인코딩된 문자열이어야 합니다."
             );
         }
 
         // HS256 알고리즘의 최소 권장 길이인 256비트(32바이트) 검증
         if (keyBytes.length < 32) {
-            throw new BusinessException(
-                    ErrorMessage.INTERNAL_SERVER_ERROR,
+            throw new AuthException(
+                    AuthErrorCode.JWT_KEY_INVALID,
                     "jwt.secret은 HS256에 적합한 최소 256비트(32바이트) 이상이어야 합니다."
             );
         }

@@ -6,9 +6,10 @@ import com.serverbe.application.port.in.art.UpdateRunningArtUseCase;
 import com.serverbe.application.port.in.dto.art.RunningArtResult;
 import com.serverbe.application.port.in.dto.art.RunningArtUpdateCommand;
 import com.serverbe.application.port.out.jpa.RunningArtRepositoryPort;
+import com.serverbe.domain.exception.art.ArtErrorCode;
+import com.serverbe.domain.exception.art.ArtException;
 import com.serverbe.domain.model.art.RunningArt;
-import com.serverbe.infrastructure.error.BusinessException;
-import com.serverbe.infrastructure.error.ErrorMessage;
+import com.serverbe.domain.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -101,8 +102,8 @@ public class RunningArtService implements GetRunningArtUseCase, DeleteRunningArt
     /**
      * @responsibility 데이터의 존재 유무를 확인하고, 요청한 사용자가 해당 데이터의 실제 소유자인지 검증합니다.
      * @implSpec
-     * 1. ID로 엔티티를 조회하며, 부재 시 {@link ErrorMessage#NOT_FOUND_RUNNING_ART} 예외를 던집니다.<br>
-     * 2. 조회된 엔티티의 {@code userId} 필드와 요청자의 {@code userId}를 비교하여 불일치 시 {@link ErrorMessage#USER_IS_NOT_OWNER_OF_RUNNING_ART} 예외를 던집니다.
+     * 1. ID로 엔티티를 조회하며, 부재 시 {@link ArtErrorCode#NOT_FOUND_RUNNING_ART} 예외를 던집니다.<br>
+     * 2. 조회된 엔티티의 {@code userId} 필드와 요청자의 {@code userId}를 비교하여 불일치 시 {@link ArtErrorCode#USER_IS_NOT_OWNER_OF_RUNNING_ART} 예외를 던집니다.
      * @implNote
      * - 이 메서드는 도메인 엔티티({@link RunningArt})를 직접 반환하므로 서비스 내부 전용(private)으로만 사용해야 합니다.<br>
      * - 더티 체킹이나 연관 관계 접근을 위해 반드시 {@link Transactional} 컨텍스트 내에서 호출되어야 합니다.
@@ -113,13 +114,13 @@ public class RunningArtService implements GetRunningArtUseCase, DeleteRunningArt
      */
     private RunningArt findAndVerifyOwner(Long userId, Long runningArtId) {
         RunningArt runningArt = repositoryPort.findById(runningArtId)
-                .orElseThrow(() -> new BusinessException(
-                        ErrorMessage.NOT_FOUND_RUNNING_ART,
+                .orElseThrow(() -> new ArtException(
+                        ArtErrorCode.NOT_FOUND_RUNNING_ART,
                         String.format("런닝아트(%d)를 찾지 못했습니다.", runningArtId))
                 );
         if (!runningArt.userId().equals(userId)) {
-            throw new BusinessException(
-                    ErrorMessage.USER_IS_NOT_OWNER_OF_RUNNING_ART,
+            throw new ArtException(
+                    ArtErrorCode.USER_IS_NOT_OWNER_OF_RUNNING_ART,
                     String.format("사용자(ID: %d)는 해당 런닝아트(ID: %d)에 대한 권한이 없습니다.", userId, runningArtId)
             );
         }

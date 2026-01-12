@@ -1,8 +1,8 @@
 package com.serverbe.infrastructure.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.serverbe.domain.exception.auth.AuthErrorCode;
 import com.serverbe.infrastructure.common.response.RestApiResponse;
-import com.serverbe.infrastructure.error.ErrorMessage;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -44,7 +44,7 @@ public class CustomAuthenticationEntryPoint implements AuthenticationEntryPoint 
         response.setCharacterEncoding("UTF-8");
 
         // ApiResponse.fail 형식을 그대로 유지하여 클라이언트에게 전달
-        var apiResponse = RestApiResponse.fail(ErrorMessage.UNAUTHORIZED, "인증이 필요합니다.");
+        var apiResponse = RestApiResponse.fail(AuthErrorCode.UNAUTHORIZED, "인증이 필요합니다.");
 
         response.getWriter().write(objectMapper.writeValueAsString(apiResponse));
     }

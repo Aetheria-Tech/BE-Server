@@ -6,10 +6,13 @@ import com.serverbe.adapter.out.external.kakao.dto.KakaoUserInfoResponse;
 import com.serverbe.application.port.out.dto.oauth.OAuthUserInfoResult;
 import com.serverbe.application.port.out.dto.oauth.SocialTokenRefreshResult;
 import com.serverbe.application.port.out.oauth.OAuthClientPort;
+import com.serverbe.domain.exception.external.ExternalApiErrorCode;
+import com.serverbe.domain.exception.external.ExternalApiException;
+import com.serverbe.domain.exception.server.ServerErrorCode;
+import com.serverbe.domain.exception.server.ServerException;
 import com.serverbe.domain.model.user.vo.OAuthProvider;
 import com.serverbe.infrastructure.config.properties.KakaoProperties;
-import com.serverbe.infrastructure.error.BusinessException;
-import com.serverbe.infrastructure.error.ErrorMessage;
+import com.serverbe.domain.exception.BusinessException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
@@ -61,8 +64,8 @@ public class KakaoOAuthAdapter implements OAuthClientPort {
     @Override
     public Mono<OAuthUserInfoResult> getUserInfo(String code, OAuthProvider provider) {
         if (provider != OAuthProvider.KAKAO) {
-            return Mono.error(new BusinessException(
-                    ErrorMessage.INTERNAL_SERVER_ERROR,
+            return Mono.error(new ServerException(
+                    ServerErrorCode.INTERNAL_SERVER_ERROR,
                     "카카오 어댑터는 카카오 로그인만 처리할 수 있습니다."
             ));
         }
@@ -96,7 +99,7 @@ public class KakaoOAuthAdapter implements OAuthClientPort {
                 .retrieve()
                 .onStatus(status -> status.is4xxClientError() || status.is5xxServerError(),
                         clientResponse -> clientResponse.bodyToMono(String.class)
-                                .map(body -> new BusinessException(ErrorMessage.FAILED_KAKAO_API, body)))
+                                .map(body -> new ExternalApiException(ExternalApiErrorCode.FAILED_SOCIAL_API, body)))
                 .bodyToMono(KakaoTokenResponse.class);
     }
 
@@ -113,7 +116,7 @@ public class KakaoOAuthAdapter implements OAuthClientPort {
                 .retrieve()
                 .onStatus(status -> status.is4xxClientError() || status.is5xxServerError(),
                         clientResponse -> clientResponse.bodyToMono(String.class)
-                                .map(body -> new BusinessException(ErrorMessage.FAILED_KAKAO_API, body)))
+                                .map(body -> new ExternalApiException(ExternalApiErrorCode.FAILED_SOCIAL_API, body)))
                 .bodyToMono(KakaoUserInfoResponse.class)
                 .map(response -> new OAuthUserInfoResult(
                         String.valueOf(response.id()),
@@ -145,7 +148,7 @@ public class KakaoOAuthAdapter implements OAuthClientPort {
                         .with("target_id", oauthId)) // oauthId는 숫자(Long) 형태의 카카오 회원번호여야 함
                 .retrieve()
                 .onStatus(HttpStatusCode::isError, res -> res.bodyToMono(String.class)
-                        .map(body -> new BusinessException(ErrorMessage.FAILED_KAKAO_API, "Kakao Unlink Failed: " + body)))
+                        .map(body -> new ExternalApiException(ExternalApiErrorCode.FAILED_SOCIAL_API, "Kakao Unlink Failed: " + body)))
                 .toBodilessEntity()
                 .map(response -> true)
                 // 에러 발생 시(BusinessException 포함) 흐름을 끊지 않고 false로 치환하고 싶다면 아래 주석 활용
@@ -171,7 +174,7 @@ public class KakaoOAuthAdapter implements OAuthClientPort {
                 .body(BodyInserters.fromFormData(formData))
                 .retrieve()
                 .onStatus(HttpStatusCode::isError, res -> res.bodyToMono(String.class)
-                        .map(body -> new BusinessException(ErrorMessage.FAILED_KAKAO_API, "Kakao Refresh Error: " + body)))
+                        .map(body -> new ExternalApiException(ExternalApiErrorCode.FAILED_SOCIAL_API, "Kakao Refresh Error: " + body)))
                 .bodyToMono(SocialTokenRefreshResult.class);
     }
 

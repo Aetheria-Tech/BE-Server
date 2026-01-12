@@ -5,9 +5,9 @@ import com.serverbe.application.port.out.dto.me.UserProfileResult;
 import com.serverbe.application.port.out.dto.me.UserUpdateCommand;
 import com.serverbe.application.port.in.me.GetUserUseCase;
 import com.serverbe.application.port.out.jpa.UserRepositoryPort;
+import com.serverbe.domain.exception.user.UserErrorCode;
+import com.serverbe.domain.exception.user.UserException;
 import com.serverbe.domain.model.user.User;
-import com.serverbe.infrastructure.error.BusinessException;
-import com.serverbe.infrastructure.error.ErrorMessage;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,8 +34,8 @@ public class UserService implements GetUserUseCase, UpdateUserUseCase {
     @Transactional
     public UserProfileResult getMyProfile(Long userId) {
         User user = userRepositoryPort.findById(userId)
-                .orElseThrow(() -> new BusinessException(
-                        ErrorMessage.NOT_FOUND_USER,
+                .orElseThrow(() -> new UserException(
+                        UserErrorCode.NOT_FOUND_USER,
                         String.format("사용자(ID: %d)를 찾을 수 없습니다.", userId))
                 );
 
@@ -56,8 +56,8 @@ public class UserService implements GetUserUseCase, UpdateUserUseCase {
     @Transactional
     public UserProfileResult updateMyProfile(Long userId, UserUpdateCommand command) {
         User user = userRepositoryPort.findById(userId)
-                .orElseThrow(() -> new BusinessException(
-                        ErrorMessage.NOT_FOUND_USER,
+                .orElseThrow(() -> new UserException(
+                        UserErrorCode.NOT_FOUND_USER,
                         String.format("사용자(ID: %d)를 찾을 수 없습니다.", userId))
                 );
 

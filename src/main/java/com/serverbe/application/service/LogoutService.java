@@ -2,8 +2,9 @@ package com.serverbe.application.service;
 
 import com.serverbe.application.port.in.oauth.LogoutUseCase;
 import com.serverbe.application.port.out.security.TokenResolver;
-import com.serverbe.application.port.out.token.TokenPersistencePort;
+import com.serverbe.application.service.helper.AuthSessionManager;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
@@ -11,69 +12,77 @@ import java.time.Instant;
 
 /**
  * @author Duskafka
- * @responsibility 사용자의 로그아웃 요청을 처리하여 현재 세션 또는 모든 기기의 세션을 무효화합니다.
- * @implSpec {@link LogoutUseCase} 인터페이스의 구현체로, 토큰 정보 추출과 영속성 계층의 상태 변경을 조율합니다.
+ * @responsibility 사용자의 로그아웃 요청에 따라 인증 세션을 무효화하고 사용된 토큰의 재사용을 방지합니다.
+ * @implSpec {@link LogoutUseCase}의 구현체이며, {@link AuthSessionManager}를 통해 세션 저장소(Redis)의 상태를 관리합니다.
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class LogoutService implements LogoutUseCase {
 
-    private final TokenPersistencePort tokenPersistencePort;
+    private final AuthSessionManager authSessionManager;
     private final TokenResolver tokenResolver;
 
     /**
-     * @requirement UC-AUTH-02: 현재 기기 로그아웃
-     * @responsibility 요청이 들어온 특정 기기의 세션만 종료하고 해당 액세스 토큰을 차단합니다.
-     * @implSpec
-     * 1. {@link TokenResolver#getIdFromToken(String)}을 사용하여 토큰 소유자를 식별합니다.<br>
-     * 2. {@link TokenPersistencePort#removeSpecificRefreshToken(Long, String)}을 통해 요청된 특정 리프레시 토큰만 삭제합니다.<br>
-     * 3. 현재 시각과 만료 시각의 차이를 계산하여 액세스 토큰을 블랙리스트에 등록합니다.
-     * @implNote 액세스 토큰이 블랙리스트에 등록되면 만료 전이라도 시스템 접근이 즉시 차단됩니다.
-     * @param accessToken  사용자가 로그아웃에 사용한 액세스 토큰
-     * @param refreshToken 사용자가 로그아웃을 요청한 특정 리프레시 토큰
+     * @param accessToken  로그아웃에 사용된 액세스 토큰
+     * @param refreshToken 무효화할 특정 리프레시 토큰
+     * @responsibility 현재 요청이 들어온 특정 기기의 세션만 선택적으로 종료하고 액세스 토큰을 차단합니다.
+     * @requirement <b>UC-AUTH-02: 현재 기기 로그아웃</b>
+     * @implSpec 1. {@link AuthSessionManager#terminateSession(Long, String)}을 호출하여 해당 리프레시 토큰을 무효화합니다.<br>
+     * 2. 탈취된 토큰의 재사용을 방지하기 위해 사용된 액세스 토큰을 블랙리스트에 등록합니다.
      */
     @Override
     public void logout(String accessToken, String refreshToken) {
-        // 1. 토큰에서 사용자 ID 추출
         Long userId = tokenResolver.getIdFromToken(accessToken);
 
-        // 2. Redis에서 리프레시 토큰 삭제 (더 이상 재발급 불가)
-        tokenPersistencePort.removeSpecificRefreshToken(userId, refreshToken);
+        // 특정 리프레시 토큰 삭제 (세션 종료)
+        authSessionManager.terminateSession(userId, refreshToken);
 
-        // 3. 액세스 토큰의 남은 유효 시간 계산
-        Instant expiration = tokenResolver.getExpirationFromToken(accessToken);
-        Duration remainingTime = Duration.between(Instant.now(), expiration);
+        // 액세스 토큰 차단
+        handleTokenBlacklist(accessToken, userId, "현재 기기");
+    }
 
-        // 4. 액세스 토큰 블랙리스트 등록 (남은 시간 동안만)
+    /**
+     * @param accessToken 로그아웃에 사용된 액세스 토큰
+     * @responsibility 해당 사용자와 연결된 모든 기기의 세션을 일괄 종료하여 보안 사고에 대응합니다.
+     * @requirement <b>UC-AUTH-03: 모든 기기 로그아웃</b>
+     * @implNote 계정 탈취 의심 시나리오나 비밀번호 변경 후 강제 로그아웃이 필요한 경우 활용됩니다.
+     */
+    @Override
+    public void globalLogout(String accessToken) {
+        Long userId = tokenResolver.getIdFromToken(accessToken);
+
+        // 모든 리프레시 토큰 삭제 (전체 세션 종료)
+        authSessionManager.terminateAllSessions(userId);
+
+        // 현재 사용 중인 액세스 토큰 차단
+        handleTokenBlacklist(accessToken, userId, "모든 기기");
+        log.warn("[SECURITY ALERT] 사용자(ID: {})의 모든 세션이 일괄 종료되었습니다.", userId);
+    }
+
+    /**
+     * @param accessToken 차단할 토큰
+     * @param userId      유저 식별자
+     * @param type        로그아웃 유형 (로그 기록용)
+     * @responsibility 액세스 토큰의 남은 수명을 계산하여 블랙리스트에 등록함으로써 즉각적인 접근 차단을 보장합니다.
+     */
+    private void handleTokenBlacklist(String accessToken, Long userId, String type) {
+        Duration remainingTime = calculateRemainingDuration(accessToken);
+
         if (!remainingTime.isNegative()) {
-            tokenPersistencePort.blacklistAccessToken(accessToken, remainingTime);
+            authSessionManager.registerBlacklist(accessToken, remainingTime);
+            log.info("[LOGOUT] {} 로그아웃 처리 완료. 사용자 ID: {}, 차단 유효 시간: {}초",
+                    type, userId, remainingTime.getSeconds());
         }
     }
 
     /**
-     * @requirement UC-AUTH-03: 모든 기기 로그아웃
-     * @responsibility 해당 사용자의 모든 활성화된 세션을 일괄 종료하여 보안 사고에 대응하거나 전체 로그아웃을 수행합니다.
-     * @implSpec
-     * 1. {@link TokenPersistencePort#deleteRefreshToken(Long)}을 호출하여 유저와 연결된 모든 리프레시 토큰을 제거합니다.<br>
-     * 2. 현재 사용 중인 액세스 토큰 역시 블랙리스트에 등록하여 즉시 무효화합니다.
-     * @implNote 이 기능은 계정 탈취 의심 상황이나 비밀번호 변경 후 강제 로그아웃 시나리오에서 핵심적인 역할을 합니다.
-     * @param accessToken 사용자가 로그아웃에 사용한 액세스 토큰
+     * @param accessToken 기간을 계산할 토큰
+     * @return 남은 시간 {@link Duration}
+     * @responsibility 토큰의 만료 시각을 기반으로 현재 시각 기준 남은 유효 기간(TTL)을 산출합니다.
      */
-    @Override
-    public void globalLogout(String accessToken) {
-        // 1. 토큰에서 사용자 ID 추출
-        Long userId = tokenResolver.getIdFromToken(accessToken);
-
-        // 2. 모든 리프레쉬 토큰 삭제
-        tokenPersistencePort.deleteRefreshToken(userId);
-
-        // 3. 액세스 토큰의 남은 유효 시간 계산
+    private Duration calculateRemainingDuration(String accessToken) {
         Instant expiration = tokenResolver.getExpirationFromToken(accessToken);
-        Duration remainingTime = Duration.between(Instant.now(), expiration);
-
-        // 4. 액세스 토큰 블랙리스트 등록 (남은 시간 동안만)
-        if (!remainingTime.isNegative()) {
-            tokenPersistencePort.blacklistAccessToken(accessToken, remainingTime);
-        }
+        return Duration.between(Instant.now(), expiration);
     }
 }
