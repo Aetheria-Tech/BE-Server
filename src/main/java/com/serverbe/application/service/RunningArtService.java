@@ -26,12 +26,13 @@ public class RunningArtService implements GetRunningArtUseCase, DeleteRunningArt
     private final RunningArtRepositoryPort repositoryPort;
 
     /**
-     * @param userId 런닝 아트를 조회할 사용자의 고유 식별자
-     * @return 사용자의 런닝 아트 정보 리스트
+     * @param userId   런닝 아트를 조회할 사용자의 고유 식별자
+     * @param pageable 페이징 정보
+     * @return 사용자의 런닝 아트 정보 페이지
      * @requirement UC-ART-03: 사용자의 전체 런닝 아트 조회 요청
      * @responsibility 특정 사용자가 보유한 모든 런닝 아트 목록을 조회합니다.
      * @implSpec 1. {@link RunningArtRepositoryPort#findByUserId(Long, Pageable)}를 통해 해당 유저의 엔티티 목록을 획득합니다.<br>
-     * 2. Java Stream API를 활용하여 도메인 모델을 {@link RunningArtResult} DTO로 일괄 변환합니다.
+     * 2. {@link Page#map(java.util.function.Function)}을 활용하여 도메인 모델을 {@link RunningArtResult} DTO로 일괄 변환합니다.
      * @implNote 현재 순수 JPA로 구현되어 있으며, 대량 데이터 조회 시 성능 최적화가 필요할 경우 Querydsl Projection 도입을 고려해야 합니다.
      */
     @Override
