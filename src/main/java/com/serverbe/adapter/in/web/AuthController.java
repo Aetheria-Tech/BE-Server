@@ -14,6 +14,7 @@ import com.serverbe.domain.model.user.vo.OAuthProvider;
 import com.serverbe.infrastructure.common.response.RestApiResponse;
 import com.serverbe.infrastructure.config.properties.JwtProperties;
 import com.serverbe.infrastructure.security.TokenExtractor;
+import com.serverbe.infrastructure.util.DeviceUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.headers.Header;
@@ -125,12 +126,14 @@ public class AuthController {
             @Parameter(description = "소셜 서버에서 발급한 일회성 인가 코드", required = true)
             @RequestParam("code") @NotBlank String code,
 
+            @Parameter(hidden = true) HttpServletRequest request,
             @Parameter(hidden = true) HttpServletResponse response
     ) {
+        String deviceId = DeviceUtils.extractDeviceId(request);
         // 1. 인가 코드로 소셜 서버와 통신하여 유저 정보 획득
         // 2. 신규 유저면 가입, 기존 유저면 정보 업데이트(Upsert)
         // 3. 우리 서비스 전용 액세스/리프레시 토큰 발급 및 리프레시 토큰 Redis 저장
-        return loginUseCase.login(code, provider)
+        return loginUseCase.login(code, provider, deviceId)
                 .map(tokenResponse -> {
                     addCookieToResponse(response, tokenResponse.refreshTokenResult().opaqueToken(), refreshTokenCookieExpireSeconds);
                     return RestApiResponse.success(AccessTokenResponse.toResponse(tokenResponse.accessTokenResult()));
@@ -244,6 +247,7 @@ public class AuthController {
             @Parameter(hidden = true) HttpServletRequest request,
             @Parameter(hidden = true) HttpServletResponse response
     ) {
+        String deviceId = DeviceUtils.extractDeviceId(request);
         String accessToken = tokenExtractor.extractAccessToken(request);
         String refreshToken = tokenExtractor.extractRefreshToken(request);
 
@@ -251,7 +255,7 @@ public class AuthController {
             return Mono.error(new AuthException(AuthErrorCode.JWT_TOKEN_IS_EMPTY));
         }
 
-        return Mono.fromCallable(() -> reissueUseCase.reissue(accessToken, refreshToken))
+        return Mono.fromCallable(() -> reissueUseCase.reissue(accessToken, refreshToken, deviceId))
                 .subscribeOn(Schedulers.boundedElastic())
                 .map(tokenResponse -> {
                     addCookieToResponse(response, tokenResponse.refreshTokenResult().opaqueToken(), refreshTokenCookieExpireSeconds);

@@ -32,6 +32,7 @@ public class ReissueService implements ReissueUseCase {
 
     /**
      * @param accessToken  만료된 액세스 토큰 (클레임 추출용)
+     * @param deviceId 사용자의 기기 식별자
      * @param refreshToken 현재 클라이언트가 보유한 리프레시 토큰
      * @return 신규 발급된 액세스/리프레시 토큰 쌍 {@link TokenResult}
      * @throws BusinessException - REFRESH_TOKEN_NOT_EXIST: 토큰 형식이 잘못된 경우<br>
@@ -40,7 +41,7 @@ public class ReissueService implements ReissueUseCase {
      * @responsibility 만료된 액세스 토큰에서 유저 정보를 복구하고, 리프레시 토큰의 생존 여부를 대조하여 안전하게 세션을 연장합니다.
      */
     @Override
-    public TokenResult reissue(String accessToken, String refreshToken) {
+    public TokenResult reissue(String accessToken, String refreshToken, String deviceId) {
         // 1. 리프레시 토큰의 구조적 유효성(형식, 서명 등) 선검증
         validateTokenFormat(refreshToken);
 

@@ -45,7 +45,7 @@ public class UserDataCleanupManager {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    tokenPersistencePort.deleteRefreshToken(userId);
+                    tokenPersistencePort.deleteAllRefreshToken(userId);
                     log.info("[DATA CLEANUP] Redis 세션 데이터가 성공적으로 삭제되었습니다. UserID: {}", userId);
                 }
             });
