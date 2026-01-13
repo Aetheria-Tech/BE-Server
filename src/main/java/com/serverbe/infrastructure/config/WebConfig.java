@@ -1,5 +1,7 @@
 package com.serverbe.infrastructure.config;
 
+import com.serverbe.adapter.in.web.support.resolver.AppVersionArgumentResolver;
+import com.serverbe.adapter.in.web.support.resolver.ClientIpArgumentResolver;
 import com.serverbe.adapter.in.web.support.resolver.DeviceIdArgumentResolver;
 import com.serverbe.adapter.in.web.support.resolver.TokenArgumentResolver;
 import com.serverbe.infrastructure.config.converter.StringToOAuthProviderConverter;
@@ -27,11 +29,15 @@ public class WebConfig implements WebMvcConfigurer {
     private final EncryptionContextInterceptor encryptionContextInterceptor;
     private final DeviceIdArgumentResolver deviceIdArgumentResolver;
     private final TokenArgumentResolver tokenArgumentResolver;
+    private final ClientIpArgumentResolver clientIpArgumentResolver;
+    private final AppVersionArgumentResolver appVersionArgumentResolver;
 
     @Override
     public void addArgumentResolvers(List<HandlerMethodArgumentResolver> resolvers) {
         resolvers.add(deviceIdArgumentResolver);
         resolvers.add(tokenArgumentResolver);
+        resolvers.add(clientIpArgumentResolver);
+        resolvers.add(appVersionArgumentResolver);
     }
 
     /**

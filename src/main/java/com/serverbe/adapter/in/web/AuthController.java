@@ -16,8 +16,6 @@ import com.serverbe.domain.exception.server.ServerException;
 import com.serverbe.domain.model.user.vo.OAuthProvider;
 import com.serverbe.infrastructure.common.response.RestApiResponse;
 import com.serverbe.infrastructure.config.properties.JwtProperties;
-import com.serverbe.infrastructure.security.TokenExtractor;
-import com.serverbe.infrastructure.util.DeviceUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
@@ -26,7 +24,6 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.http.HttpHeaders;
@@ -52,7 +49,6 @@ public class AuthController {
     private final WithdrawUseCase withdrawUseCase;
     private final LogoutUseCase logoutUseCase;
     private final ReissueUseCase reissueUseCase;
-    private final TokenExtractor tokenExtractor;
     private final String refreshTokenCookie;
     private final long refreshTokenCookieExpireSeconds;
 
@@ -61,14 +57,12 @@ public class AuthController {
             WithdrawUseCase withdrawUseCase,
             LogoutUseCase logoutUseCase,
             ReissueUseCase reissueUseCase,
-            TokenExtractor tokenExtractor,
             JwtProperties jwtProperties
     ) {
         this.loginUseCase = loginUseCase;
         this.withdrawUseCase = withdrawUseCase;
         this.logoutUseCase = logoutUseCase;
         this.reissueUseCase = reissueUseCase;
-        this.tokenExtractor = tokenExtractor;
         this.refreshTokenCookie = jwtProperties.refreshToken().cookie();
         this.refreshTokenCookieExpireSeconds = jwtProperties.refreshToken().expirationDays().toSeconds();
     }
@@ -130,7 +124,7 @@ public class AuthController {
             @Parameter(description = "소셜 서버에서 발급한 일회성 인가 코드", required = true)
             @RequestParam("code") @NotBlank String code,
 
-            @Parameter(hidden = true) @ExtractDeviceId String deviceId,
+            @ExtractDeviceId String deviceId,
             @Parameter(hidden = true) HttpServletResponse response
     ) {
         // 1. 인가 코드로 소셜 서버와 통신하여 유저 정보 획득
@@ -182,8 +176,8 @@ public class AuthController {
     @PostMapping("/logout")
     public RestApiResponse<Void> logout(
             @Parameter(hidden = true) HttpServletResponse response,
-            @Parameter(hidden = true) @ExtractAccessToken String accessToken,
-            @Parameter(hidden = true) @ExtractRefreshToken String refreshToken
+            @ExtractAccessToken String accessToken,
+            @ExtractRefreshToken String refreshToken
     ) {
         // 1. 로그아웃 로직 수행 (Redis에서 리프레시 토큰 삭제 및 엑세스 토큰 블랙리스트 처리 등)
         logoutUseCase.logout(accessToken, refreshToken);
@@ -212,7 +206,7 @@ public class AuthController {
     )
     @PostMapping("/logout/all")
     public RestApiResponse<Void> globalLogout(
-            @Parameter(hidden = true) @ExtractAccessToken String accessToken,
+            @ExtractAccessToken String accessToken,
             @Parameter(hidden = true) HttpServletResponse response
     ) {
         logoutUseCase.globalLogout(accessToken);
@@ -256,9 +250,9 @@ public class AuthController {
     )
     @PostMapping("/reissue")
     public Mono<RestApiResponse<AccessTokenResponse>> reissue(
-            @Parameter(hidden = true) @ExtractDeviceId String deviceId,
-            @Parameter(hidden = true) @ExtractAccessToken String accessToken,
-            @Parameter(hidden = true) @ExtractRefreshToken String refreshToken,
+            @ExtractDeviceId String deviceId,
+            @ExtractAccessToken String accessToken,
+            @ExtractRefreshToken String refreshToken,
             @Parameter(hidden = true) HttpServletResponse response
     ) {
         if (!StringUtils.hasText(refreshToken)) {
