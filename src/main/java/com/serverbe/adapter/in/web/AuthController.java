@@ -1,6 +1,9 @@
 package com.serverbe.adapter.in.web;
 
+import com.serverbe.adapter.in.web.support.annotation.ExtractAccessToken;
+import com.serverbe.adapter.in.web.support.annotation.ExtractDeviceId;
 import com.serverbe.adapter.in.web.dto.auth.AccessTokenResponse;
+import com.serverbe.adapter.in.web.support.annotation.ExtractRefreshToken;
 import com.serverbe.application.port.in.oauth.LogoutUseCase;
 import com.serverbe.application.port.in.oauth.LoginUseCase;
 import com.serverbe.application.port.in.oauth.WithdrawUseCase;
@@ -17,6 +20,7 @@ import com.serverbe.infrastructure.security.TokenExtractor;
 import com.serverbe.infrastructure.util.DeviceUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.headers.Header;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -126,10 +130,9 @@ public class AuthController {
             @Parameter(description = "소셜 서버에서 발급한 일회성 인가 코드", required = true)
             @RequestParam("code") @NotBlank String code,
 
-            @Parameter(hidden = true) HttpServletRequest request,
+            @Parameter(hidden = true) @ExtractDeviceId String deviceId,
             @Parameter(hidden = true) HttpServletResponse response
     ) {
-        String deviceId = DeviceUtils.extractDeviceId(request);
         // 1. 인가 코드로 소셜 서버와 통신하여 유저 정보 획득
         // 2. 신규 유저면 가입, 기존 유저면 정보 업데이트(Upsert)
         // 3. 우리 서비스 전용 액세스/리프레시 토큰 발급 및 리프레시 토큰 Redis 저장
@@ -178,17 +181,14 @@ public class AuthController {
     )
     @PostMapping("/logout")
     public RestApiResponse<Void> logout(
-            @Parameter(hidden = true) HttpServletRequest request,
-            @Parameter(hidden = true) HttpServletResponse response
+            @Parameter(hidden = true) HttpServletResponse response,
+            @Parameter(hidden = true) @ExtractAccessToken String accessToken,
+            @Parameter(hidden = true) @ExtractRefreshToken String refreshToken
     ) {
-        // 1. 요청 헤더 및 쿠키에서 토큰 추출
-        String accessToken = tokenExtractor.extractAccessToken(request);
-        String refreshToken = tokenExtractor.extractRefreshToken(request);
-
-        // 2. 로그아웃 로직 수행 (Redis에서 리프레시 토큰 삭제 및 엑세스 토큰 블랙리스트 처리 등)
+        // 1. 로그아웃 로직 수행 (Redis에서 리프레시 토큰 삭제 및 엑세스 토큰 블랙리스트 처리 등)
         logoutUseCase.logout(accessToken, refreshToken);
 
-        // 3. 클라이언트 쿠키 삭제 (Max-Age를 0으로 설정하여 즉시 만료)
+        // 2. 클라이언트 쿠키 삭제 (Max-Age를 0으로 설정하여 즉시 만료)
         addCookieToResponse(response, "", 0);
         return RestApiResponse.noContent();
     }
@@ -212,11 +212,9 @@ public class AuthController {
     )
     @PostMapping("/logout/all")
     public RestApiResponse<Void> globalLogout(
-            @Parameter(hidden = true) HttpServletRequest request,
+            @Parameter(hidden = true) @ExtractAccessToken String accessToken,
             @Parameter(hidden = true) HttpServletResponse response
     ) {
-
-        String accessToken = tokenExtractor.extractAccessToken(request);
         logoutUseCase.globalLogout(accessToken);
         addCookieToResponse(response, "", 0);
         return RestApiResponse.noContent();
@@ -227,6 +225,20 @@ public class AuthController {
             description = "만료된 Access Token과 유효한 Refresh Token을 사용하여 새로운 토큰 세트(Access/Refresh)를 발급받습니다. " +
                     "RTR 정책에 따라 기존 리프레시 토큰은 더 이상 사용할 수 없으며, 새 리프레시 토큰이 쿠키로 설정됩니다.",
             security = @SecurityRequirement(name = "jwtAuth"),
+            parameters = {
+                    @Parameter(
+                            name = "X-Device-Id",
+                            description = "기기 고유 식별자 (모바일 앱의 경우 UUID 등 고유값 권장). 이 값이 존재하면 최우선으로 기기 식별에 사용됩니다.",
+                            in = ParameterIn.HEADER,
+                            example = "550e8400-e29b-41d4-a716-446655440000"
+                    ),
+                    @Parameter(
+                            name = "User-Agent",
+                            description = "클라이언트 브라우저/기기 정보. X-Device-Id가 없을 경우, 이 값을 해싱하여 기기 식별자로 사용합니다. (브라우저는 자동 전송)",
+                            in = ParameterIn.HEADER,
+                            example = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                    )
+            },
             responses = {
                     @ApiResponse(
                             responseCode = "200",
@@ -244,13 +256,11 @@ public class AuthController {
     )
     @PostMapping("/reissue")
     public Mono<RestApiResponse<AccessTokenResponse>> reissue(
-            @Parameter(hidden = true) HttpServletRequest request,
+            @Parameter(hidden = true) @ExtractDeviceId String deviceId,
+            @Parameter(hidden = true) @ExtractAccessToken String accessToken,
+            @Parameter(hidden = true) @ExtractRefreshToken String refreshToken,
             @Parameter(hidden = true) HttpServletResponse response
     ) {
-        String deviceId = DeviceUtils.extractDeviceId(request);
-        String accessToken = tokenExtractor.extractAccessToken(request);
-        String refreshToken = tokenExtractor.extractRefreshToken(request);
-
         if (!StringUtils.hasText(refreshToken)) {
             return Mono.error(new AuthException(AuthErrorCode.JWT_TOKEN_IS_EMPTY));
         }
