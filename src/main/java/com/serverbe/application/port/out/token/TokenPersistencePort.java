@@ -9,14 +9,12 @@ import java.util.Set;
  */
 public interface TokenPersistencePort {
 
-    // --- 리프레시 토큰 관련 (멀티 디바이스 대응) ---
-
     /**
-     * @responsibility 특정 기기의 리프레시 토큰을 저장하고, 해당 사용자의 세션 목록(Index)을 업데이트합니다.
-     * @param userId 사용자 식별자
-     * @param deviceId 기기 식별자 (모바일, PC 등)
+     * @param userId       사용자 식별자
+     * @param deviceId     기기 식별자 (모바일, PC 등)
      * @param refreshToken 발급된 리프레시 토큰
-     * @param expiry 토큰 유효 기간
+     * @param expiry       토큰 유효 기간
+     * @responsibility 특정 기기의 리프레시 토큰을 저장하고, 해당 사용자의 세션 목록(Index)을 업데이트합니다.
      */
     void saveRefreshToken(Long userId, String deviceId, String refreshToken, Duration expiry);
 
@@ -42,8 +40,8 @@ public interface TokenPersistencePort {
     Set<String> getAllDeviceIds(Long userId);
 
     /**
-     * @responsibility 사용자가 보유한 세션 중 가장 오래된(점수가 가장 낮은) 세션을 삭제합니다.
      * @param userId 사용자 식별자
+     * @responsibility 사용자가 보유한 세션 중 가장 오래된(점수가 가장 낮은) 세션을 삭제합니다.
      */
     void removeOldestSession(Long userId);
 
@@ -52,12 +50,19 @@ public interface TokenPersistencePort {
      */
     long getSessionCount(Long userId);
 
+    /**
+     * @responsibility 신규 토큰 저장과 기존 토큰 블랙리스트 등록을 하나의 원자적 작업으로 수행합니다.
+     */
+    void rotateRefreshToken(Long userId, String deviceId, String oldRefreshToken, String newRefreshToken, Duration expiry);
 
-    // --- 액세스 토큰 관련 (기존 유지) ---
 
     void blacklistAccessToken(String accessToken, Duration remainingTime);
 
-    boolean isBlacklisted(String accessToken);
+    void blacklistRefreshToken(String refreshToken, Duration remainingTime);
+
+    boolean isAccessTokenBlacklisted(String accessToken);
+
+    boolean isRefreshTokenBlacklisted(String refreshToken);
 
     /**
      * @responsibility 특정 기기의 리프레시 토큰이 저장소에 존재하고 일치하는지 검증합니다.

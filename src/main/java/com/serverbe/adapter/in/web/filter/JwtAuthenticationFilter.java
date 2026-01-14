@@ -54,7 +54,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
      * @throws BusinessException 토큰이 블랙리스트에 등록되어 있거나 인증 과정에서 문제가 발생할 경우 발생
      * @responsibility 요청에서 토큰을 추출하고, 유효성 검증 및 블랙리스트 대조 후 인증 객체를 등록합니다.
      * @implSpec 1. <b>토큰 추출</b>: {@link TokenExtractor}를 통해 헤더에서 Bearer 토큰을 가져옵니다.<br>
-     * 2. <b>블랙리스트 검사</b>: 유효한 토큰이라도 이미 로그아웃된 토큰인지 {@link TokenPersistencePort#isBlacklisted(String)}로 확인합니다.<br>
+     * 2. <b>블랙리스트 검사</b>: 유효한 토큰이라도 이미 로그아웃된 토큰인지 {@link TokenPersistencePort#isAccessTokenBlacklisted(String)}로 확인합니다.<br>
      * 3. <b>인증 등록</b>: 모든 검증이 완료되면 {@link SecurityContextHolder}에 인증 정보를 저장합니다.
      */
     @Override
@@ -69,7 +69,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             if (StringUtils.hasText(token) && tokenResolver.validateAccessToken(token)) {
 
                 // 1. 블랙리스트 확인을 인증 객체 등록보다 먼저 수행 (Fail-Fast)
-                if (tokenPersistencePort.isBlacklisted(token)) {
+                if (tokenPersistencePort.isAccessTokenBlacklisted(token)) {
                     log.warn("[JWT Filter] 로그아웃된 토큰으로 접근 시도: {}", token);
                     throw new AuthException(AuthErrorCode.JWT_TOKEN_IS_LOGOUT);
                 }

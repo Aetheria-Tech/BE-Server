@@ -1,13 +1,18 @@
 package com.serverbe.adapter.out.persistence.token;
 
 import com.serverbe.application.port.out.token.TokenPersistencePort;
+import com.serverbe.infrastructure.config.properties.JwtProperties;
 import com.serverbe.infrastructure.config.properties.RedisProperties;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.core.RedisOperations;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.SessionCallback;
 import org.springframework.stereotype.Component;
 
+import java.security.MessageDigest;
 import java.time.Duration;
 import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -25,20 +30,28 @@ public class TokenPersistenceAdapter implements TokenPersistencePort {
 
     private final RedisTemplate<String, Object> redisTemplate;
     private final int maxToken;
+    private final Duration refreshTokenExpireDays;
 
     // Key 구성을 위한 접두어/접미어
-    private final String rtPrefix;
-    private final String blPrefix;
-    private final String sessionSuffix = "sessions"; // 세션 인덱스용 구분자
+    private final String authPrefix;
+    private final String authSuffix;
+    private final String atBlacklistPrefix;
+    private final String rtBlacklistPrefix;
+    private final String sessionSuffix;
 
     public TokenPersistenceAdapter(
             RedisTemplate<String, Object> redisTemplate,
-            RedisProperties redisProperties
+            RedisProperties redisProperties,
+            JwtProperties jwtProperties
     ) {
         this.redisTemplate = redisTemplate;
         this.maxToken = redisProperties.auth().maxToken();
-        this.rtPrefix = redisProperties.auth().prefix();
-        this.blPrefix = redisProperties.blacklist().prefix();
+        this.refreshTokenExpireDays = jwtProperties.refreshToken().expirationDays();
+        this.authPrefix = redisProperties.auth().prefix();
+        this.authSuffix = redisProperties.auth().suffix();
+        this.sessionSuffix = redisProperties.session().suffix();
+        this.atBlacklistPrefix = redisProperties.blacklist().accessTokenPrefix();
+        this.rtBlacklistPrefix = redisProperties.blacklist().refreshTokenPrefix();
     }
 
     // =================================================================================
@@ -47,6 +60,7 @@ public class TokenPersistenceAdapter implements TokenPersistencePort {
 
     /**
      * @responsibility 토큰 저장 및 세션 인덱스 업데이트 (세션 제한 로직 포함)
+     * @implSpec 원자성을 보장하도록 execute로 묶었습니다.
      */
     @Override
     public void saveRefreshToken(Long userId, String deviceId, String refreshToken, Duration expiry) {
@@ -54,16 +68,18 @@ public class TokenPersistenceAdapter implements TokenPersistencePort {
         String sessionKey = createSessionIndexKey(userId);
         long timestamp = System.currentTimeMillis();
 
-        // 1. 실제 토큰 데이터 저장 (각 기기별 독립 TTL 설정)
-        redisTemplate.opsForValue().set(tokenKey, refreshToken, expiry);
+        // 트랜잭션으로 묶어 원자성 보장
+        redisTemplate.execute(new SessionCallback<List<Object>>() {
+            @Override
+            public List<Object> execute(RedisOperations operations) {
+                operations.multi();
+                operations.opsForValue().set(tokenKey, refreshToken, expiry);
+                operations.opsForZSet().add(sessionKey, deviceId, timestamp);
+                operations.expire(sessionKey, refreshTokenExpireDays);
+                return operations.exec();
+            }
+        });
 
-        // 2. 세션 인덱스(ZSet)에 기기 ID와 로그인 시간(Score) 등록
-        redisTemplate.opsForZSet().add(sessionKey, deviceId, timestamp);
-        // 세션 인덱스 키 자체의 만료 시간은 넉넉하게 잡거나(예: 30일), 토큰 만료 시점에 맞춰 관리해야 함.
-        // 여기서는 편의상 가장 긴 토큰 수명보다 길게 갱신.
-        redisTemplate.expire(sessionKey, Duration.ofDays(30));
-
-        // 3. 최대 세션 개수 초과 시 가장 오래된 세션 삭제 (LRU)
         manageSessionLimit(userId, sessionKey);
     }
 
@@ -168,25 +184,56 @@ public class TokenPersistenceAdapter implements TokenPersistencePort {
         return storedToken != null && storedToken.equals(refreshToken);
     }
 
-
-    // =================================================================================
-    //  액세스 토큰 블랙리스트 (기존 로직 유지)
-    // =================================================================================
-
     @Override
     public void blacklistAccessToken(String accessToken, Duration remainingTime) {
-        redisTemplate.opsForValue().set(createBlacklistKey(accessToken), "logout", remainingTime);
+        redisTemplate.opsForValue().set(createAccessTokenBlacklistKey(accessToken), "logout", remainingTime);
     }
 
     @Override
-    public boolean isBlacklisted(String accessToken) {
-        return Boolean.TRUE.equals(redisTemplate.hasKey(createBlacklistKey(accessToken)));
+    public void blacklistRefreshToken(String refreshToken, Duration remainingTime) {
+        redisTemplate.opsForValue().set(createRefreshTokenBlacklistKey(refreshToken), "used", remainingTime);
     }
 
+    @Override
+    public boolean isAccessTokenBlacklisted(String accessToken) {
+        return Boolean.TRUE.equals(redisTemplate.hasKey(createAccessTokenBlacklistKey(accessToken)));
+    }
 
-    // =================================================================================
-    //  Private Helpers
-    // =================================================================================
+    @Override
+    public boolean isRefreshTokenBlacklisted(String refreshToken) {
+        return Boolean.TRUE.equals(redisTemplate.hasKey(createRefreshTokenBlacklistKey(refreshToken)));
+    }
+
+    @Override
+    public void rotateRefreshToken(Long userId, String deviceId, String oldRefreshToken, String newRefreshToken, Duration expiry) {
+        String tokenKey = createTokenKey(userId, deviceId);
+        String sessionKey = createSessionIndexKey(userId);
+        String blacklistKey = createRefreshTokenBlacklistKey(oldRefreshToken); // 기존 토큰 해싱 키
+        long timestamp = System.currentTimeMillis();
+
+        redisTemplate.execute(new SessionCallback<List<Object>>() {
+            @Override
+            public List<Object> execute(RedisOperations operations) {
+                operations.multi(); // 트랜잭션 시작
+
+                // 1. 신규 토큰 저장 (덮어쓰기)
+                operations.opsForValue().set(tokenKey, newRefreshToken, expiry);
+
+                // 2. 기존 토큰 블랙리스트 등록 (최대 수명 적용)
+                operations.opsForValue().set(blacklistKey, "used", expiry);
+
+                // 3. 세션 인덱스 시간 갱신 및 만료시간 연장
+                operations.opsForZSet().add(sessionKey, deviceId, timestamp);
+                operations.expire(sessionKey, refreshTokenExpireDays);
+
+                return operations.exec(); // 한 번에 실행
+            }
+        });
+
+        // 4. 세션 개수 제한 로직 (기존 메서드 재사용)
+        manageSessionLimit(userId, sessionKey);
+    }
+
 
     /**
      * 세션 개수 제한을 확인하고 초과 시 삭제하는 내부 로직
@@ -194,26 +241,61 @@ public class TokenPersistenceAdapter implements TokenPersistencePort {
     private void manageSessionLimit(Long userId, String sessionKey) {
         Long currentSize = redisTemplate.opsForZSet().zCard(sessionKey);
         if (currentSize != null && currentSize > maxToken) {
-            // maxToken을 초과한 만큼 반복해서 삭제 (혹은 removeOldestSession 호출)
             long removeCount = currentSize - maxToken;
-            for (int i = 0; i < removeCount; i++) {
-                removeOldestSession(userId);
+
+            // 1. 삭제할 기기 ID들을 한꺼번에 가져옴 (0번부터 removeCount-1번까지가 가장 오래된 것들)
+            Set<Object> oldestDeviceIds = redisTemplate.opsForZSet().range(sessionKey, 0, removeCount - 1);
+
+            if (oldestDeviceIds != null && !oldestDeviceIds.isEmpty()) {
+                // 2. 해당 기기들의 토큰 데이터 일괄 삭제
+                List<String> tokenKeysToDelete = oldestDeviceIds.stream()
+                        .map(deviceId -> createTokenKey(userId, deviceId.toString()))
+                        .collect(Collectors.toList());
+                redisTemplate.delete(tokenKeysToDelete);
+
+                // 3. 세션 인덱스에서 한꺼번에 제거
+                redisTemplate.opsForZSet().removeRange(sessionKey, 0, removeCount - 1);
+
+                log.info("Session limit exceeded for user {}. Removed {} oldest sessions.", userId, removeCount);
             }
         }
     }
 
-    // Key: {prefix}:{userId}:{deviceId}  (예: RT:101:mobile-uuid-1234)
     private String createTokenKey(Long userId, String deviceId) {
-        return String.format("%s:%s:%s", rtPrefix, userId, deviceId);
+        return String.format("%s:%d:%s:%s", authPrefix, userId, authSuffix, deviceId);
     }
 
     // Key: {prefix}:sessions:{userId} (예: RT:sessions:101)
     private String createSessionIndexKey(Long userId) {
-        return String.format("%s:%s:%s", rtPrefix, sessionSuffix, userId);
+        return String.format("%s:%s:%s", authPrefix, sessionSuffix, userId);
     }
 
-    // Key: {prefix}:{accessToken} (예: BL:eyJhbGc...)
-    private String createBlacklistKey(String accessToken) {
-        return String.format("%s:%s", blPrefix, accessToken);
+    /**
+     * AT 블랙리스트 키
+     * 패턴: BL:AT:{token}
+     */
+    private String createAccessTokenBlacklistKey(String accessToken) {
+        return String.format("%s:%s", atBlacklistPrefix, accessToken);
+    }
+
+    /**
+     * RT 블랙리스트 키
+     * 패턴: BL:RT:{token} (기기 정보 없음)
+     */
+    private String createRefreshTokenBlacklistKey(String refreshToken) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(refreshToken.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            StringBuilder hexString = new StringBuilder();
+            for (byte b : hash) {
+                String hex = Integer.toHexString(0xff & b);
+                if (hex.length() == 1) hexString.append('0');
+                hexString.append(hex);
+            }
+            return String.format("%s:%s", rtBlacklistPrefix, hexString);
+        } catch (Exception e) {
+            // 해싱 실패 시 폴백 (토큰 원문 사용 혹은 예외 처리)
+            return String.format("%s:%s", rtBlacklistPrefix, refreshToken);
+        }
     }
 }

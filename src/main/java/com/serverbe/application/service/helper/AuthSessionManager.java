@@ -10,8 +10,7 @@ import java.time.Duration;
 /**
  * @author Duskafka
  * @responsibility 멀티 디바이스 환경에서 인증 세션의 생명주기(생성, 검증, 파기, 교체)를 관리합니다.
- * @implSpec
- * 1. <b>Device Isolation</b>: `UserId`와 `DeviceId`를 조합하여 기기별로 독립적인 세션을 관리합니다.<br>
+ * @implSpec 1. <b>Device Isolation</b>: `UserId`와 `DeviceId`를 조합하여 기기별로 독립적인 세션을 관리합니다.<br>
  * 2. <b>Security Policy</b>: 액세스 토큰 블랙리스트 처리 및 RTR(Refresh Token Rotation) 시 토큰 갱신을 담당합니다.
  */
 @Slf4j
@@ -66,6 +65,7 @@ public class AuthSessionManager {
         log.info("[BLACKLIST] 액세스 토큰 차단 완료. 유지 시간: {} seconds", remainingTime.getSeconds());
     }
 
+
     /**
      * @param userId       유저 고유 식별자
      * @param deviceId     요청한 기기 식별자
@@ -81,6 +81,10 @@ public class AuthSessionManager {
         return isValid;
     }
 
+    public boolean isRefreshTokenBlacklisted(String token) {
+        return tokenPersistencePort.isRefreshTokenBlacklisted(token);
+    }
+
     /**
      * @param userId          유저 고유 식별자
      * @param deviceId        요청한 기기 식별자
@@ -88,9 +92,16 @@ public class AuthSessionManager {
      * @responsibility <b>RTR(Refresh Token Rotation)</b> 정책에 따라 해당 기기의 토큰을 갱신합니다.
      * @implNote 기존에는 `삭제 -> 저장` 방식이었으나, Key-Value 구조에서는 `덮어쓰기(Overwrite)`만으로 교체가 완료됩니다.
      */
-    public void rotateSession(Long userId, String deviceId, String newRefreshToken) {
-        // Redis의 Key({prefix}:{userId}:{deviceId})가 동일하므로, save를 호출하면 값이 덮어씌워짐(Update)
-        tokenPersistencePort.saveRefreshToken(userId, deviceId, newRefreshToken, refreshTokenExpirationDays);
-        log.info("[SESSION] 리프레시 토큰 교체(RTR) 완료. UserID: {}, DeviceID: {}", userId, deviceId);
+    public void rotateSession(Long userId, String deviceId, String oldRefreshToken, String newRefreshToken) {
+        // 리프레시 토큰의 최대 수명을 그대로 전달
+        tokenPersistencePort.rotateRefreshToken(
+                userId,
+                deviceId,
+                oldRefreshToken,
+                newRefreshToken,
+                refreshTokenExpirationDays
+        );
+
+        log.info("[SESSION] 리프레시 토큰 원자적 교체 완료. UserID: {}, DeviceID: {}", userId, deviceId);
     }
 }

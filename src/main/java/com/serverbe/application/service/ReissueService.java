@@ -14,6 +14,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
+
 /**
  * @author Duskafka
  * @responsibility 만료된 세션을 검증하고 보안 정책(RTR)에 따라 새로운 인증 토큰 세트를 발행하는 오케스트레이터입니다.
@@ -32,7 +34,7 @@ public class ReissueService implements ReissueUseCase {
 
     /**
      * @param accessToken  만료된 액세스 토큰 (클레임 추출용)
-     * @param deviceId 사용자의 기기 식별자
+     * @param deviceId     사용자의 기기 식별자
      * @param refreshToken 현재 클라이언트가 보유한 리프레시 토큰
      * @return 신규 발급된 액세스/리프레시 토큰 쌍 {@link TokenResult}
      * @throws BusinessException - REFRESH_TOKEN_NOT_EXIST: 토큰 형식이 잘못된 경우<br>
@@ -41,47 +43,62 @@ public class ReissueService implements ReissueUseCase {
      * @responsibility 만료된 액세스 토큰에서 유저 정보를 복구하고, 리프레시 토큰의 생존 여부를 대조하여 안전하게 세션을 연장합니다.
      */
     @Override
+    @Transactional // Redis 작업의 원자성을 위해 붙여주는 것이 좋습니다 (PersistenceAdapter 내 multi/exec와 시너지)
     public TokenResult reissue(String accessToken, String refreshToken, String deviceId) {
-        // 1. 리프레시 토큰의 구조적 유효성(형식, 서명 등) 선검증
-        validateTokenFormat(refreshToken);
-
-        // 2. 만료된 액세스 토큰에서 유저 식별자 및 권한 정보 복구
-        // TokenResolver는 내부적으로 ExpiredJwtException 발생 시에도 클레임을 파싱하도록 설계되어야 함
+        // 1. 형식 검증 및 정보 복구 (기존과 동일)
         Long userId = tokenResolver.getIdFromToken(accessToken);
         Role role = tokenResolver.getRoleFromToken(accessToken);
 
-        // 3. Redis 저장소 내 실시간 세션 존재 여부 확인 및 재사용 감지 처리
-        validateSessionAndHandleReplay(userId, refreshToken);
+        // 2. 세션 검증 (블랙리스트 여부 + 현재 세션 일치 여부)
+        validateSessionAndHandleReplay(userId, deviceId, refreshToken);
 
-        // 4. 신규 보안 토큰 생성 (JWT)
+        // 3. 신규 토큰 생성
         TokenResult newTokens = generateNewTokens(userId, role);
 
-        // 5. RTR 주기를 완성: 기존 토큰 무효화 및 신규 토큰 세션 등록
-        authSessionManager.rotateSession(userId, refreshToken, newTokens.refreshTokenResult().opaqueToken());
+        authSessionManager.rotateSession(
+                userId,
+                deviceId,
+                refreshToken, // 기존 토큰 -> 블랙리스트로
+                newTokens.refreshTokenResult().opaqueToken() // 새 토큰 -> 저장
+        );
 
-        log.info("[REISSUE COMPLETE] 사용자 ID: {} 의 세션이 RTR 정책에 의해 갱신되었습니다.", userId);
+        log.info("[REISSUE SUCCESS] User: {}, Device: {}", userId, deviceId);
         return newTokens;
     }
 
     /**
      * @param userId       유저 고유 식별자
+     * @param deviceId     기기 식별 정보
      * @param refreshToken 검증 대상 리프레시 토큰
      * @responsibility 저장소 내 토큰 부재 시 이를 <b>'토큰 재사용(Reuse)'</b> 시나리오로 판단하고 보안 격리 조치를 취합니다.
      * @implNote 리프레시 토큰은 사용 직후 삭제되므로, 클라이언트가 유효한 기간 내에 토큰을 가졌음에도 저장소에 없다면
      * 이는 이미 다른 경로(해커 혹은 중복 요청)에 의해 사용되었음을 의미합니다.
      */
-    private void validateSessionAndHandleReplay(Long userId, String refreshToken) {
-        if (!authSessionManager.isSessionValid(userId, refreshToken)) {
-            log.error("[SECURITY ALERT] 리프레시 토큰 재사용 발생! 유저 ID: {} 의 모든 세션을 강제 종료합니다.", userId);
-
-            // [보안 조치] 해당 유저의 모든 기기에서 즉시 로그아웃 처리
-            authSessionManager.terminateAllSessions(userId);
-
-            throw new AuthException(
-                    AuthErrorCode.REISSUE_FAILED,
-                    "보안 위협이 감지되었거나 유효하지 않은 세션입니다. 다시 로그인해주세요."
-            );
+    private void validateSessionAndHandleReplay(Long userId, String deviceId, String refreshToken) {
+        // 1. 블랙리스트 확인: 이미 사용된 토큰으로 접근한 경우 (가장 위험한 상황)
+        if (authSessionManager.isRefreshTokenBlacklisted(refreshToken)) {
+            handleSecurityBreach(userId, "이미 블랙리스트에 등록된 토큰 사용 시도 (재사용 공격)");
         }
+
+        // 2. 현재 세션과 일치 확인: 저장소의 토큰과 제출한 토큰이 다른 경우
+        if (!authSessionManager.isSessionValid(userId, deviceId, refreshToken)) {
+            handleSecurityBreach(userId, "현재 유효한 세션 토큰과 일치하지 않음 (비정상 접근)");
+        }
+    }
+
+    /**
+     * @responsibility 보안 침해 감지 시 즉시 전역 로그아웃 및 예외 발생
+     */
+    private void handleSecurityBreach(Long userId, String reason) {
+        log.error("[SECURITY BREACH] 유저 ID: {} - 사유: {}", userId, reason);
+
+        // 해당 유저의 모든 기기 세션 파괴
+        authSessionManager.terminateAllSessions(userId);
+
+        throw new AuthException(
+                AuthErrorCode.REISSUE_FAILED,
+                "보안 위협이 감지되어 모든 기기에서 로그아웃되었습니다. 다시 로그인해주세요."
+        );
     }
 
     /**
