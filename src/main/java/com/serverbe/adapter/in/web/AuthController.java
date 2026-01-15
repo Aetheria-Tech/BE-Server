@@ -177,10 +177,11 @@ public class AuthController {
     public RestApiResponse<Void> logout(
             @Parameter(hidden = true) HttpServletResponse response,
             @ExtractAccessToken String accessToken,
-            @ExtractRefreshToken String refreshToken
+            @ExtractRefreshToken String refreshToken,
+            @ExtractDeviceId String deviceId
     ) {
         // 1. 로그아웃 로직 수행 (Redis에서 리프레시 토큰 삭제 및 엑세스 토큰 블랙리스트 처리 등)
-        logoutUseCase.logout(accessToken, refreshToken);
+        logoutUseCase.logout(accessToken, refreshToken, deviceId);
 
         // 2. 클라이언트 쿠키 삭제 (Max-Age를 0으로 설정하여 즉시 만료)
         addCookieToResponse(response, "", 0);

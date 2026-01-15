@@ -19,8 +19,7 @@ import java.util.stream.Collectors;
 /**
  * @author Duskafka
  * @responsibility Redis를 활용하여 멀티 디바이스 환경의 토큰 영속성을 관리합니다.
- * @implSpec
- * 1. <b>Token Data</b>: Key-Value(String) 구조로 저장하며, 각 기기별로 독립적인 TTL을 가집니다. (Key: {prefix}:{userId}:{deviceId})<br>
+ * @implSpec 1. <b>Token Data</b>: Key-Value(String) 구조로 저장하며, 각 기기별로 독립적인 TTL을 가집니다. (Key: {prefix}:{userId}:{deviceId})<br>
  * 2. <b>Session Index</b>: Sorted Set(ZSet)을 사용하여 로그인 시간순으로 정렬된 기기 목록을 관리합니다. (Key: {prefix}:sessions:{userId})
  * @see TokenPersistencePort
  */
@@ -54,9 +53,6 @@ public class TokenPersistenceAdapter implements TokenPersistencePort {
         this.rtBlacklistPrefix = redisProperties.blacklist().refreshTokenPrefix();
     }
 
-    // =================================================================================
-    //  리프레시 토큰 관리 (멀티 디바이스 & 세션 제어)
-    // =================================================================================
 
     /**
      * @responsibility 토큰 저장 및 세션 인덱스 업데이트 (세션 제한 로직 포함)
@@ -131,6 +127,7 @@ public class TokenPersistenceAdapter implements TokenPersistencePort {
     }
 
     /**
+     * @param userId 사용자 식별자
      * @responsibility 현재 접속 중인 기기 목록 조회
      */
     @Override
@@ -148,6 +145,7 @@ public class TokenPersistenceAdapter implements TokenPersistencePort {
     }
 
     /**
+     * @param userId 사용자 식별자
      * @responsibility 가장 오래된 세션 1개 강제 삭제
      */
     @Override
@@ -166,6 +164,7 @@ public class TokenPersistenceAdapter implements TokenPersistencePort {
     }
 
     /**
+     * @param userId 사용자 식별자
      * @responsibility 현재 활성 세션 개수 조회
      */
     @Override
@@ -176,6 +175,9 @@ public class TokenPersistenceAdapter implements TokenPersistencePort {
     }
 
     /**
+     * @param userId       사용자 식별자
+     * @param refreshToken 존재하는지 확인할 리프레시 토큰
+     * @param deviceId     기기 식별자
      * @responsibility 토큰 검증
      */
     @Override
@@ -184,26 +186,60 @@ public class TokenPersistenceAdapter implements TokenPersistencePort {
         return storedToken != null && storedToken.equals(refreshToken);
     }
 
+    /**
+     * 액세스 토큰을 블랙리스트에 등록합니다.
+     *
+     * @param accessToken   블랙리스트에 등록할 액세스 토큰
+     * @param remainingTime 액세스 토큰의 남은 시간
+     */
     @Override
     public void blacklistAccessToken(String accessToken, Duration remainingTime) {
         redisTemplate.opsForValue().set(createAccessTokenBlacklistKey(accessToken), "logout", remainingTime);
     }
 
+    /**
+     * 리프레시 토큰을 블랙리스트에 등록합니다.
+     *
+     * @param refreshToken  블랙리스트에 등록할 리프레시 토큰
+     * @param remainingTime 리프레시 토큰의 남은 시간
+     */
     @Override
     public void blacklistRefreshToken(String refreshToken, Duration remainingTime) {
         redisTemplate.opsForValue().set(createRefreshTokenBlacklistKey(refreshToken), "used", remainingTime);
     }
 
+    /**
+     * 액세스 토큰이 블랙리스트에 등록되었는지 확인합니다.
+     *
+     * @param accessToken 블랙리스트에 등록되었는지 확인할 액세스 토큰
+     * @return 등록되었다면 true, 아니면 false
+     */
     @Override
     public boolean isAccessTokenBlacklisted(String accessToken) {
         return Boolean.TRUE.equals(redisTemplate.hasKey(createAccessTokenBlacklistKey(accessToken)));
     }
 
+    /**
+     * 리프레시 토큰이 블랙리스트에 등록되어있는지 확인합니다.
+     *
+     * @param refreshToken 블랙리스트에 등록되었는지 확인할 리프레시 토큰
+     * @return 등록되었다면 true, 아니면 false
+     */
     @Override
     public boolean isRefreshTokenBlacklisted(String refreshToken) {
         return Boolean.TRUE.equals(redisTemplate.hasKey(createRefreshTokenBlacklistKey(refreshToken)));
     }
 
+    /**
+     * 리프레시 토큰 순환 메소드
+     *
+     * @param userId          사용자 식별자
+     * @param deviceId        기기 식별자
+     * @param oldRefreshToken 오래된(이전의) 리프레시 토큰
+     * @param newRefreshToken 새로 발급한 리프레시 토큰
+     * @param expiry          기존에 등록된 리프레시 토큰이 사용되고 등록할 블랙리스트의 기한
+     * @implSpec 원자성을 지키기 위해 execute로 묶었습니다.
+     */
     @Override
     public void rotateRefreshToken(Long userId, String deviceId, String oldRefreshToken, String newRefreshToken, Duration expiry) {
         String tokenKey = createTokenKey(userId, deviceId);
@@ -237,6 +273,9 @@ public class TokenPersistenceAdapter implements TokenPersistencePort {
 
     /**
      * 세션 개수 제한을 확인하고 초과 시 삭제하는 내부 로직
+     *
+     * @param userId     사용자 식별자
+     * @param sessionKey Redis에 조회할 세션 키
      */
     private void manageSessionLimit(Long userId, String sessionKey) {
         Long currentSize = redisTemplate.opsForZSet().zCard(sessionKey);
@@ -256,23 +295,33 @@ public class TokenPersistenceAdapter implements TokenPersistencePort {
                 // 3. 세션 인덱스에서 한꺼번에 제거
                 redisTemplate.opsForZSet().removeRange(sessionKey, 0, removeCount - 1);
 
-                log.info("Session limit exceeded for user {}. Removed {} oldest sessions.", userId, removeCount);
+                log.info("[SESSION] 사용자({})세션 한도 초과, 오래된 세션 {}개를 삭제합니다..", userId, removeCount);
             }
         }
     }
 
+    /**
+     * 리프레시 토큰을 등록할 때 키를 생성합니다.
+     *
+     * @param userId   사용자 식별자
+     * @param deviceId 기기 식별자
+     */
     private String createTokenKey(Long userId, String deviceId) {
         return String.format("%s:%d:%s:%s", authPrefix, userId, authSuffix, deviceId);
     }
 
-    // Key: {prefix}:sessions:{userId} (예: RT:sessions:101)
+    /**
+     * @param userId 사용자 식별자
+     * @implNote Key: {prefix}:sessions:{userId} (예: RT:sessions:101)
+     */
     private String createSessionIndexKey(Long userId) {
         return String.format("%s:%s:%s", authPrefix, sessionSuffix, userId);
     }
 
     /**
      * AT 블랙리스트 키
-     * 패턴: BL:AT:{token}
+     *
+     * @implNote BL:AT:{token}
      */
     private String createAccessTokenBlacklistKey(String accessToken) {
         return String.format("%s:%s", atBlacklistPrefix, accessToken);
@@ -280,7 +329,9 @@ public class TokenPersistenceAdapter implements TokenPersistencePort {
 
     /**
      * RT 블랙리스트 키
-     * 패턴: BL:RT:{token} (기기 정보 없음)
+     *
+     * @implNote BL:RT:{token} (기기 정보 없음)
+     * @implSpec 해실 실패 시 롤백합니다.
      */
     private String createRefreshTokenBlacklistKey(String refreshToken) {
         try {

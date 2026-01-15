@@ -32,13 +32,16 @@ public class LogoutService implements LogoutUseCase {
      * 2. 탈취된 토큰의 재사용을 방지하기 위해 사용된 액세스 토큰을 블랙리스트에 등록합니다.
      */
     @Override
-    public void logout(String accessToken, String refreshToken) {
+    public void logout(String accessToken, String refreshToken, String deviceId) {
         Long userId = tokenResolver.getIdFromToken(accessToken);
 
-        // 특정 리프레시 토큰 삭제 (세션 종료)
-        authSessionManager.terminateSession(userId, refreshToken);
+        // 1. 리프레시 토큰 블랙리스트 등록 (최대 수명 적용)
+        authSessionManager.blacklistRefreshToken(refreshToken);
 
-        // 액세스 토큰 차단
+        // 2.특정 기기 세션 삭제
+        authSessionManager.terminateSession(userId, deviceId);
+
+        // 3. 액세스 토큰 차단 (남은 수명 적용)
         handleTokenBlacklist(accessToken, userId, "현재 기기");
     }
 
@@ -70,7 +73,7 @@ public class LogoutService implements LogoutUseCase {
         Duration remainingTime = calculateRemainingDuration(accessToken);
 
         if (!remainingTime.isNegative()) {
-            authSessionManager.registerBlacklist(accessToken, remainingTime);
+            authSessionManager.blacklistAccessToken(accessToken, remainingTime);
             log.info("[LOGOUT] {} 로그아웃 처리 완료. 사용자 ID: {}, 차단 유효 시간: {}초",
                     type, userId, remainingTime.getSeconds());
         }

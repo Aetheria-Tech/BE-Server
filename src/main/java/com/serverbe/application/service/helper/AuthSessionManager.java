@@ -60,9 +60,18 @@ public class AuthSessionManager {
      * @param remainingTime 토큰의 남은 유효 기간
      * @responsibility 로그아웃된 액세스 토큰을 블랙리스트에 등록하여 재사용을 차단합니다.
      */
-    public void registerBlacklist(String accessToken, Duration remainingTime) {
+    public void blacklistAccessToken(String accessToken, Duration remainingTime) {
         tokenPersistencePort.blacklistAccessToken(accessToken, remainingTime);
         log.info("[BLACKLIST] 액세스 토큰 차단 완료. 유지 시간: {} seconds", remainingTime.getSeconds());
+    }
+
+    /**
+     * @param refreshToken 블랙리스트에 등록할 리프레시 토큰
+     * @responsibility 리프레시 토큰을 최대 수명(TTL) 동안 블랙리스트에 등록합니다.
+     */
+    public void blacklistRefreshToken(String refreshToken) {
+        tokenPersistencePort.blacklistRefreshToken(refreshToken, this.refreshTokenExpirationDays);
+        log.info("[BLACKLIST] 리프레시 토큰 차단 완료. (TTL: {} days)", refreshTokenExpirationDays.toDays());
     }
 
 

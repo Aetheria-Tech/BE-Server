@@ -62,7 +62,7 @@ public class LoginService implements LoginUseCase {
                     TokenResult newTokens = generateTokens(user.id(), user.role());
 
                     // 3. 보안 세션 저장 (Redis TTL 관리)
-                    authSessionManager.saveSession(user.id(), newTokens.refreshTokenResult().opaqueToken(), deviceId);
+                    authSessionManager.saveSession(user.id(), deviceId, newTokens.refreshTokenResult().opaqueToken());
 
                     return newTokens;
                 });
