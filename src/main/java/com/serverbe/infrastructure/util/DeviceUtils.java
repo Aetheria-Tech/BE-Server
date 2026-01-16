@@ -1,5 +1,7 @@
 package com.serverbe.infrastructure.util;
 
+import com.serverbe.domain.exception.server.ServerErrorCode;
+import com.serverbe.domain.exception.server.ServerException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.util.StringUtils;
 
@@ -33,7 +35,10 @@ public class DeviceUtils {
         }
 
         // 3. 식별 불가
-        return "UNKNOWN-DEVICE-" + UUID.randomUUID().toString().substring(0, 8);
+        throw new ServerException(
+                ServerErrorCode.DE_IDENTIFIED_DEVICES,
+                "Device ID를 식별할 수 없습니다. X-Device-Id 또는 User-Agent 헤더를 확인해주세요."
+        );
     }
 
     // User-Agent는 너무 길고 특수문자가 많으므로 Base64나 해시로 변환하여 깔끔한 ID로 만듭니다.
@@ -42,10 +47,10 @@ public class DeviceUtils {
     }
 
     /**
-     * @responsibility HTTP 요청 헤더에서 클라이언트/앱 버전을 추출합니다.
-     * @implNote X-App-Version 헤더를 우선적으로 확인하고, 없으면 "UNKNOWN_VERSION"을 반환합니다.
      * @param request 현재 HTTP 요청 객체
      * @return 추출된 클라이언트 버전 문자열 또는 "UNKNOWN_VERSION"
+     * @responsibility HTTP 요청 헤더에서 클라이언트/앱 버전을 추출합니다.
+     * @implNote X-App-Version 헤더를 우선적으로 확인하고, 없으면 "UNKNOWN_VERSION"을 반환합니다.
      */
     public static String extractAppVersion(HttpServletRequest request) {
         String appVersion = request.getHeader(APP_VERSION_HEADER);
