@@ -105,27 +105,52 @@ public class TokenPersistenceAdapter implements TokenPersistencePort {
         redisTemplate.opsForZSet().remove(sessionKey, deviceId);
     }
 
+
     /**
-     * @responsibility 전체 기기 로그아웃 (비밀번호 변경 등)
+     * @param userId 세션을 모두 종료할 유저 고유 식별자
+     * @responsibility 해당 사용자의 모든 인증 세션 데이터(개별 토큰 및 세션 인덱스)를 완전히 제거하여 전역 로그아웃(Global Logout)을 수행합니다.
+     * @implSpec <b>Atomicity (원자성)</b>: Redis 트랜잭션({@code WATCH/MULTI/EXEC})을 사용하여 다음을 보장합니다.<br>
+     * 1. <b>All-or-Nothing</b>: 개별 토큰 삭제와 세션 인덱스 삭제가 하나의 단위로 실행됩니다. 중간에 실패 시 롤백됩니다.<br>
+     * 2. <b>Consistency</b>: 삭제 작업을 수행하는 동안 새로운 로그인이 발생하여 인덱스가 변경될 경우, 트랜잭션을 취소하여 데이터 정합성을 지킵니다.
+     * @implNote <b>Implementation Details</b>:<br>
+     * 단순히 {@code delete}만 호출하는 것이 아니라, {@code WATCH}를 통해 세션 인덱스 키를 감시합니다.<br>
+     * 이는 삭제할 토큰 목록을 조회한 직후, 다른 요청(로그인 등)이 인덱스를 변경하지 않았음을 확인한 뒤 안전하게 삭제하기 위함입니다.
      */
     @Override
     public void deleteAllRefreshTokens(Long userId) {
         String sessionKey = createSessionIndexKey(userId);
 
-        // 1. 인덱스에서 모든 기기 ID 조회
-        Set<Object> deviceIds = redisTemplate.opsForZSet().range(sessionKey, 0, -1);
+        redisTemplate.execute(new SessionCallback<List<Object>>() {
+            @Override
+            public List<Object> execute(RedisOperations operations) {
+                // 1. [WATCH] 키 감시 (낙관적 락)
+                // 삭제 프로세스 도중 새로운 로그인이 발생하면 트랜잭션을 취소하기 위함
+                operations.watch(sessionKey);
 
-        if (deviceIds != null && !deviceIds.isEmpty()) {
-            // 2. 각 기기별 토큰 Key 생성 후 일괄 삭제
-            Set<String> tokenKeys = deviceIds.stream()
-                    .map(deviceId -> createTokenKey(userId, deviceId.toString()))
-                    .collect(Collectors.toSet());
+                // 2. [READ] 삭제 대상 조회 (Transaction 외부)
+                Set<Object> deviceIds = operations.opsForZSet().range(sessionKey, 0, -1);
 
-            redisTemplate.delete(tokenKeys);
-        }
+                // 3. [MULTI] 트랜잭션 시작
+                operations.multi();
 
-        // 3. 세션 인덱스 자체 삭제
-        redisTemplate.delete(sessionKey);
+                // 4. [WRITE] 삭제 명령 큐잉
+                if (deviceIds != null && !deviceIds.isEmpty()) {
+                    Set<String> tokenKeys = deviceIds.stream()
+                            .map(deviceId -> createTokenKey(userId, deviceId.toString()))
+                            .collect(Collectors.toSet());
+                    // 개별 토큰 데이터 삭제
+                    operations.delete(tokenKeys);
+                }
+
+                // 세션 인덱스(목록) 삭제
+                operations.delete(sessionKey);
+
+                // 5. [EXEC] 원자적 실행
+                return operations.exec();
+            }
+        });
+
+        log.info("[SESSION] 전역 로그아웃이 성공적으로 처리되었습니다 User={}", userId);
     }
 
     /**
@@ -161,7 +186,7 @@ public class TokenPersistenceAdapter implements TokenPersistencePort {
             String oldestDeviceId = oldestDeviceSet.iterator().next().toString();
             // 해당 기기 삭제 위임
             deleteRefreshToken(userId, oldestDeviceId);
-            log.info("Session limit exceeded. Removed oldest device: userId={}, deviceId={}", userId, oldestDeviceId);
+            log.info("[SESSION] 세션이 한도를 초과하였습니다. 가장 오래된 세션을 삭제합니다.: userId={}, deviceId={}", userId, oldestDeviceId);
         }
     }
 
