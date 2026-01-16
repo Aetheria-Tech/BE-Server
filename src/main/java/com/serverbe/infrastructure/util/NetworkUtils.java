@@ -17,8 +17,7 @@ public class NetworkUtils {
             "HTTP_CLIENT_IP",
             "HTTP_FORWARDED_FOR",
             "HTTP_FORWARDED",
-            "HTTP_VIA",
-            "REMOTE_ADDR"
+            "HTTP_VIA"
     };
 
     private NetworkUtils() {

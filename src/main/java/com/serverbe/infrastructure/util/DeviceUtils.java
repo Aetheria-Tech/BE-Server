@@ -46,7 +46,6 @@ public class DeviceUtils {
         );
     }
 
-    // User-Agent는 너무 길고 특수문자가 많으므로 Base64나 해시로 변환하여 깔끔한 ID로 만듭니다.
     public static String encodeUserAgentToBase64(String userAgent) {
         return Base64.getEncoder().encodeToString(userAgent.getBytes(StandardCharsets.UTF_8));
     }

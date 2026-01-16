@@ -12,7 +12,7 @@ public enum ServerErrorCode implements ErrorCode {
     MALFORMED_JSON_REQUEST(HttpStatus.BAD_REQUEST, "COMMON_002", "잘못된 형식의 JSON 요청입니다."),
     INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "COMMON_003", "서버 내부 오류가 발생했습니다."),
     DE_IDENTIFIED_DEVICES(HttpStatus.BAD_REQUEST, "COMMON_004", "디바이스 정보를 식별할 수 없습니다."),
-    UTILITY_CLASS(HttpStatus.INTERNAL_SERVER_ERROR, "COMMPN_005", "코드 내부에서 유틸리티 클래스를 생성자로 생성합니다."),;
+    UTILITY_CLASS(HttpStatus.INTERNAL_SERVER_ERROR, "COMMON_005", "코드 내부에서 유틸리티 클래스를 생성자로 생성합니다."),;
 
     private final HttpStatus status;
     private final String code;
