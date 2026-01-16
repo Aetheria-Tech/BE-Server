@@ -43,7 +43,6 @@ public class ReissueService implements ReissueUseCase {
      * @responsibility 만료된 액세스 토큰에서 유저 정보를 복구하고, 리프레시 토큰의 생존 여부를 대조하여 안전하게 세션을 연장합니다.
      */
     @Override
-    @Transactional // Redis 작업의 원자성을 위해 붙여주는 것이 좋습니다 (PersistenceAdapter 내 multi/exec와 시너지)
     public TokenResult reissue(String accessToken, String refreshToken, String deviceId) {
         // 1. 형식 검증 및 정보 복구 (기존과 동일)
         Long userId = tokenResolver.getIdFromToken(accessToken);
