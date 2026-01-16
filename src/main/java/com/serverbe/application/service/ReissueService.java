@@ -49,12 +49,16 @@ public class ReissueService implements ReissueUseCase {
         Long userId = tokenResolver.getIdFromToken(accessToken);
         Role role = tokenResolver.getRoleFromToken(accessToken);
 
-        // 2. 세션 검증 (블랙리스트 여부 + 현재 세션 일치 여부)
+        // 2. 리프레시 토큰 유효성 검증
+        validateTokenFormat(refreshToken);
+
+        // 3. 세션 검증 (블랙리스트 여부 + 현재 세션 일치 여부)
         validateSessionAndHandleReplay(userId, deviceId, refreshToken);
 
-        // 3. 신규 토큰 생성
+        // 4. 신규 토큰 생성
         TokenResult newTokens = generateNewTokens(userId, role);
 
+        // 5. 세션 로테이션
         authSessionManager.rotateSession(
                 userId,
                 deviceId,
