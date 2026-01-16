@@ -1,6 +1,8 @@
 package com.serverbe.adapter.out.persistence.token;
 
 import com.serverbe.application.port.out.token.TokenPersistencePort;
+import com.serverbe.domain.exception.auth.AuthErrorCode;
+import com.serverbe.domain.exception.auth.AuthException;
 import com.serverbe.infrastructure.config.properties.JwtProperties;
 import com.serverbe.infrastructure.config.properties.RedisProperties;
 import lombok.extern.slf4j.Slf4j;
@@ -344,9 +346,8 @@ public class TokenPersistenceAdapter implements TokenPersistencePort {
                 hexString.append(hex);
             }
             return String.format("%s:%s", rtBlacklistPrefix, hexString);
-        } catch (Exception e) {
-            // 해싱 실패 시 폴백 (토큰 원문 사용 혹은 예외 처리)
-            return String.format("%s:%s", rtBlacklistPrefix, refreshToken);
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new AuthException(AuthErrorCode.FAILED_HASH_REFRESH_TOKEN, e.getMessage());
         }
     }
 }
