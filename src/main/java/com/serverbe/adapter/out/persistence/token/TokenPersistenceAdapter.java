@@ -274,32 +274,60 @@ public class TokenPersistenceAdapter implements TokenPersistencePort {
 
 
     /**
-     * 세션 개수 제한을 확인하고 초과 시 삭제하는 내부 로직
-     *
-     * @param userId     사용자 식별자
-     * @param sessionKey Redis에 조회할 세션 키
+     * @param userId     세션을 정리할 사용자 식별자
+     * @param sessionKey Redis에 저장된 해당 사용자의 세션 인덱스 Key (ZSet)
+     * @responsibility 사용자의 최대 동시 접속 세션 수(Max Session Limit)를 초과하지 않도록 관리하며, 초과 시 가장 오래된 세션을 정리합니다.
+     * @implSpec 1. <b>Optimistic Locking (낙관적 락)</b>: Redis의 {@code WATCH} 명령어를 사용하여 조회(Read)와 수정(Write) 사이의 원자성을 보장합니다.<br>
+     * 2. <b>Safe Failure</b>: 만약 로직 수행 도중 다른 스레드/프로세스에 의해 {@code sessionKey}가 변경되었다면(예: 새로운 로그인),
+     * {@code exec()} 실행 시 트랜잭션은 자동으로 취소(Rollback)되며 데이터 정합성을 유지합니다.
+     * @implNote <b>Transaction Flow</b>:<br>
+     * Redis 트랜잭션 내에서 조건문 분기가 불가능하므로, {@code SessionCallback}을 통해 다음 순서를 엄격히 따릅니다.<br>
+     * 1. {@code WATCH}: 키 감시 시작<br>
+     * 2. {@code READ}: 현재 개수 조회 및 삭제 대상 계산 (Java Level)<br>
+     * 3. {@code MULTI}: 트랜잭션 시작 (이후 명령어는 큐에 적재)<br>
+     * 4. {@code WRITE}: 삭제 명령어(Delete, ZRem) 예약<br>
+     * 5. {@code EXEC}: 원자적 실행
      */
     private void manageSessionLimit(Long userId, String sessionKey) {
-        Long currentSize = redisTemplate.opsForZSet().zCard(sessionKey);
-        if (currentSize != null && currentSize > maxToken) {
-            long removeCount = currentSize - maxToken;
+        redisTemplate.execute(new SessionCallback<List<Object>>() {
+            @Override
+            public List<Object> execute(RedisOperations operations) {
+                // 1. [WATCH] 키를 감시 시작 (낙관적 락)
+                // 이후 exec()가 호출될 때까지 이 키에 변경사항이 생기면 트랜잭션은 취소됨
+                operations.watch(sessionKey);
 
-            // 1. 삭제할 기기 ID들을 한꺼번에 가져옴 (0번부터 removeCount-1번까지가 가장 오래된 것들)
-            Set<Object> oldestDeviceIds = redisTemplate.opsForZSet().range(sessionKey, 0, removeCount - 1);
+                // 2. [READ] 현재 상태 조회 (트랜잭션 시작 전)
+                Long currentSize = operations.opsForZSet().zCard(sessionKey);
 
-            if (oldestDeviceIds != null && !oldestDeviceIds.isEmpty()) {
-                // 2. 해당 기기들의 토큰 데이터 일괄 삭제
-                List<String> tokenKeysToDelete = oldestDeviceIds.stream()
-                        .map(deviceId -> createTokenKey(userId, deviceId.toString()))
-                        .collect(Collectors.toList());
-                redisTemplate.delete(tokenKeysToDelete);
+                // 한도가 초과되지 않았다면 감시 해제 후 종료
+                if (currentSize == null || currentSize <= maxToken) {
+                    operations.unwatch();
+                    return Collections.emptyList();
+                }
 
-                // 3. 세션 인덱스에서 한꺼번에 제거
-                redisTemplate.opsForZSet().removeRange(sessionKey, 0, removeCount - 1);
+                // 3. [READ] 삭제할 대상 계산
+                long removeCount = currentSize - maxToken;
+                Set<Object> oldestDeviceIds = operations.opsForZSet().range(sessionKey, 0, removeCount - 1);
 
-                log.info("[SESSION] 사용자({})세션 한도 초과, 오래된 세션 {}개를 삭제합니다..", userId, removeCount);
+                // 4. [MULTI] 트랜잭션 시작 (이제부터 명령어는 큐에 쌓임)
+                operations.multi();
+
+                if (oldestDeviceIds != null && !oldestDeviceIds.isEmpty()) {
+                    // (1) 실제 토큰 데이터 삭제 명령 큐잉
+                    List<String> tokenKeysToDelete = oldestDeviceIds.stream()
+                            .map(deviceId -> createTokenKey(userId, deviceId.toString()))
+                            .collect(Collectors.toList());
+                    operations.delete(tokenKeysToDelete);
+
+                    // (2) 세션 인덱스(ZSet) 제거 명령 큐잉
+                    operations.opsForZSet().removeRange(sessionKey, 0, removeCount - 1);
+                }
+
+                // 5. [EXEC] 일괄 실행
+                // 만약 watch 이후 다른 스레드가 sessionKey를 건드렸다면 여기서 빈 리스트가 반환되고 아무 일도 안 일어남 (안전)
+                return operations.exec();
             }
-        }
+        });
     }
 
     /**
