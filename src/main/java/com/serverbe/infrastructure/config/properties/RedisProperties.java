@@ -15,6 +15,7 @@ public record RedisProperties(
         String host,
         int port,
         Auth auth,
+        Session session,
         Blacklist blacklist
 ) {
     /**
@@ -31,13 +32,20 @@ public record RedisProperties(
     }
 
     /**
-     * @param prefix 블랙리스트 키 식별을 위한 접두사 (예: <b>BL:</b>)
-     * @param suffix 키 뒤에 붙이는 추가 식별자
-     * @responsibility 로그아웃된 액세스 토큰을 <b>블랙리스트</b>로 관리하기 위한 키 생성 규칙을 정의합니다.
+     * @param suffix Session의 접미사
+     */
+    public record Session(
+            String suffix
+    ) {
+    }
+
+    /**
+     * @param accessTokenPrefix  액세스 토큰 블랙리스트에 사용되는 접두사
+     * @param refreshTokenPrefix 리프레시 토큰 블랙리스트에 사용되는 접두사
      */
     public record Blacklist(
-            String prefix,
-            String suffix
+            String accessTokenPrefix,
+            String refreshTokenPrefix
     ) {
     }
 }

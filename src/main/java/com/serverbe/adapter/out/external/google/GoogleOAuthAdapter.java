@@ -130,7 +130,7 @@ public class GoogleOAuthAdapter implements OAuthClientPort {
         }
 
         return webClient.post()
-                .uri(URI.create(apiUrl + "/revoke"))
+                .uri(URI.create(oauthUrl + "/revoke"))
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .body(BodyInserters.fromFormData("token", oauthRefreshToken)) // 리프레시 토큰 전송
                 .retrieve()

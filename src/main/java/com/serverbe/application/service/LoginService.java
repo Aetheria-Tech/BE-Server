@@ -38,6 +38,7 @@ public class LoginService implements LoginUseCase {
 
     /**
      * @param code     소셜 플랫폼 인가 코드
+     * @param deviceId 사용자의 기기 식별자
      * @param provider 인증 제공자
      * @return 발급된 토큰 세트를 포함한 {@link Mono}
      * @responsibility 소셜 인증 코드를 검증하여 사용자 정보를 획득하고, 가입/로그인 처리 후 최종 보안 토큰을 반환합니다.
@@ -46,7 +47,7 @@ public class LoginService implements LoginUseCase {
      * 2. 서비스 레이어에서의 {@code @Transactional}은 헬퍼 컴포넌트 내부로 전파되어 원자성을 보장받습니다.
      */
     @Override
-    public Mono<TokenResult> login(String code, OAuthProvider provider) {
+    public Mono<TokenResult> login(String code, OAuthProvider provider, String deviceId) {
         OAuthClientPort client = getClient(provider);
 
         return client.getUserInfo(code, provider)
@@ -61,7 +62,7 @@ public class LoginService implements LoginUseCase {
                     TokenResult newTokens = generateTokens(user.id(), user.role());
 
                     // 3. 보안 세션 저장 (Redis TTL 관리)
-                    authSessionManager.saveSession(user.id(), newTokens.refreshTokenResult().opaqueToken());
+                    authSessionManager.saveSession(user.id(), deviceId, newTokens.refreshTokenResult().opaqueToken());
 
                     return newTokens;
                 });

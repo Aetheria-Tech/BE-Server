@@ -28,7 +28,7 @@ springdoc:
   show-actuator: true                           # Spring Actuator의 endpoint까지 보여줄 것인지?
   default-consumes-media-type: application/json # request media type 의 기본 값
   default-produces-media-type: application/json # response media type 의 기본 값
-  paths-to-match:                               # 해당 패턴에 매칭되는 controller만 swagger-ui에 노출한다.
+  paths-to-match: # 해당 패턴에 매칭되는 controller만 swagger-ui에 노출한다.
     - /api/v1/**
 
 # ===================================================================
@@ -57,9 +57,11 @@ redis:
     prefix: user                      # 레디스 저장에 필요한 키 값 중 접두어
     suffix: rt                        # 레디스 저장에 필요한 키 값 중 접미어
     max-token: 3                      # 최대로 발급 가능한 토큰의 수
+  session:
+    suffix: session
   blacklist:
-    prefix: bl
-    suffix: at
+    access-token-prefix: "BL:AT"
+    refresh-token-prefix: "BL:RT"
 
 kakao:
   admin-key: ${KAKAO_ADMIN_KEY}

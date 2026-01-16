@@ -1,14 +1,21 @@
 package com.serverbe.infrastructure.config;
 
+import com.serverbe.adapter.in.web.support.resolver.AppVersionArgumentResolver;
+import com.serverbe.adapter.in.web.support.resolver.ClientIpArgumentResolver;
+import com.serverbe.adapter.in.web.support.resolver.DeviceIdArgumentResolver;
+import com.serverbe.adapter.in.web.support.resolver.TokenArgumentResolver;
 import com.serverbe.infrastructure.config.converter.StringToOAuthProviderConverter;
 import com.serverbe.infrastructure.config.properties.CorsProperties;
 import com.serverbe.infrastructure.crypto.EncryptionContextInterceptor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.format.FormatterRegistry;
+import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+
+import java.util.List;
 
 /**
  * @responsibility Spring MVC의 전역 설정을 담당하며, <b>CORS 정책, 데이터 변환기(Converter), 인터셉터</b>를 시스템에 등록합니다.
@@ -20,6 +27,21 @@ public class WebConfig implements WebMvcConfigurer {
 
     private final CorsProperties corsProperties;
     private final EncryptionContextInterceptor encryptionContextInterceptor;
+    private final DeviceIdArgumentResolver deviceIdArgumentResolver;
+    private final TokenArgumentResolver tokenArgumentResolver;
+    private final ClientIpArgumentResolver clientIpArgumentResolver;
+    private final AppVersionArgumentResolver appVersionArgumentResolver;
+
+    @Override
+    public void addArgumentResolvers(List<HandlerMethodArgumentResolver> resolvers) {
+        // 토큰 관련
+        resolvers.add(tokenArgumentResolver);
+
+        // 클라이언트 정보 관련
+        resolvers.add(deviceIdArgumentResolver);
+        resolvers.add(clientIpArgumentResolver);
+        resolvers.add(appVersionArgumentResolver);
+    }
 
     /**
      * @param registry CORS 정책을 관리하는 {@link CorsRegistry}
