@@ -10,6 +10,9 @@ import org.springframework.web.context.request.NativeWebRequest;
 import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.method.support.ModelAndViewContainer;
 
+/**
+ * @responsibility {@link ExtractIp} 애노테이션이 붙은 컨트롤러에서 IP를 가져오도록 합니다.
+ * */
 @Component
 public class ClientIpArgumentResolver implements HandlerMethodArgumentResolver {
 
@@ -26,7 +29,6 @@ public class ClientIpArgumentResolver implements HandlerMethodArgumentResolver {
             NativeWebRequest webRequest,
             WebDataBinderFactory binderFactory
     ) {
-
         HttpServletRequest request = (HttpServletRequest) webRequest.getNativeRequest();
         return NetworkUtils.getClientIp(request);
     }

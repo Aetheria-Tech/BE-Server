@@ -224,14 +224,12 @@ public class AuthController {
                     @Parameter(
                             name = "X-Device-Id",
                             description = "기기 고유 식별자 (모바일 앱의 경우 UUID 등 고유값 권장). 이 값이 존재하면 최우선으로 기기 식별에 사용됩니다.",
-                            in = ParameterIn.HEADER,
-                            example = "550e8400-e29b-41d4-a716-446655440000"
+                            in = ParameterIn.HEADER
                     ),
                     @Parameter(
                             name = "User-Agent",
                             description = "클라이언트 브라우저/기기 정보. X-Device-Id가 없을 경우, 이 값을 해싱하여 기기 식별자로 사용합니다. (브라우저는 자동 전송)",
-                            in = ParameterIn.HEADER,
-                            example = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                            in = ParameterIn.HEADER
                     )
             },
             responses = {

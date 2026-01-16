@@ -10,6 +10,9 @@ import org.springframework.web.context.request.NativeWebRequest;
 import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.method.support.ModelAndViewContainer;
 
+/**
+ * @responsibility {@link ExtractDeviceId} 애노테이션이 붙은 컨트롤러에서 디바이스 아이디를 가져오도록 합니다.
+ * */
 @Component
 public class DeviceIdArgumentResolver implements HandlerMethodArgumentResolver {
 
@@ -27,10 +30,7 @@ public class DeviceIdArgumentResolver implements HandlerMethodArgumentResolver {
             NativeWebRequest webRequest,
             WebDataBinderFactory binderFactory
     ) {
-
         HttpServletRequest request = (HttpServletRequest) webRequest.getNativeRequest();
-
-        // 기존에 만들어둔 DeviceUtils 활용
         return DeviceUtils.extractDeviceId(request);
     }
 }

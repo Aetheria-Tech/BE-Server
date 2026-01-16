@@ -12,6 +12,9 @@ import org.springframework.web.context.request.NativeWebRequest;
 import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.method.support.ModelAndViewContainer;
 
+/**
+ * @responsibility {@link ExtractAccessToken}와 {@link ExtractRefreshToken} 애노테이션이 붙은 컨트롤러에서 토큰을 추출합니다.
+ */
 @Component
 @RequiredArgsConstructor
 public class TokenArgumentResolver implements HandlerMethodArgumentResolver {
@@ -33,7 +36,6 @@ public class TokenArgumentResolver implements HandlerMethodArgumentResolver {
             NativeWebRequest webRequest,
             WebDataBinderFactory binderFactory
     ) {
-
         HttpServletRequest request = (HttpServletRequest) webRequest.getNativeRequest();
 
         // 1. Access Token 요청인 경우
