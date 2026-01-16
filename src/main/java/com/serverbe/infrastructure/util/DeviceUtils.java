@@ -14,6 +14,11 @@ public class DeviceUtils {
     private static final String USER_AGENT_HEADER = "User-Agent";
     private static final String APP_VERSION_HEADER = "X-App-Version"; // 클라이언트 버전 헤더 추가
 
+
+    private DeviceUtils() {
+        throw new ServerException(ServerErrorCode.UTILITY_CLASS, "Utility Class");
+    }
+
     /**
      * 요청 헤더에서 Device ID를 추출합니다.
      * 1순위: X-Device-Id 헤더 (모바일 앱 등에서 명시적으로 보낸 경우)
@@ -47,10 +52,10 @@ public class DeviceUtils {
     }
 
     /**
-     * @responsibility HTTP 요청 헤더에서 클라이언트/앱 버전을 추출합니다.
-     * @implNote X-App-Version 헤더를 우선적으로 확인하고, 없으면 "UNKNOWN_VERSION"을 반환합니다.
      * @param request 현재 HTTP 요청 객체
      * @return 추출된 클라이언트 버전 문자열 또는 "UNKNOWN_VERSION"
+     * @responsibility HTTP 요청 헤더에서 클라이언트/앱 버전을 추출합니다.
+     * @implNote X-App-Version 헤더를 우선적으로 확인하고, 없으면 "UNKNOWN_VERSION"을 반환합니다.
      */
     public static String extractAppVersion(HttpServletRequest request) {
         String appVersion = request.getHeader(APP_VERSION_HEADER);

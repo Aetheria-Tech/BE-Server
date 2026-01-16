@@ -34,8 +34,11 @@ public class WebConfig implements WebMvcConfigurer {
 
     @Override
     public void addArgumentResolvers(List<HandlerMethodArgumentResolver> resolvers) {
-        resolvers.add(deviceIdArgumentResolver);
+        // 토큰 관련
         resolvers.add(tokenArgumentResolver);
+
+        // 클라이언트 정보 관련
+        resolvers.add(deviceIdArgumentResolver);
         resolvers.add(clientIpArgumentResolver);
         resolvers.add(appVersionArgumentResolver);
     }

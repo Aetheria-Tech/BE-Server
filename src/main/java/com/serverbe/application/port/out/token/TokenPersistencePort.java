@@ -19,16 +19,21 @@ public interface TokenPersistencePort {
     void saveRefreshToken(Long userId, String deviceId, String refreshToken, Duration expiry);
 
     /**
+     * @param deviceId 리프레시 토큰 조회를 요청한 기기의 식별자
+     * @param userId   리프레시 토큰 조회를 요청한 사용자의 식별자
      * @responsibility 특정 기기에 할당된 리프레시 토큰을 조회합니다.
      */
     String getRefreshToken(Long userId, String deviceId);
 
     /**
+     * @param userId   리프레시 토큰 삭제를 요청한 사용자의 식별자
+     * @param deviceId 리프레시 토큰 삭제를 요청한 기기의 식별자
      * @responsibility 특정 기기의 세션만 로그아웃 처리합니다.
      */
     void deleteRefreshToken(Long userId, String deviceId);
 
     /**
+     * @param userId 모든 리프레시 토큰 삭제를 요청한 사용자의 식별자
      * @responsibility 해당 사용자의 모든 기기에서 로그아웃 처리합니다. (전체 세션 비활성화)
      */
     void deleteAllRefreshTokens(Long userId);
@@ -55,13 +60,33 @@ public interface TokenPersistencePort {
      */
     void rotateRefreshToken(Long userId, String deviceId, String oldRefreshToken, String newRefreshToken, Duration expiry);
 
-
+    /**
+     * @param accessToken   블랙리스트에 등록할 액세스 토큰
+     * @param remainingTime 리프레시 토큰의 남은 시간(이는 곧 블랙리스트로 저장될 시간을 의미합니다.)
+     * @responsibility 액세스 토큰을 블랙리스트 처리합니다.
+     */
     void blacklistAccessToken(String accessToken, Duration remainingTime);
 
+    /**
+     * @param refreshToken  블랙리스트에 등록할 리프레시 토큰
+     * @param remainingTime 리프레시 토큰의 남은 시간(이는 곧 블랙리스트로 저장될 시간을 의미합니다.)
+     * @responsibility 리프레시 토큰을 블랙리스트 처리합니다.
+     */
     void blacklistRefreshToken(String refreshToken, Duration remainingTime);
 
+
+    /**
+     * @param accessToken 블랙리스트에 등록되었는지 확인할 액세스 토큰
+     * @return 블랙리스트 되었다면 true, 아니면 false
+     * @responsibility Redis의 액세스 토큰 블랙리스트에 액세스 토큰이 블랙리스트 되어있는지 확인할 책임.
+     */
     boolean isAccessTokenBlacklisted(String accessToken);
 
+    /**
+     * @param refreshToken 블랙리스트에 등록되었는지 확인할 리프레시 토큰
+     * @return 블랙리스트 되었다면 true, 아니면 false
+     * @responsibility Redis의 리프레시 토큰 블랙리스트에 리프레시 토큰이 블랙리스트 되어있는지 확인할 책임.
+     */
     boolean isRefreshTokenBlacklisted(String refreshToken);
 
     /**

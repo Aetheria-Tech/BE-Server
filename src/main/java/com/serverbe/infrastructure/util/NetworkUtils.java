@@ -1,5 +1,7 @@
 package com.serverbe.infrastructure.util;
 
+import com.serverbe.domain.exception.server.ServerErrorCode;
+import com.serverbe.domain.exception.server.ServerException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.util.StringUtils;
 
@@ -18,6 +20,10 @@ public class NetworkUtils {
             "HTTP_VIA",
             "REMOTE_ADDR"
     };
+
+    private NetworkUtils() {
+        throw new ServerException(ServerErrorCode.UTILITY_CLASS, "Utility Class");
+    }
 
     public static String getClientIp(HttpServletRequest request) {
         for (String header : IP_HEADER_CANDIDATES) {

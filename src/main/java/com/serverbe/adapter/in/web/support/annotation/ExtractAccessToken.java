@@ -16,7 +16,7 @@ import java.lang.annotation.Target;
         description = "애플리케이션에게 인증 정보를 보내는데 사용됩니다",
         in = ParameterIn.HEADER,
         required = false,
-        schema = @Schema(type = "string", example = "1.0.0"),
+        schema = @Schema(type = "string", example = "Bearer eyJhbGciOiJIUz..."),
         hidden = true
 )
 public @interface ExtractAccessToken {

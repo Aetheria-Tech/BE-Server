@@ -61,7 +61,7 @@ redis:
     suffix: session
   blacklist:
     access-token-prefix: "BL:AT"
-    refresh-token-prefix: "BL:RT:"
+    refresh-token-prefix: "BL:RT"
 
 kakao:
   admin-key: ${KAKAO_ADMIN_KEY}
