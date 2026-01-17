@@ -1,5 +1,8 @@
 package com.serverbe.infrastructure.security;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.serverbe.application.port.out.crypto.EncryptPort;
 import com.serverbe.application.port.out.security.TokenResolver;
 import com.serverbe.domain.exception.auth.AuthErrorCode;
 import com.serverbe.domain.exception.auth.AuthException;
@@ -14,8 +17,10 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
+import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 /**
  * @author Duskafka
@@ -28,37 +33,73 @@ import java.util.List;
 @Component
 public class JwtTokenResolver implements TokenResolver {
     private final JwtParser parser;
-    private final String roles;
+    private final String roleKey;
+    private final String idKey;
     private final int refreshTokenLength;
+
+    // 빈으로 등록하는 것은 일반적인 패턴이 아니며, 이 경우 특별한 이점이 없습니다. 따라서 내부에서 관리할 수 있게한다.
+    private final TypeReference<Map<String, Object>> typeReference = new TypeReference<>() {};
+    private final EncryptPort encryptPort;
+    private final ObjectMapper objectMapper;
 
     /**
      * @param jwtKeyManager 서명 키가 설정된 파서를 제공하는 매니저 {@link JwtKeyManager}
      * @param jwtProperties 토큰 사양(권한 키, 길이 등)을 담은 프로퍼티 {@link JwtProperties}
      * @responsibility 토큰 해석에 필요한 파서와 설정 정보를 주입받아 초기화합니다.
      */
-    public JwtTokenResolver(JwtKeyManager jwtKeyManager, JwtProperties jwtProperties) {
-        // JwtKeyManager로부터 서명 키가 설정된 JwtParser를 주입받아 공유합니다.
+    public JwtTokenResolver(
+            JwtKeyManager jwtKeyManager,
+            JwtProperties jwtProperties,
+            EncryptPort encryptPort,
+            ObjectMapper objectMapper
+    ) {
         this.parser = jwtKeyManager.getParser();
-        this.roles = jwtProperties.authorityKey();
+        this.roleKey = jwtProperties.roleKey();
+        this.idKey = jwtProperties.idKey();
         this.refreshTokenLength = jwtProperties.refreshToken().byteLength();
+
+        this.encryptPort = encryptPort;
+        this.objectMapper = objectMapper;
     }
 
     /**
      * @param accessToken 검증된 액세스 토큰
-     * @return {@link UsernamePasswordAuthenticationToken} 기반의 인증 객체
-     * @responsibility 액세스 토큰에서 사용자 식별자와 권한을 추출하여 Spring Security의 인증 객체({@link Authentication})를 생성합니다.
-     * @implNote 액세스 토큰은 페이로드에 정보를 포함하는 <b>JWT</b> 형식이므로 이 메서드를 통해 즉시 인증 객체화가 가능합니다.
+     * @return 복호화된 정보를 담은 인증 객체
+     * @responsibility 토큰을 복호화하여 ID와 Role을 추출한 뒤 Spring Security 인증 객체를 생성합니다.
      */
     @Override
     public Authentication getAuthentication(String accessToken) {
-        Long userId = this.getIdFromToken(accessToken);
-        Role role = this.getRoleFromToken(accessToken);
+        // 1. 복호화된 Map 데이터 획득
+        Map<String, Object> claimsMap = getDecryptedPayload(accessToken);
 
+        // 2. 데이터 추출
+        long userId = extractId(claimsMap);
+        Role role = extractRole(claimsMap);
+
+        // 3. 인증 객체 생성
         List<SimpleGrantedAuthority> authorities = List.of(
                 new SimpleGrantedAuthority(role.name())
         );
 
         return new UsernamePasswordAuthenticationToken(userId, null, authorities);
+    }
+
+    private long extractId(Map<String, Object> claimsMap) {
+        try {
+            // objectMapper가 숫자를 Integer로 변환할 수 있으므로 String.valueOf()를 사용하는 것이 안전합니다.
+            return Long.parseLong(String.valueOf(claimsMap.get(idKey)));
+        } catch (NumberFormatException e) {
+            throw new AuthException(AuthErrorCode.JWT_TOKEN_IS_INVALID, "ID 형식이 올바르지 않습니다.");
+        }
+    }
+
+    private Role extractRole(Map<String, Object> claimsMap) {
+        try {
+            String roleStr = String.valueOf(claimsMap.get(roleKey));
+            return Role.valueOf(roleStr);
+        } catch (IllegalArgumentException e) {
+            throw new AuthException(AuthErrorCode.JWT_TOKEN_IS_INVALID, "유효하지 않은 Role 값입니다.");
+        }
     }
 
     /**
@@ -69,8 +110,8 @@ public class JwtTokenResolver implements TokenResolver {
     @Override
     public boolean validateAccessToken(String accessToken) {
         try {
-            if (accessToken == null || accessToken.isBlank()) return false;
-            parser.parseClaimsJws(accessToken);
+            if (!StringUtils.hasText(accessToken)) return false;
+            parser.parseClaimsJws(accessToken); // 서명 확인
             return true;
         } catch (JwtException | IllegalArgumentException e) {
             log.warn("[JWT Validation Failed] -> {}", e.getMessage());
@@ -99,61 +140,26 @@ public class JwtTokenResolver implements TokenResolver {
      */
     @Override
     public Long getIdFromToken(String accessToken) {
+        Map<String, Object> claimsMap = getDecryptedPayload(accessToken);
         try {
-            // 1. 일반적인 파싱 시도 (만료되지 않은 경우)
-            return Long.valueOf(getClaims(accessToken).getSubject());
-        } catch (ExpiredJwtException e) {
-            // 2. 만료된 경우 ExpiredJwtException 내부의 Claims에서 Subject 추출
-            log.info("만료된 토큰에서 ID 추출 시도: {}", e.getClaims().getSubject());
-            String sub = e.getClaims().getSubject();
-            return parseId(sub);
-        } catch (Exception e) {
-            // 3. 서명 오류나 잘못된 형식 등은 예외 처리
-            log.error("토큰 파싱 중 오류 발생: {}", e.getMessage());
-            throw new AuthException(AuthErrorCode.JWT_TOKEN_IS_INVALID, "유효하지 않은 토큰입니다.");
-        }
-    }
-
-    private Long parseId(String sub) {
-        try {
-            return Long.valueOf(sub);
+            return Long.valueOf(String.valueOf(claimsMap.get(idKey)));
         } catch (NumberFormatException e) {
-            throw new AuthException(
-                    AuthErrorCode.JWT_SUBJECT_IS_NOT_NUMBER,
-                    "JWT 토큰의 Subject 형식이 올바르지 않습니다."
-            );
+            throw new AuthException(AuthErrorCode.JWT_TOKEN_IS_INVALID, "ID 형식이 올바르지 않습니다.");
         }
     }
 
     /**
-     * @param accessToken 권한을 추출할 액세스 토큰
-     * @return 사용자 역할(Role)
-     * @responsibility 토큰의 페이로드에서 설정된 권한 키(예: roles)에 해당하는 값을 추출하여 {@link Role}로 변환합니다.
+     * @param accessToken 액세스 토큰
+     * @return 사용자 권한(Role)
      */
     @Override
     public Role getRoleFromToken(String accessToken) {
-        Claims claims = getClaims(accessToken);
-
-        // JwtProperties에 정의된 authorityKey(예: "auth")로 값을 가져옴
-        String roleStr = claims.get(roles, String.class);
-
-        // 문자열을 Role Enum으로 변환 (예: "USER" -> Role.USER)
-        return Role.valueOf(roleStr);
-    }
-
-    /**
-     * @responsibility (Private) 공통 파싱 로직을 수행하며 만료 및 유효성 예외를 시스템 예외로 변환합니다.
-     */
-    private Claims getClaims(String token) {
+        Map<String, Object> claimsMap = getDecryptedPayload(accessToken);
+        String roleStr = String.valueOf(claimsMap.get(roleKey));
         try {
-            if (token == null || token.isBlank()) {
-                throw new AuthException(AuthErrorCode.JWT_TOKEN_IS_EMPTY);
-            }
-            return parser.parseClaimsJws(token).getBody();
-        } catch (ExpiredJwtException e) {
-            throw new AuthException(AuthErrorCode.JWT_TOKEN_EXPIRED, "토큰이 만료되었습니다.");
-        } catch (JwtException e) {
-            throw new AuthException(AuthErrorCode.JWT_TOKEN_IS_INVALID, e.getMessage());
+            return Role.valueOf(roleStr);
+        } catch (IllegalArgumentException e) {
+            throw new AuthException(AuthErrorCode.JWT_TOKEN_IS_INVALID, "유효하지 않은 Role 값입니다.");
         }
     }
 
@@ -173,6 +179,47 @@ public class JwtTokenResolver implements TokenResolver {
             return e.getClaims().getExpiration().toInstant();
         } catch (JwtException e) {
             throw new AuthException(AuthErrorCode.JWT_TOKEN_IS_INVALID, e.getMessage());
+        }
+    }
+
+    /**
+     * @responsibility <b>핵심 로직</b>: JWT의 Subject(암호문)를 추출하고 복호화하여 Map으로 변환합니다.
+     * @implNote {@link ExpiredJwtException}이 발생해도 Claims를 꺼내 복호화를 시도합니다(Reissue 지원).
+     */
+    private Map<String, Object> getDecryptedPayload(String token) {
+        String encryptedSubject;
+
+        // 1. JWT 파싱 및 Subject(암호화된 문자열) 추출
+        try {
+            if (!StringUtils.hasText(token)) {
+                throw new AuthException(AuthErrorCode.JWT_TOKEN_IS_EMPTY);
+            }
+            // 정상 토큰
+            encryptedSubject = parser.parseClaimsJws(token).getBody().getSubject();
+        } catch (ExpiredJwtException e) {
+            // 만료된 토큰 -> 예외 객체에서 Claims 추출
+            log.debug("만료된 토큰의 페이로드 복호화 시도");
+            encryptedSubject = e.getClaims().getSubject();
+        } catch (JwtException e) {
+            throw new AuthException(AuthErrorCode.JWT_TOKEN_IS_INVALID, "토큰 서명 검증 실패");
+        }
+
+        if (!StringUtils.hasText(encryptedSubject)) {
+            throw new AuthException(AuthErrorCode.JWT_TOKEN_IS_INVALID, "토큰에 식별자 정보가 없습니다.");
+        }
+
+        // 2. AES-GCM 복호화 및 JSON 파싱
+        try {
+            // "v1:IV:Cipher" -> JSON String
+            String jsonPayload = encryptPort.decrypt(encryptedSubject);
+            // JSON String -> Map<String, Object>
+            return objectMapper.readValue(jsonPayload, typeReference);
+        } catch (IOException e) {
+            log.error("Token Decryption Failed: Failed to parse JSON payload", e);
+            throw new AuthException(AuthErrorCode.JWT_TOKEN_IS_INVALID, "토큰 페이로드 파싱에 실패했습니다.");
+        } catch (Exception e) {
+            log.error("Token Decryption Failed", e);
+            throw new AuthException(AuthErrorCode.JWT_TOKEN_IS_INVALID, "토큰 복호화에 실패했습니다.");
         }
     }
 }
