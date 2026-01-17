@@ -1,9 +1,11 @@
 package com.serverbe.infrastructure.config;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import java.security.SecureRandom;
+import java.util.Map;
 
 /**
  * @responsibility 시스템 전반에서 요구되는 <b>보안 관련 인프라 빈(Bean)</b> 설정을 담당하는 클래스입니다.
@@ -26,5 +28,10 @@ public class SecurityBeanConfig {
     @Bean
     public SecureRandom secureRandom() {
         return new SecureRandom();
+    }
+
+    @Bean
+    public TypeReference<Map<String, Object>> typeReference() {
+        return new TypeReference<>() {};
     }
 }

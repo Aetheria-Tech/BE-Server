@@ -1,6 +1,5 @@
 package com.serverbe.infrastructure.security;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.serverbe.application.port.out.crypto.EncryptPort;
 import com.serverbe.application.port.out.dto.oauth.AccessTokenResult;
@@ -42,7 +41,8 @@ public class JwtTokenProvider implements TokenProvider {
     private final Duration accessTokenValidityInMinute;
     private final Duration refreshTokenValidateDay;
     private final int refreshTokenLength;
-    private final String roles;
+    private final String roleKey;
+    private final String idKey;
 
     /**
      * @param secureRandom  암호학적으로 강력한 난수 생성기 {@link SecureRandom}
@@ -63,7 +63,8 @@ public class JwtTokenProvider implements TokenProvider {
         this.accessTokenValidityInMinute = jwtProperties.accessToken().validityInMinute();
         this.refreshTokenValidateDay = jwtProperties.refreshToken().expirationDays();
         this.refreshTokenLength = jwtProperties.refreshToken().byteLength();
-        this.roles = jwtProperties.authorityKey();
+        this.roleKey = jwtProperties.roleKey();
+        this.idKey = jwtProperties.idKey();
         this.key = jwtKeyManager.getKey();
     }
 
@@ -72,7 +73,7 @@ public class JwtTokenProvider implements TokenProvider {
      * @param role 사용자의 권한 {@link Role}
      * @return 생성된 JWT 문자열과 만료 시간을 포함한 {@link AccessTokenResult}
      * @responsibility 유저 식별자와 권한 정보를 담은 <b>Stateless JWT</b>를 생성합니다.
-     * @implNote 1. <b>Payload</b>: 유저 고유 ID({@code id})를 {@code subject}로, 권한 정보를 커스텀 클레임({@code authorityKey})으로 삽입합니다.<br>
+     * @implNote 1. <b>Payload</b>: 유저 고유 ID({@code id})를 {@code subject}로, 권한 정보를 커스텀 클레임({@code roleKey})으로 삽입합니다.<br>
      * 2. <b>Signature</b>: <b>HS512</b> 알고리즘을 사용하여 토큰의 위변조를 방지합니다.
      */
     @Override
@@ -82,8 +83,8 @@ public class JwtTokenProvider implements TokenProvider {
 
         // 1. 민감 정보(Payload)를 Map으로 묶음
         Map<String, Object> payloadMap = new HashMap<>();
-        payloadMap.put("id", id);
-        payloadMap.put(roles, role.name());
+        payloadMap.put(idKey, id);
+        payloadMap.put(roleKey, role.name());
 
         try {
             // 2. JSON 변환 및 암호화 (AES-GCM)
@@ -101,7 +102,7 @@ public class JwtTokenProvider implements TokenProvider {
 
             return AccessTokenResult.of(compact, validity.toInstant().toEpochMilli());
 
-        } catch (JsonProcessingException e) {
+        } catch (Exception e) {
             log.error("JWT Payload Encryption Failed", e);
             throw new AuthException(AuthErrorCode.JWT_GENERATION_FAILED, "토큰 생성 실패");
         }

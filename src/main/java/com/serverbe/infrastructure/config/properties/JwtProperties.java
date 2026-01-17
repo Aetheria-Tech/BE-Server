@@ -6,9 +6,10 @@ import java.time.Duration;
 
 /**
  * @param secret                  HS512 알고리즘 서명에 사용되는 64바이트 이상의 비밀키
+ * @param idKey                   액세스 토큰에 사용자 식별자를 저장할 키 이름
  * @param accessToken             액세스 토큰 상세 설정 {@link AccessToken}
  * @param refreshToken            리프레시 토큰 상세 설정 {@link RefreshToken}
- * @param authorityKey            토큰 내 권한 정보를 저장할 클레임(Claim) 키 이름
+ * @param roleKey            토큰 내 권한 정보를 저장할 클레임(Claim) 키 이름
  * @param allowedClockSkewSeconds 서버 간 시간 차이를 허용할 클락 스큐(초)
  * @responsibility 시스템의 <b>JWT(JSON Web Token)</b> 생성 및 검증에 필요한 설정 정보를 관리하는 프로퍼티 객체입니다.
  * @implSpec 설정 파일(application.yml)에서 <b>jwt</b> 접두사 설정을 계층 구조로 바인딩합니다.
@@ -18,7 +19,8 @@ public record JwtProperties(
         String secret,
         AccessToken accessToken,
         RefreshToken refreshToken,
-        String authorityKey,
+        String roleKey,
+        String idKey,
         long allowedClockSkewSeconds
 ) {
     /**

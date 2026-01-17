@@ -32,9 +32,11 @@ import java.util.Map;
 @Component
 public class JwtTokenResolver implements TokenResolver {
     private final JwtParser parser;
-    private final String roles;
+    private final String roleKey;
+    private final String idKey;
     private final int refreshTokenLength;
 
+    private final TypeReference<Map<String, Object>> typeReference;
     private final EncryptPort encryptPort;
     private final ObjectMapper objectMapper;
 
@@ -47,13 +49,17 @@ public class JwtTokenResolver implements TokenResolver {
             JwtKeyManager jwtKeyManager,
             JwtProperties jwtProperties,
             EncryptPort encryptPort,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            TypeReference<Map<String, Object>> typeReference
     ) {
         this.parser = jwtKeyManager.getParser();
-        this.roles = jwtProperties.authorityKey();
+        this.roleKey = jwtProperties.roleKey();
+        this.idKey = jwtProperties.idKey();
+        this.refreshTokenLength = jwtProperties.refreshToken().byteLength();
+
         this.encryptPort = encryptPort;
         this.objectMapper = objectMapper;
-        this.refreshTokenLength = jwtProperties.refreshToken().byteLength();
+        this.typeReference = typeReference;
     }
 
     /**
@@ -67,8 +73,8 @@ public class JwtTokenResolver implements TokenResolver {
         Map<String, Object> claimsMap = getDecryptedPayload(accessToken);
 
         // 2. 데이터 추출
-        Long userId = Long.valueOf(String.valueOf(claimsMap.get("id")));
-        String roleStr = String.valueOf(claimsMap.get(roles)); // provider에서 설정한 키로 조회
+        Long userId = Long.valueOf(String.valueOf(claimsMap.get(idKey)));
+        String roleStr = String.valueOf(claimsMap.get(roleKey)); // provider에서 설정한 키로 조회
         Role role = Role.valueOf(roleStr);
 
         // 3. 인증 객체 생성
@@ -119,7 +125,7 @@ public class JwtTokenResolver implements TokenResolver {
     public Long getIdFromToken(String accessToken) {
         Map<String, Object> claimsMap = getDecryptedPayload(accessToken);
         try {
-            return Long.valueOf(String.valueOf(claimsMap.get("id")));
+            return Long.valueOf(String.valueOf(claimsMap.get(idKey)));
         } catch (NumberFormatException e) {
             throw new AuthException(AuthErrorCode.JWT_TOKEN_IS_INVALID, "ID 형식이 올바르지 않습니다.");
         }
@@ -129,11 +135,14 @@ public class JwtTokenResolver implements TokenResolver {
      * @param accessToken 액세스 토큰
      * @return 사용자 권한(Role)
      */
-    @Override
     public Role getRoleFromToken(String accessToken) {
         Map<String, Object> claimsMap = getDecryptedPayload(accessToken);
-        String roleStr = String.valueOf(claimsMap.get(roles));
-        return Role.valueOf(roleStr);
+        String roleStr = String.valueOf(claimsMap.get(roleKey));
+        try {
+            return Role.valueOf(roleStr);
+        } catch (IllegalArgumentException e) {
+            throw new AuthException(AuthErrorCode.JWT_TOKEN_IS_INVALID, "유효하지 않은 Role 값입니다.");
+        }
     }
 
     /**
@@ -186,8 +195,7 @@ public class JwtTokenResolver implements TokenResolver {
             // "v1:IV:Cipher" -> JSON String
             String jsonPayload = encryptPort.decrypt(encryptedSubject);
             // JSON String -> Map<String, Object>
-            return objectMapper.readValue(jsonPayload, new TypeReference<Map<String, Object>>() {
-            });
+            return objectMapper.readValue(jsonPayload, typeReference);
         } catch (Exception e) {
             log.error("Token Decryption Failed: {}", e.getMessage());
             throw new AuthException(AuthErrorCode.JWT_TOKEN_IS_INVALID, "토큰 복호화에 실패했습니다.");
