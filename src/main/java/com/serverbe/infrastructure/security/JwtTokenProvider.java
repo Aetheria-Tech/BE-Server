@@ -1,5 +1,6 @@
 package com.serverbe.infrastructure.security;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.serverbe.application.port.out.crypto.EncryptPort;
 import com.serverbe.application.port.out.dto.oauth.AccessTokenResult;
@@ -102,9 +103,12 @@ public class JwtTokenProvider implements TokenProvider {
 
             return AccessTokenResult.of(compact, validity.toInstant().toEpochMilli());
 
+        } catch (JsonProcessingException e) {
+            log.error("JWT payload JSON serialization failed", e);
+            throw new AuthException(AuthErrorCode.JWT_GENERATION_FAILED, "토큰 페이로드 직렬화에 실패했습니다.");
         } catch (Exception e) {
-            log.error("JWT Payload Encryption Failed", e);
-            throw new AuthException(AuthErrorCode.JWT_GENERATION_FAILED, "토큰 생성 실패");
+            log.error("JWT payload encryption or signing failed", e);
+            throw new AuthException(AuthErrorCode.JWT_GENERATION_FAILED, "토큰 암호화 또는 서명 중 오류가 발생했습니다.");
         }
     }
 

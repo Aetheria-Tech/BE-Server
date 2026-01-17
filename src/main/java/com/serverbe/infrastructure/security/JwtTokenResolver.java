@@ -17,6 +17,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
+import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -207,8 +208,11 @@ public class JwtTokenResolver implements TokenResolver {
             String jsonPayload = encryptPort.decrypt(encryptedSubject);
             // JSON String -> Map<String, Object>
             return objectMapper.readValue(jsonPayload, typeReference);
+        } catch (IOException e) {
+            log.error("Token Decryption Failed: Failed to parse JSON payload", e);
+            throw new AuthException(AuthErrorCode.JWT_TOKEN_IS_INVALID, "토큰 페이로드 파싱에 실패했습니다.");
         } catch (Exception e) {
-            log.error("Token Decryption Failed: {}", e.getMessage());
+            log.error("Token Decryption Failed", e);
             throw new AuthException(AuthErrorCode.JWT_TOKEN_IS_INVALID, "토큰 복호화에 실패했습니다.");
         }
     }
