@@ -29,9 +29,4 @@ public class SecurityBeanConfig {
     public SecureRandom secureRandom() {
         return new SecureRandom();
     }
-
-    @Bean
-    public TypeReference<Map<String, Object>> typeReference() {
-        return new TypeReference<>() {};
-    }
 }

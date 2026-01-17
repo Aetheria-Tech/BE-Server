@@ -36,7 +36,8 @@ public class JwtTokenResolver implements TokenResolver {
     private final String idKey;
     private final int refreshTokenLength;
 
-    private final TypeReference<Map<String, Object>> typeReference;
+    // 빈으로 등록하는 것은 일반적인 패턴이 아니며, 이 경우 특별한 이점이 없습니다. 따라서 내부에서 관리할 수 있게한다.
+    private final TypeReference<Map<String, Object>> typeReference = new TypeReference<>() {};
     private final EncryptPort encryptPort;
     private final ObjectMapper objectMapper;
 
@@ -49,8 +50,7 @@ public class JwtTokenResolver implements TokenResolver {
             JwtKeyManager jwtKeyManager,
             JwtProperties jwtProperties,
             EncryptPort encryptPort,
-            ObjectMapper objectMapper,
-            TypeReference<Map<String, Object>> typeReference
+            ObjectMapper objectMapper
     ) {
         this.parser = jwtKeyManager.getParser();
         this.roleKey = jwtProperties.roleKey();
@@ -59,7 +59,6 @@ public class JwtTokenResolver implements TokenResolver {
 
         this.encryptPort = encryptPort;
         this.objectMapper = objectMapper;
-        this.typeReference = typeReference;
     }
 
     /**
@@ -73,9 +72,20 @@ public class JwtTokenResolver implements TokenResolver {
         Map<String, Object> claimsMap = getDecryptedPayload(accessToken);
 
         // 2. 데이터 추출
-        Long userId = Long.valueOf(String.valueOf(claimsMap.get(idKey)));
-        String roleStr = String.valueOf(claimsMap.get(roleKey)); // provider에서 설정한 키로 조회
-        Role role = Role.valueOf(roleStr);
+        long userId;
+        try {
+            userId = Long.parseLong(String.valueOf(claimsMap.get(idKey)));
+        } catch (NumberFormatException e) {
+            throw new AuthException(AuthErrorCode.JWT_TOKEN_IS_INVALID, "ID 형식이 올바르지 않습니다.");
+        }
+
+        Role role;
+        try {
+            String roleStr = String.valueOf(claimsMap.get(roleKey));
+            role = Role.valueOf(roleStr);
+        } catch (IllegalArgumentException e) {
+            throw new AuthException(AuthErrorCode.JWT_TOKEN_IS_INVALID, "유효하지 않은 Role 값입니다.");
+        }
 
         // 3. 인증 객체 생성
         List<SimpleGrantedAuthority> authorities = List.of(
@@ -135,6 +145,7 @@ public class JwtTokenResolver implements TokenResolver {
      * @param accessToken 액세스 토큰
      * @return 사용자 권한(Role)
      */
+    @Override
     public Role getRoleFromToken(String accessToken) {
         Map<String, Object> claimsMap = getDecryptedPayload(accessToken);
         String roleStr = String.valueOf(claimsMap.get(roleKey));

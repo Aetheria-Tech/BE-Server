@@ -46,9 +46,9 @@ jwt:
     cookie: ${JWT_REFRESH_TOKEN_COOKIE}    # 리프레시 토큰 쿠키 키
     expiration-days: 60d                   # 리프레시 토큰 유효기간 (일)
     byte-length: 64
-  authority-key: roles                     # 액세스 토큰에서 권한을 가져올 키
   allowed-clock-skew-seconds: 30
   id-key: id                               # 액세스 토큰에서 사용자 식별자를 가져올 키
+  role-key: roles                          # 액세스 토큰에서 권한을 가져올 키
 
 # Redis
 redis:
