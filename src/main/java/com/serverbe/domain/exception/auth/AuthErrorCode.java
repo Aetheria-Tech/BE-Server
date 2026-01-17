@@ -26,6 +26,7 @@ public enum AuthErrorCode implements ErrorCode {
     JWT_TOKEN_UNSUPPORTED(HttpStatus.BAD_REQUEST, "JWT_005", "지원되지 않는 JWT 토큰 형식입니다."),
     JWT_TOKEN_IS_LOGOUT(HttpStatus.UNAUTHORIZED, "JWT_006", "로그아웃된 JWT 토큰입니다."),
     JWT_KEY_INVALID(HttpStatus.INTERNAL_SERVER_ERROR, "JWT_101", "JWT 키가 올바르지 않습니다."),
+    JWT_GENERATION_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "JWT_102", "JWT 토큰 생성 중 오류가 발생했습니다"),
 
     // TOKEN (Refresh Token / Redis 관련)
     NOT_FOUND_REFRESH_TOKEN(HttpStatus.NOT_FOUND, "TOKEN_001", "리프레시 토큰을 찾을 수 없습니다."),

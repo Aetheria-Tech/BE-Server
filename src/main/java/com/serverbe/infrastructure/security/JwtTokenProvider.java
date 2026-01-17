@@ -1,14 +1,18 @@
 package com.serverbe.infrastructure.security;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.serverbe.application.port.out.crypto.EncryptPort;
 import com.serverbe.application.port.out.dto.oauth.AccessTokenResult;
 import com.serverbe.application.port.out.dto.oauth.RefreshTokenResult;
 import com.serverbe.application.port.out.security.TokenProvider;
+import com.serverbe.domain.exception.auth.AuthErrorCode;
+import com.serverbe.domain.exception.auth.AuthException;
 import com.serverbe.domain.model.user.vo.Role;
 import com.serverbe.infrastructure.config.properties.JwtProperties;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
@@ -17,6 +21,8 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * @author Duskafka
@@ -29,11 +35,14 @@ import java.util.Date;
 public class JwtTokenProvider implements TokenProvider {
 
     private final SecureRandom secureRandom;
+    private final EncryptPort encryptPort;
+    private final ObjectMapper objectMapper;
+
     private final SecretKey key;
     private final Duration accessTokenValidityInMinute;
     private final Duration refreshTokenValidateDay;
     private final int refreshTokenLength;
-    private final String authorityKey;
+    private final String roles;
 
     /**
      * @param secureRandom  암호학적으로 강력한 난수 생성기 {@link SecureRandom}
@@ -43,14 +52,18 @@ public class JwtTokenProvider implements TokenProvider {
      */
     public JwtTokenProvider(
             SecureRandom secureRandom,
+            EncryptPort encryptPort,
+            ObjectMapper objectMapper,
             JwtProperties jwtProperties,
             JwtKeyManager jwtKeyManager
     ) {
         this.secureRandom = secureRandom;
+        this.encryptPort = encryptPort;
+        this.objectMapper = objectMapper;
         this.accessTokenValidityInMinute = jwtProperties.accessToken().validityInMinute();
         this.refreshTokenValidateDay = jwtProperties.refreshToken().expirationDays();
         this.refreshTokenLength = jwtProperties.refreshToken().byteLength();
-        this.authorityKey = jwtProperties.authorityKey();
+        this.roles = jwtProperties.authorityKey();
         this.key = jwtKeyManager.getKey();
     }
 
@@ -67,14 +80,31 @@ public class JwtTokenProvider implements TokenProvider {
         Date now = new Date();
         Date validity = new Date(now.getTime() + accessTokenValidityInMinute.toMillis());
 
-        String compact = Jwts.builder()
-                .setSubject(String.valueOf(id))
-                .claim(authorityKey, role.name())
-                .setIssuedAt(now)
-                .setExpiration(validity)
-                .signWith(key, SignatureAlgorithm.HS512)
-                .compact();
-        return AccessTokenResult.of(compact, validity.toInstant().toEpochMilli());
+        // 1. 민감 정보(Payload)를 Map으로 묶음
+        Map<String, Object> payloadMap = new HashMap<>();
+        payloadMap.put("id", id);
+        payloadMap.put(roles, role.name());
+
+        try {
+            // 2. JSON 변환 및 암호화 (AES-GCM)
+            // 결과 예시: "v1:Base64(IV):Base64(Cipher)"
+            String jsonPayload = objectMapper.writeValueAsString(payloadMap);
+            String encryptedSubject = encryptPort.encrypt(jsonPayload);
+
+            // 3. JWT 생성 (subject에 암호화된 문자열 저장)
+            String compact = Jwts.builder()
+                    .setSubject(encryptedSubject)
+                    .setIssuedAt(now)
+                    .setExpiration(validity)
+                    .signWith(key, SignatureAlgorithm.HS512)
+                    .compact();
+
+            return AccessTokenResult.of(compact, validity.toInstant().toEpochMilli());
+
+        } catch (JsonProcessingException e) {
+            log.error("JWT Payload Encryption Failed", e);
+            throw new AuthException(AuthErrorCode.JWT_GENERATION_FAILED, "토큰 생성 실패");
+        }
     }
 
     /**
