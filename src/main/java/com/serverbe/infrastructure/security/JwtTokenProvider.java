@@ -83,9 +83,7 @@ public class JwtTokenProvider implements TokenProvider {
         Date validity = new Date(now.getTime() + accessTokenValidityInMinute.toMillis());
 
         // 1. 민감 정보(Payload)를 Map으로 묶음
-        Map<String, Object> payloadMap = new HashMap<>();
-        payloadMap.put(idKey, id);
-        payloadMap.put(roleKey, role.name());
+        Map<String, Object> payloadMap = Map.of(idKey, id, roleKey, role.name());
 
         try {
             // 2. JSON 변환 및 암호화 (AES-GCM)

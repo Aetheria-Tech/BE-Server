@@ -73,20 +73,8 @@ public class JwtTokenResolver implements TokenResolver {
         Map<String, Object> claimsMap = getDecryptedPayload(accessToken);
 
         // 2. 데이터 추출
-        long userId;
-        try {
-            userId = Long.parseLong(String.valueOf(claimsMap.get(idKey)));
-        } catch (NumberFormatException e) {
-            throw new AuthException(AuthErrorCode.JWT_TOKEN_IS_INVALID, "ID 형식이 올바르지 않습니다.");
-        }
-
-        Role role;
-        try {
-            String roleStr = String.valueOf(claimsMap.get(roleKey));
-            role = Role.valueOf(roleStr);
-        } catch (IllegalArgumentException e) {
-            throw new AuthException(AuthErrorCode.JWT_TOKEN_IS_INVALID, "유효하지 않은 Role 값입니다.");
-        }
+        long userId = extractId(claimsMap);
+        Role role = extractRole(claimsMap);
 
         // 3. 인증 객체 생성
         List<SimpleGrantedAuthority> authorities = List.of(
@@ -94,6 +82,24 @@ public class JwtTokenResolver implements TokenResolver {
         );
 
         return new UsernamePasswordAuthenticationToken(userId, null, authorities);
+    }
+
+    private long extractId(Map<String, Object> claimsMap) {
+        try {
+            // objectMapper가 숫자를 Integer로 변환할 수 있으므로 String.valueOf()를 사용하는 것이 안전합니다.
+            return Long.parseLong(String.valueOf(claimsMap.get(idKey)));
+        } catch (NumberFormatException e) {
+            throw new AuthException(AuthErrorCode.JWT_TOKEN_IS_INVALID, "ID 형식이 올바르지 않습니다.");
+        }
+    }
+
+    private Role extractRole(Map<String, Object> claimsMap) {
+        try {
+            String roleStr = String.valueOf(claimsMap.get(roleKey));
+            return Role.valueOf(roleStr);
+        } catch (IllegalArgumentException e) {
+            throw new AuthException(AuthErrorCode.JWT_TOKEN_IS_INVALID, "유효하지 않은 Role 값입니다.");
+        }
     }
 
     /**
