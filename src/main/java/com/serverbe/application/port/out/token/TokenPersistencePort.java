@@ -94,5 +94,5 @@ public interface TokenPersistencePort {
      */
     boolean existsRefreshToken(Long userId, String deviceId, String refreshToken);
 
-    long getSessionTtl(Long userId);
+    long getSessionTtl(Long userId, String deviceId);
 }

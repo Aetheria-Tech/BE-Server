@@ -371,14 +371,14 @@ public class TokenPersistenceAdapter implements TokenPersistencePort {
         });
     }
 
+
     @Override
-    public long getSessionTtl(Long userId) {
-        // 1. 세션 키 조합 (기존에 사용하시던 키 생성 로직 사용)
-        // 예: "user:{userId}:rt:{deviceId}"
-        String sessionKey = createSessionIndexKey(userId);
+    public long getSessionTtl(Long userId, String deviceId) {
+        // 1. 특정 기기의 토큰 키를 생성합니다.
+        String tokenKey = createTokenKey(userId, deviceId);
 
         // 2. Redis에서 남은 시간(Milliseconds) 조회
-        Long expire = redisTemplate.getExpire(sessionKey, TimeUnit.MILLISECONDS);
+        Long expire = redisTemplate.getExpire(tokenKey, TimeUnit.MILLISECONDS);
 
         // 3. 만료되었거나 키가 없으면 0 반환, 아니면 남은 시간 반환
         return (expire != null && expire > 0) ? expire : 0;

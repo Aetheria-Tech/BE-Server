@@ -1,5 +1,6 @@
 package com.serverbe.application.service.helper;
 
+import com.serverbe.application.port.out.security.TokenResolver;
 import com.serverbe.application.port.out.token.TokenPersistencePort;
 import com.serverbe.infrastructure.config.properties.JwtProperties;
 import lombok.extern.slf4j.Slf4j;
@@ -19,10 +20,12 @@ public class AuthSessionManager {
 
     private final TokenPersistencePort tokenPersistencePort;
     private final Duration refreshTokenExpirationDays;
+    private final TokenResolver tokenResolver;
 
-    public AuthSessionManager(TokenPersistencePort tokenPersistencePort, JwtProperties jwtProperties) {
+    public AuthSessionManager(TokenPersistencePort tokenPersistencePort, JwtProperties jwtProperties, TokenResolver tokenResolver) {
         this.tokenPersistencePort = tokenPersistencePort;
         this.refreshTokenExpirationDays = jwtProperties.refreshToken().expirationDays();
+        this.tokenResolver = tokenResolver;
     }
 
     /**
@@ -56,13 +59,17 @@ public class AuthSessionManager {
     }
 
     /**
-     * @param accessToken   블랙리스트에 등록할 액세스 토큰
-     * @param remainingTime 토큰의 남은 유효 기간
+     * @param accessToken    블랙리스트에 등록할 액세스 토큰
      * @responsibility 로그아웃된 액세스 토큰을 블랙리스트에 등록하여 재사용을 차단합니다.
      */
-    public void blacklistAccessToken(String accessToken, Duration remainingTime) {
-        tokenPersistencePort.blacklistAccessToken(accessToken, remainingTime);
-        log.info("[BLACKLIST] 액세스 토큰 차단 완료. 유지 시간: {} seconds", remainingTime.getSeconds());
+    public void blacklistAccessToken(String accessToken) {
+        long remainingMillis = tokenResolver.getRemainingTimeFromAccessToken(accessToken);
+
+        if (remainingMillis > 0) {
+            Duration remainingTime = Duration.ofMillis(remainingMillis);
+            tokenPersistencePort.blacklistAccessToken(accessToken, remainingTime);
+            log.info("[BLACKLIST] 액세스 토큰 차단 완료. 유지 시간: {} seconds", remainingTime.getSeconds());
+        }
     }
 
 
@@ -106,7 +113,7 @@ public class AuthSessionManager {
     }
 
     public long getSessionRemainingTime(Long userId, String deviceId) {
-        return tokenPersistencePort.getSessionTtl(userId);
+        return tokenPersistencePort.getSessionTtl(userId, deviceId);
     }
 
     public void blacklistRefreshToken(String refreshToken, Duration duration) {

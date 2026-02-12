@@ -49,7 +49,7 @@ public class LogoutService implements LogoutUseCase {
         authSessionManager.terminateSession(userId, deviceId);
 
         // 4. 액세스 토큰 차단 (기존 로직 유지)
-        invalidateAccessToken(accessToken, userId, "현재 기기");
+        authSessionManager.blacklistAccessToken(accessToken);
     }
 
     /**
@@ -63,23 +63,8 @@ public class LogoutService implements LogoutUseCase {
         authSessionManager.terminateAllSessions(userId);
 
         // 현재 사용 중인 액세스 토큰 차단
-        invalidateAccessToken(accessToken, userId, "모든 기기");
+        authSessionManager.blacklistAccessToken(accessToken);
 
         log.warn("[SECURITY ALERT] 사용자(ID: {})의 모든 세션이 일괄 종료되었습니다.", userId);
-    }
-
-    /**
-     * @param accessToken 차단할 토큰
-     * @param userId      유저 식별자
-     * @param type        로그아웃 유형 (로그 기록용)
-     * @responsibility 액세스 토큰의 남은 수명을 계산하여 블랙리스트에 등록함으로써 즉각적인 접근 차단을 보장합니다.
-     */
-    private void invalidateAccessToken(String accessToken, Long userId, String type) {
-        long remainingMillis = tokenResolver.getRemainingTimeFromAccessToken(accessToken);
-
-        if (remainingMillis > 0) {
-            authSessionManager.blacklistAccessToken(accessToken, Duration.ofMillis(remainingMillis));
-            log.info("[LOGOUT] {} 로그아웃 처리 완료. 사용자 ID: {}, 차단 유효 시간: {}ms", type, userId, remainingMillis);
-        }
     }
 }
