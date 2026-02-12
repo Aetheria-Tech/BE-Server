@@ -3,7 +3,7 @@ package com.serverbe.application.service;
 import com.serverbe.application.port.in.oauth.LogoutUseCase;
 import com.serverbe.application.port.out.security.TokenResolver;
 import com.serverbe.application.service.helper.AuthSessionManager;
-import lombok.RequiredArgsConstructor;
+import com.serverbe.infrastructure.config.properties.JwtProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -15,13 +15,17 @@ import java.time.Duration;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class LogoutService implements LogoutUseCase {
 
     private final AuthSessionManager authSessionManager;
     private final TokenResolver tokenResolver;
+    private final Duration defaultRefreshTokenValidityMs;
 
-    private final long defaultRefreshTokenValidityMs = 1209600000L;
+    public LogoutService(AuthSessionManager authSessionManager, TokenResolver tokenResolver, JwtProperties jwtProperties) {
+        this.authSessionManager = authSessionManager;
+        this.tokenResolver = tokenResolver;
+        this.defaultRefreshTokenValidityMs = jwtProperties.refreshToken().expirationDays();
+    }
 
     /**
      * @param accessToken  로그아웃에 사용된 액세스 토큰
@@ -39,7 +43,7 @@ public class LogoutService implements LogoutUseCase {
         // 세션이 이미 만료되었거나 조회가 안되면 0이 반환될 수 있음 -> 이 경우 안전하게 기본값 사용 고려
         Duration blacklistDuration = (sessionTtl > 0)
                 ? Duration.ofMillis(sessionTtl)
-                : Duration.ofMillis(defaultRefreshTokenValidityMs);
+                : defaultRefreshTokenValidityMs;
 
         authSessionManager.blacklistRefreshToken(refreshToken, blacklistDuration);
 
