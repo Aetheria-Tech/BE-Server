@@ -52,4 +52,11 @@ public interface TokenResolver {
      * @return 토큰의 만료 시점을 나타내는 {@link Instant} 객체
      */
     Instant getExpirationFromToken(String accessToken);
+
+    /**
+     * @responsibility 액세스 토큰에서 남은 유효 시간을 가져옵니다.
+     * @param accessToken 남은 유효 시간을 가져올 액세스 토큰
+     * @return 남은 유효시간
+     * */
+    long getRemainingTimeFromAccessToken(String accessToken);
 }

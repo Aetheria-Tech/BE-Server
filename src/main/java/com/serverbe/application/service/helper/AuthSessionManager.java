@@ -65,15 +65,6 @@ public class AuthSessionManager {
         log.info("[BLACKLIST] 액세스 토큰 차단 완료. 유지 시간: {} seconds", remainingTime.getSeconds());
     }
 
-    /**
-     * @param refreshToken 블랙리스트에 등록할 리프레시 토큰
-     * @responsibility 리프레시 토큰을 최대 수명(TTL) 동안 블랙리스트에 등록합니다.
-     */
-    public void blacklistRefreshToken(String refreshToken) {
-        tokenPersistencePort.blacklistRefreshToken(refreshToken, this.refreshTokenExpirationDays);
-        log.info("[BLACKLIST] 리프레시 토큰 차단 완료. (TTL: {} days)", refreshTokenExpirationDays.toDays());
-    }
-
 
     /**
      * @param userId       유저 고유 식별자
@@ -112,5 +103,13 @@ public class AuthSessionManager {
         );
 
         log.info("[SESSION] 리프레시 토큰 원자적 교체 완료. UserID: {}, DeviceID: {}", userId, deviceId);
+    }
+
+    public long getSessionRemainingTime(Long userId, String deviceId) {
+        return tokenPersistencePort.getSessionTtl(userId);
+    }
+
+    public void blacklistRefreshToken(String refreshToken, Duration duration) {
+        tokenPersistencePort.blacklistRefreshToken(refreshToken, duration);
     }
 }

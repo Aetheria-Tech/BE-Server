@@ -44,7 +44,7 @@ public class ReissueService implements ReissueUseCase {
      */
     @Override
     public TokenResult reissue(String accessToken, String refreshToken, String deviceId) {
-        // 1. 형식 검증 및 정보 복구 (기존과 동일)
+        // 1. 형식 검증 및 정보 복구
         Long userId = tokenResolver.getIdFromToken(accessToken);
         Role role = tokenResolver.getRoleFromToken(accessToken);
 
@@ -54,15 +54,18 @@ public class ReissueService implements ReissueUseCase {
         // 3. 세션 검증 (블랙리스트 여부 + 현재 세션 일치 여부)
         validateSessionAndHandleReplay(userId, deviceId, refreshToken);
 
-        // 4. 신규 토큰 생성
+        // 4. 기존 액세스 토큰 블랙리스트 등록 (남은 수명이 있다면)
+        invalidateAccessToken(accessToken);
+
+        // 5. 신규 토큰 생성
         TokenResult newTokens = generateNewTokens(userId, role);
 
-        // 5. 세션 로테이션
+        // 6. 세션 로테이션
         authSessionManager.rotateSession(
                 userId,
                 deviceId,
-                refreshToken, // 기존 토큰 -> 블랙리스트로
-                newTokens.refreshTokenResult().opaqueToken() // 새 토큰 -> 저장
+                refreshToken,
+                newTokens.refreshTokenResult().opaqueToken()
         );
 
         log.info("[REISSUE SUCCESS] User: {}, Device: {}", userId, deviceId);
@@ -127,5 +130,16 @@ public class ReissueService implements ReissueUseCase {
                 tokenProvider.generateRefreshToken(userId, role),
                 role
         );
+    }
+
+    /**
+     * @responsibility 재발급 시 사용된 기존 액세스 토큰이 아직 유효기간이 남아있다면 블랙리스트에 등록하여 폐기합니다.
+     */
+    private void invalidateAccessToken(String accessToken) {
+        long remainingMilli = tokenResolver.getRemainingTimeFromAccessToken(accessToken);
+        if (remainingMilli > 0) {
+            authSessionManager.blacklistAccessToken(accessToken, Duration.ofMillis(remainingMilli));
+            log.info("[REISSUE] 기존 액세스 토큰 블랙리스트 등록 완료 (남은 시간: {}ms)", remainingMilli);
+        }
     }
 }

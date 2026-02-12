@@ -26,6 +26,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.constraints.NotBlank;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -40,6 +41,7 @@ import java.io.IOException;
  * 인증 및 권한 관련 HTTP 요청을 처리하는 웹 어댑터입니다.
  * 소셜 로그인 시작, 콜백 처리, 토큰 재발급, 로그아웃, 회원 탈퇴를 담당합니다.
  */
+@Slf4j
 @Tag(name = "Auth", description = "사용자 인증 관련 API")
 @RestController
 @RequestMapping("/api/v1/auth")
