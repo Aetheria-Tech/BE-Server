@@ -93,4 +93,6 @@ public interface TokenPersistencePort {
      * @responsibility 특정 기기의 리프레시 토큰이 저장소에 존재하고 일치하는지 검증합니다.
      */
     boolean existsRefreshToken(Long userId, String deviceId, String refreshToken);
+
+    long getSessionTtl(Long userId, String deviceId);
 }

@@ -12,9 +12,6 @@ import com.serverbe.domain.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
-import java.time.Duration;
 
 /**
  * @author Duskafka
@@ -44,7 +41,7 @@ public class ReissueService implements ReissueUseCase {
      */
     @Override
     public TokenResult reissue(String accessToken, String refreshToken, String deviceId) {
-        // 1. 형식 검증 및 정보 복구 (기존과 동일)
+        // 1. 형식 검증 및 정보 복구
         Long userId = tokenResolver.getIdFromToken(accessToken);
         Role role = tokenResolver.getRoleFromToken(accessToken);
 
@@ -54,15 +51,18 @@ public class ReissueService implements ReissueUseCase {
         // 3. 세션 검증 (블랙리스트 여부 + 현재 세션 일치 여부)
         validateSessionAndHandleReplay(userId, deviceId, refreshToken);
 
-        // 4. 신규 토큰 생성
+        // 4. 기존 액세스 토큰 블랙리스트 등록 (남은 수명이 있다면)
+        authSessionManager.blacklistAccessToken(accessToken);
+
+        // 5. 신규 토큰 생성
         TokenResult newTokens = generateNewTokens(userId, role);
 
-        // 5. 세션 로테이션
+        // 6. 세션 로테이션
         authSessionManager.rotateSession(
                 userId,
                 deviceId,
-                refreshToken, // 기존 토큰 -> 블랙리스트로
-                newTokens.refreshTokenResult().opaqueToken() // 새 토큰 -> 저장
+                refreshToken,
+                newTokens.refreshTokenResult().opaqueToken()
         );
 
         log.info("[REISSUE SUCCESS] User: {}, Device: {}", userId, deviceId);

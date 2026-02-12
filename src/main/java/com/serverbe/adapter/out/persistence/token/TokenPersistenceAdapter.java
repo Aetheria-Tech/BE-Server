@@ -16,6 +16,7 @@ import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
@@ -264,26 +265,39 @@ public class TokenPersistenceAdapter implements TokenPersistencePort {
      * @param deviceId        기기 식별자
      * @param oldRefreshToken 오래된(이전의) 리프레시 토큰
      * @param newRefreshToken 새로 발급한 리프레시 토큰
-     * @param expiry          기존에 등록된 리프레시 토큰이 사용되고 등록할 블랙리스트의 기한
-     * @implSpec 원자성을 지키기 위해 execute로 묶었습니다.
+     * @param newTokensExpiry 새로 발급될 토큰의 유효 기간 (기존 expiry 파라미터 명확화)
+     * @implSpec 1. 기존 토큰의 남은 TTL을 조회하여 블랙리스트 저장 시간으로 사용합니다.
+     * 2. 원자성을 지키기 위해 execute로 묶어서 처리합니다.
      */
     @Override
-    public void rotateRefreshToken(Long userId, String deviceId, String oldRefreshToken, String newRefreshToken, Duration expiry) {
+    public void rotateRefreshToken(Long userId, String deviceId, String oldRefreshToken, String newRefreshToken, Duration newTokensExpiry) {
         String tokenKey = createTokenKey(userId, deviceId);
         String sessionKey = createSessionIndexKey(userId);
-        String blacklistKey = createRefreshTokenBlacklistKey(oldRefreshToken); // 기존 토큰 해싱 키
+        String blacklistKey = createRefreshTokenBlacklistKey(oldRefreshToken);
         long timestamp = System.currentTimeMillis();
+
+        // 트랜잭션 시작 전, 기존 토큰의 남은 수명(TTL) 조회
+        // getExpire는 트랜잭션(multi) 내부에서 호출하면 null을 반환하므로 외부에서 조회해야 합니다.
+        Long remainingTimeMillis = redisTemplate.getExpire(tokenKey, TimeUnit.MILLISECONDS);
+
+        // 남은 시간이 없거나(-2: 키 없음), 만료됨(-1: 무제한이나 여기선 해당없음)인 경우 방어 로직
+        // 키가 없다는 건 이미 만료되었거나 삭제된 상태이므로, 블랙리스트에는 최소한의 시간(예: 5분)만 잡아두거나,
+        // 보안 정책에 따라 원래 설정된 refreshTokenExpireDays를 사용할 수도 있습니다.
+        // 여기서는 '메모리 절약'이 목적이므로 남은 시간이 있다면 그것을, 없다면 5분의 버퍼를 둡니다.
+        Duration blacklistTtl = (remainingTimeMillis != null && remainingTimeMillis > 0)
+                ? Duration.ofMillis(remainingTimeMillis)
+                : Duration.ofMinutes(5);
 
         redisTemplate.execute(new SessionCallback<List<Object>>() {
             @Override
             public List<Object> execute(RedisOperations operations) {
                 operations.multi(); // 트랜잭션 시작
 
-                // 1. 신규 토큰 저장 (덮어쓰기)
-                operations.opsForValue().set(tokenKey, newRefreshToken, expiry);
+                // 1. 신규 토큰 저장 (덮어쓰기) - 새 토큰의 수명 적용
+                operations.opsForValue().set(tokenKey, newRefreshToken, newTokensExpiry);
 
-                // 2. 기존 토큰 블랙리스트 등록 (최대 수명 적용)
-                operations.opsForValue().set(blacklistKey, "used", expiry);
+                // 2. 기존 토큰 블랙리스트 등록 - [변경 포인트 2] 조회한 잔여 수명(blacklistTtl) 적용
+                operations.opsForValue().set(blacklistKey, "used", blacklistTtl);
 
                 // 3. 세션 인덱스 시간 갱신 및 만료시간 연장
                 operations.opsForZSet().add(sessionKey, deviceId, timestamp);
@@ -293,8 +307,10 @@ public class TokenPersistenceAdapter implements TokenPersistencePort {
             }
         });
 
-        // 4. 세션 개수 제한 로직 (기존 메서드 재사용)
+        // 4. 세션 개수 제한 로직
         manageSessionLimit(userId, sessionKey);
+
+        log.info("[RTR] 토큰 교체 완료. Old Token TTL(Blacklist): {}ms", blacklistTtl.toMillis());
     }
 
 
@@ -355,6 +371,19 @@ public class TokenPersistenceAdapter implements TokenPersistencePort {
         });
     }
 
+
+    @Override
+    public long getSessionTtl(Long userId, String deviceId) {
+        // 1. 특정 기기의 토큰 키를 생성합니다.
+        String tokenKey = createTokenKey(userId, deviceId);
+
+        // 2. Redis에서 남은 시간(Milliseconds) 조회
+        Long expire = redisTemplate.getExpire(tokenKey, TimeUnit.MILLISECONDS);
+
+        // 3. 만료되었거나 키가 없으면 0 반환, 아니면 남은 시간 반환
+        return (expire != null && expire > 0) ? expire : 0;
+    }
+
     /**
      * 리프레시 토큰을 등록할 때 키를 생성합니다.
      *
@@ -367,7 +396,7 @@ public class TokenPersistenceAdapter implements TokenPersistencePort {
 
     /**
      * @param userId 사용자 식별자
-     * @implNote Key: {prefix}:sessions:{userId} (예: RT:sessions:101)
+     * @implNote Key: {prefix}:sessions:{userId} (예: user:sessions:101)
      */
     private String createSessionIndexKey(Long userId) {
         return String.format("%s:%s:%s", authPrefix, sessionSuffix, userId);

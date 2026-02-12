@@ -35,7 +35,6 @@ public class JwtTokenResolver implements TokenResolver {
     private final JwtParser parser;
     private final String roleKey;
     private final String idKey;
-    private final int refreshTokenLength;
 
     // 빈으로 등록하는 것은 일반적인 패턴이 아니며, 이 경우 특별한 이점이 없습니다. 따라서 내부에서 관리할 수 있게한다.
     private final TypeReference<Map<String, Object>> typeReference = new TypeReference<>() {};
@@ -56,7 +55,6 @@ public class JwtTokenResolver implements TokenResolver {
         this.parser = jwtKeyManager.getParser();
         this.roleKey = jwtProperties.roleKey();
         this.idKey = jwtProperties.idKey();
-        this.refreshTokenLength = jwtProperties.refreshToken().byteLength();
 
         this.encryptPort = encryptPort;
         this.objectMapper = objectMapper;
@@ -127,7 +125,7 @@ public class JwtTokenResolver implements TokenResolver {
      */
     @Override
     public boolean validateRefreshToken(String refreshToken) {
-        return StringUtils.hasText(refreshToken) && refreshToken.length() == refreshTokenLength;
+        return StringUtils.hasText(refreshToken);
     }
 
     /**
@@ -179,6 +177,17 @@ public class JwtTokenResolver implements TokenResolver {
             return e.getClaims().getExpiration().toInstant();
         } catch (JwtException e) {
             throw new AuthException(AuthErrorCode.JWT_TOKEN_IS_INVALID, e.getMessage());
+        }
+    }
+
+    @Override
+    public long getRemainingTimeFromAccessToken(String accessToken) {
+        try {
+            Instant expiration = getExpirationFromToken(accessToken);
+            long now = System.currentTimeMillis();
+            return expiration.toEpochMilli() - now;
+        } catch (Exception e) {
+            return 0;
         }
     }
 
