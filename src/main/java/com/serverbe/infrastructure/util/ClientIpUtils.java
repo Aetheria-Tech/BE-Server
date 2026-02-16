@@ -52,6 +52,7 @@ public final class ClientIpUtils {
     private static boolean isValidIp(String ip) {
         return StringUtils.hasText(ip)
                 && !UNKNOWN_IP.equalsIgnoreCase(ip)
+                && !"127.0.0.1".equals(ip) // 로컬호스트 필터링 필요 시
                 && !"0:0:0:0:0:0:0:1".equals(ip);
     }
 
