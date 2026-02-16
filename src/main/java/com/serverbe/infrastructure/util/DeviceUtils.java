@@ -6,9 +6,10 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.util.StringUtils;
 
 import java.nio.charset.StandardCharsets;
-import java.util.Base64;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 
-public class DeviceUtils {
+public final class DeviceUtils {
 
     private static final String DEVICE_ID_HEADER = "X-Device-Id";
     private static final String USER_AGENT_HEADER = "User-Agent";
@@ -16,7 +17,7 @@ public class DeviceUtils {
 
 
     private DeviceUtils() {
-        throw new ServerException(ServerErrorCode.UTILITY_CLASS, "Utility Class");
+        throw new ServerException(ServerErrorCode.UTILITY_CLASS);
     }
 
     /**
@@ -36,18 +37,24 @@ public class DeviceUtils {
         // 2. User-Agent 확인 및 해싱
         String userAgent = request.getHeader(USER_AGENT_HEADER);
         if (StringUtils.hasText(userAgent)) {
-            return encodeUserAgentToBase64(userAgent);
+            return generateUserAgentHash(userAgent);
         }
 
         // 3. 식별 불가
-        throw new ServerException(
-                ServerErrorCode.DE_IDENTIFIED_DEVICES,
-                "Device ID를 식별할 수 없습니다. X-Device-Id 또는 User-Agent 헤더를 확인해주세요."
-        );
+        throw new ServerException(ServerErrorCode.DE_IDENTIFIED_DEVICES);
     }
 
-    public static String encodeUserAgentToBase64(String userAgent) {
-        return Base64.getEncoder().encodeToString(userAgent.getBytes(StandardCharsets.UTF_8));
+    /**
+     * User-Agent를 SHA-256으로 해싱하여 고정 길이(64자)의 식별자를 생성합니다.
+     */
+    public static String generateUserAgentHash(String userAgent) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] encodedHash = digest.digest(userAgent.getBytes(StandardCharsets.UTF_8));
+            return java.util.HexFormat.of().formatHex(encodedHash); // 내장 기능 사용
+        } catch (NoSuchAlgorithmException e) {
+            throw new ServerException(ServerErrorCode.INTERNAL_SERVER_ERROR);
+        }
     }
 
     /**
@@ -62,5 +69,18 @@ public class DeviceUtils {
             return appVersion;
         }
         return "UNKNOWN_VERSION"; // 헤더가 없을 경우 기본값 반환
+    }
+
+    // Helper: 바이트 배열을 16진수 문자열로 변환
+    private static String bytesToHex(byte[] hash) {
+        StringBuilder hexString = new StringBuilder(2 * hash.length);
+        for (byte b : hash) {
+            String hex = Integer.toHexString(0xff & b);
+            if (hex.length() == 1) {
+                hexString.append('0');
+            }
+            hexString.append(hex);
+        }
+        return hexString.toString();
     }
 }
