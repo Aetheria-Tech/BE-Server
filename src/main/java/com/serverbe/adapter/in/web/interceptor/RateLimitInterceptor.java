@@ -64,7 +64,7 @@ public class RateLimitInterceptor implements HandlerInterceptor {
         try {
             return tokenExtractor.extractAccessToken(request);
         } catch (Exception e) {
-            log.warn("Token extraction failed: {}", e.getMessage());
+            log.warn("Token extraction failed");
             return null; // 토큰 추출 실패 시 비로그인(IP) 로직으로 넘김
         }
     }

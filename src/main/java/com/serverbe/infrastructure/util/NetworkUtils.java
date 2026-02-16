@@ -5,7 +5,7 @@ import com.serverbe.domain.exception.server.ServerException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.util.StringUtils;
 
-public class NetworkUtils {
+public final class NetworkUtils {
 
     private static final String[] IP_HEADER_CANDIDATES = {
             "X-Forwarded-For",

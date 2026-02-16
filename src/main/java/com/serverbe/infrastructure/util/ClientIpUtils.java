@@ -1,9 +1,11 @@
 package com.serverbe.infrastructure.util;
 
+import com.serverbe.domain.exception.server.ServerErrorCode;
+import com.serverbe.domain.exception.server.ServerException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.util.StringUtils;
 
-public class ClientIpUtils {
+public final class ClientIpUtils {
 
     public static final String UNKNOWN_IP = "UNKNOWN";
 
@@ -18,6 +20,10 @@ public class ClientIpUtils {
             "HTTP_FORWARDED",
             "X-Real-IP"
     };
+
+    private ClientIpUtils() {
+        throw new ServerException(ServerErrorCode.UTILITY_CLASS);
+    }
 
     public static String getClientIp(HttpServletRequest request) {
         if (request == null) {
