@@ -1,6 +1,6 @@
 package com.serverbe.application.service;
 
-import com.serverbe.infrastructure.config.properties.LimitRateProperties;
+import com.serverbe.infrastructure.config.properties.RateLimitProperties;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Service;
@@ -24,16 +24,16 @@ public class RateLimiterService {
     public RateLimiterService(
             StringRedisTemplate redisTemplate,
             RedisScript<Boolean> rateLimitScript,
-            LimitRateProperties limitRateProperties
+            RateLimitProperties rateLimitProperties
     ) {
         this.redisTemplate = redisTemplate;
         this.rateLimitScript = rateLimitScript;
-        this.userCapacity = limitRateProperties.user().capacity();
-        this.userRefillRate = limitRateProperties.user().refillRate();
-        this.ipCapacity = limitRateProperties.ip().capacity();
-        this.ipRefillRate = limitRateProperties.ip().refillRate();
-        this.userPrefix = limitRateProperties.prefix().user();
-        this.ipPrefix = limitRateProperties.prefix().ip();
+        this.userCapacity = rateLimitProperties.user().capacity();
+        this.userRefillRate = rateLimitProperties.user().refillRate();
+        this.ipCapacity = rateLimitProperties.ip().capacity();
+        this.ipRefillRate = rateLimitProperties.ip().refillRate();
+        this.userPrefix = rateLimitProperties.prefix().user();
+        this.ipPrefix = rateLimitProperties.prefix().ip();
     }
 
     /**

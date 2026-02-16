@@ -1,6 +1,6 @@
 package com.serverbe.application.service;
 
-import com.serverbe.infrastructure.config.properties.LimitRateProperties;
+import com.serverbe.infrastructure.config.properties.RateLimitProperties;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -31,33 +31,33 @@ class RateLimiterServiceTest {
 
     // 설정 클래스 및 내부 레코드 Mocking
     @Mock
-    private LimitRateProperties limitRateProperties;
+    private RateLimitProperties rateLimitProperties;
     @Mock
-    private LimitRateProperties.User userProperties;
+    private RateLimitProperties.User userProperties;
     @Mock
-    private LimitRateProperties.Ip ipProperties;
+    private RateLimitProperties.Ip ipProperties;
     @Mock
-    private LimitRateProperties.Prefix prefixProperties;
+    private RateLimitProperties.Prefix prefixProperties;
 
     @BeforeEach
     void setUp() {
         // 1. Properties 내부 값 Stubbing (User 설정)
-        given(limitRateProperties.user()).willReturn(userProperties);
+        given(rateLimitProperties.user()).willReturn(userProperties);
         given(userProperties.capacity()).willReturn(10);
         given(userProperties.refillRate()).willReturn(10);
 
         // 2. Properties 내부 값 Stubbing (IP 설정)
-        given(limitRateProperties.ip()).willReturn(ipProperties);
+        given(rateLimitProperties.ip()).willReturn(ipProperties);
         given(ipProperties.capacity()).willReturn(5);
         given(ipProperties.refillRate()).willReturn(5);
 
         // 3. Properties 내부 값 Stubbing (Prefix 설정)
-        given(limitRateProperties.prefix()).willReturn(prefixProperties);
+        given(rateLimitProperties.prefix()).willReturn(prefixProperties);
         given(prefixProperties.user()).willReturn("rate:user:");
         given(prefixProperties.ip()).willReturn("rate:ip:");
 
         // 4. 서비스 수동 생성 (의존성 주입)
-        rateLimiterService = new RateLimiterService(redisTemplate, rateLimitScript, limitRateProperties);
+        rateLimiterService = new RateLimiterService(redisTemplate, rateLimitScript, rateLimitProperties);
     }
 
     @Test
