@@ -2,6 +2,8 @@ package com.serverbe.adapter.in.web.interceptor;
 
 import com.serverbe.application.port.out.security.TokenResolver;
 import com.serverbe.application.service.RateLimiterService;
+import com.serverbe.domain.exception.server.ServerErrorCode;
+import com.serverbe.domain.exception.server.ServerException;
 import com.serverbe.infrastructure.security.TokenExtractor;
 import com.serverbe.infrastructure.util.ClientIpUtils;
 import jakarta.servlet.http.HttpServletRequest;
@@ -40,10 +42,7 @@ public class RateLimitInterceptor implements HandlerInterceptor {
         }
 
         if (!isAllowed) {
-            response.setStatus(429); // Too Many Requests
-            response.setHeader("Retry-After", "1"); // 1초 뒤 재시도 권장
-            response.getWriter().write("Too many requests. Please try again later.");
-            return false;
+            throw new ServerException(ServerErrorCode.TOO_MANY_REQUESTS);
         }
 
         return true;
