@@ -56,7 +56,7 @@ public class RateLimiterService {
 
     /**
      * 실제 Redis Lua 스크립트를 실행하는 핵심 메서드
-     * * @param key Redis에 저장될 Key
+     * @param key Redis에 저장될 Key
      * @param capacity 버킷의 최대 크기 (최대 허용 Burst)
      * @param refillRate 초당 토큰 충전 속도
      * @return true(허용), false(차단)
