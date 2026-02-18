@@ -3,15 +3,11 @@ package com.serverbe.infrastructure.config;
 import com.serverbe.infrastructure.config.properties.RedisProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.data.redis.core.script.DefaultRedisScript;
-import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
-import org.springframework.scripting.support.ResourceScriptSource;
 
 /**
  * @responsibility <b>Redis</b> 데이터베이스와의 연결을 설정하고, 데이터 접근을 위한 템플릿을 구성합니다.
@@ -62,17 +58,5 @@ public class RedisConfig {
         redisTemplate.setHashValueSerializer(new GenericJackson2JsonRedisSerializer());
 
         return redisTemplate;
-    }
-
-    /**
-     * 토큰 버킷 로직을 수행하는 lua script를 불러오기 위한 설정
-     * @implSpec 애플리케이션 시작 시 수행된다.
-     * */
-    @Bean
-    public RedisScript<Boolean> rateLimitScript() {
-        DefaultRedisScript<Boolean> redisScript = new DefaultRedisScript<>();
-        redisScript.setScriptSource(new ResourceScriptSource(new ClassPathResource("scripts/token_bucket.lua")));
-        redisScript.setResultType(Boolean.class);
-        return redisScript;
     }
 }
