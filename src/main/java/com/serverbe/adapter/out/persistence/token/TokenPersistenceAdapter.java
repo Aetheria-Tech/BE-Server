@@ -7,7 +7,7 @@ import com.serverbe.infrastructure.config.properties.JwtProperties;
 import com.serverbe.infrastructure.config.properties.RedisProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Component;
 
@@ -22,15 +22,14 @@ import java.util.stream.Collectors;
 /**
  * @author Duskafka
  * @responsibility Redis를 활용하여 멀티 디바이스 환경의 토큰 영속성을 관리합니다.
- * @implSpec 1. <b>Token Data</b>: Key-Value(String) 구조로 저장하며, 각 기기별로 독립적인 TTL을 가집니다. (Key: {prefix}:{userId}:{deviceId})<br>
- * 2. <b>Session Index</b>: Sorted Set(ZSet)을 사용하여 로그인 시간순으로 정렬된 기기 목록을 관리합니다. (Key: {prefix}:sessions:{userId})
- * @see TokenPersistencePort
+ * @implSpec 1. <b>Token Data</b>: String 구조로 기기별 독립 TTL 관리. (Key: auth:{userId}:rt:{deviceId})<br>
+ * 2. <b>Session Index</b>: ZSet을 사용하여 로그인 시간순 정렬 및 기기 수 제한 관리. (Key: auth:sessions:{userId})
  */
 @Slf4j
 @Component
 public class TokenPersistenceAdapter implements TokenPersistencePort {
 
-    private final RedisTemplate<String, Object> redisTemplate;
+    private final StringRedisTemplate redisTemplate;
     private final int maxToken;
     private final Duration refreshTokenExpireDays;
 
@@ -48,7 +47,7 @@ public class TokenPersistenceAdapter implements TokenPersistencePort {
     private final String sessionSuffix;
 
     public TokenPersistenceAdapter(
-            RedisTemplate<String, Object> redisTemplate,
+            StringRedisTemplate redisTemplate,
             RedisProperties redisProperties,
             JwtProperties jwtProperties,
 
@@ -75,8 +74,8 @@ public class TokenPersistenceAdapter implements TokenPersistencePort {
 
 
     /**
-     * @responsibility 토큰 저장 및 세션 인덱스 업데이트 (세션 제한 로직 포함)
-     * @implSpec 원자성을 보장하도록 execute로 묶었습니다.
+     * @responsibility 토큰 저장 및 세션 인덱스 업데이트
+     * @implSpec Lua Script를 통해 세션 개수 제한(Max Token) 확인과 정리를 원자적으로 수행합니다.
      */
     @Override
     public void saveRefreshToken(Long userId, String deviceId, String refreshToken, Duration expiry) {
@@ -120,19 +119,16 @@ public class TokenPersistenceAdapter implements TokenPersistencePort {
                 deviceId                       // ARGV[1]
         );
 
-         log.debug("[SESSION] 개별 로그아웃 완료. userId={}, deviceId={}", userId, deviceId);
+        log.debug("[SESSION] 개별 로그아웃 완료. userId={}, deviceId={}", userId, deviceId);
     }
 
 
     /**
      * @param userId 세션을 모두 종료할 유저 고유 식별자
      * @responsibility 해당 사용자의 모든 인증 세션 데이터(개별 토큰 및 세션 인덱스)를 완전히 제거하여 전역 로그아웃(Global Logout)을 수행합니다.
-     * @implSpec <b>Atomicity (원자성)</b>: Redis 트랜잭션({@code WATCH/MULTI/EXEC})을 사용하여 다음을 보장합니다.<br>
-     * 1. <b>All-or-Nothing</b>: 개별 토큰 삭제와 세션 인덱스 삭제가 하나의 단위로 실행됩니다. 중간에 실패 시 롤백됩니다.<br>
-     * 2. <b>Consistency</b>: 삭제 작업을 수행하는 동안 새로운 로그인이 발생하여 인덱스가 변경될 경우, 트랜잭션을 취소하여 데이터 정합성을 지킵니다.
-     * @implNote <b>Implementation Details</b>:<br>
-     * 단순히 {@code delete}만 호출하는 것이 아니라, {@code WATCH}를 통해 세션 인덱스 키를 감시합니다.<br>
-     * 이는 삭제할 토큰 목록을 조회한 직후, 다른 요청(로그인 등)이 인덱스를 변경하지 않았음을 확인한 뒤 안전하게 삭제하기 위함입니다.
+     * @implSpec <b>Atomicity (원자성)</b>: Lua Script를 사용하여 다음을 보장합니다.<br>
+     * 1. <b>Isolation</b>: 스크립트 실행 중에는 다른 커맨드가 끼어들 수 없어 데이터 정합성이 보장됩니다.<br>
+     * 2. <b>Cleanup</b>: 세션 인덱스(ZSet)에 등록된 모든 기기별 토큰 키를 순회 삭제하고 인덱스 자체도 제거합니다.
      */
     @Override
     public void deleteAllRefreshTokens(Long userId) {
@@ -149,20 +145,15 @@ public class TokenPersistenceAdapter implements TokenPersistencePort {
 
     /**
      * @param userId 사용자 식별자
-     * @responsibility 현재 접속 중인 기기 목록 조회
+     * @responsibility 현재 접속 중인 기기 목록(Device ID)을 조회합니다.
+     * @implNote StringRedisTemplate을 사용하여 별도의 형변환 없이 문자열 데이터를 반환합니다.
      */
     @Override
     public Set<String> getAllDeviceIds(Long userId) {
         String sessionKey = createSessionIndexKey(userId);
-        Set<Object> deviceIds = redisTemplate.opsForZSet().range(sessionKey, 0, -1);
+        Set<String> deviceIds = redisTemplate.opsForZSet().range(sessionKey, 0, -1);
 
-        if (deviceIds == null) {
-            return Collections.emptySet();
-        }
-
-        return deviceIds.stream()
-                .map(Object::toString)
-                .collect(Collectors.toSet());
+        return deviceIds == null ? Collections.emptySet() : deviceIds;
     }
 
     /**
@@ -173,11 +164,11 @@ public class TokenPersistenceAdapter implements TokenPersistencePort {
     public void removeOldestSession(Long userId) {
         String sessionKey = createSessionIndexKey(userId);
 
-        // ZSet에서 Score가 가장 낮은(오래된) 1개 조회
-        Set<Object> oldestDeviceSet = redisTemplate.opsForZSet().range(sessionKey, 0, 0);
+
+        Set<String> oldestDeviceSet = redisTemplate.opsForZSet().range(sessionKey, 0, 0);
 
         if (oldestDeviceSet != null && !oldestDeviceSet.isEmpty()) {
-            String oldestDeviceId = oldestDeviceSet.iterator().next().toString();
+            String oldestDeviceId = oldestDeviceSet.iterator().next();
             // 해당 기기 삭제 위임
             deleteRefreshToken(userId, oldestDeviceId);
             log.info("[SESSION] 세션이 한도를 초과하였습니다. 가장 오래된 세션을 삭제합니다.: userId={}, deviceId={}", userId, oldestDeviceId);
@@ -259,8 +250,8 @@ public class TokenPersistenceAdapter implements TokenPersistencePort {
      * @param oldRefreshToken 오래된(이전의) 리프레시 토큰
      * @param newRefreshToken 새로 발급한 리프레시 토큰
      * @param newTokensExpiry 새로 발급될 토큰의 유효 기간 (기존 expiry 파라미터 명확화)
-     * @implSpec 1. 기존 토큰의 남은 TTL을 조회하여 블랙리스트 저장 시간으로 사용합니다.
-     * 2. 원자성을 지키기 위해 execute로 묶어서 처리합니다.
+     * @responsibility 리프레시 토큰 순환(RTR) 및 보안 처리
+     * @implSpec 기존 토큰 무효화(Blacklist)와 신규 토큰 발급을 단일 트랜잭션(Lua)으로 처리합니다.
      */
     @Override
     public void rotateRefreshToken(Long userId, String deviceId, String oldRefreshToken, String newRefreshToken, Duration newTokensExpiry) {
@@ -324,10 +315,11 @@ public class TokenPersistenceAdapter implements TokenPersistencePort {
     }
 
     /**
-     * RT 블랙리스트 키
+     * RT 블랙리스트 키 생성 (해싱)
      *
-     * @implNote BL:RT:{token} (기기 정보 없음)
-     * @implSpec 해실 실패 시 롤백합니다.
+     * @responsibility 보안을 위한 RT 해싱 키 생성
+     * @implNote Redis 내에 리프레시 토큰 원문 노출을 방지하기 위해 SHA-256 해싱을 적용합니다.
+     * @implSpec 해싱 알고리즘 부재 시 {@link AuthException}을 발생시킵니다.
      */
     private String createRefreshTokenBlacklistKey(String refreshToken) {
         try {

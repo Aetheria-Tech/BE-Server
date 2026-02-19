@@ -41,7 +41,7 @@ public class RateLimitPersistenceAdapter implements RateLimitPort {
         } catch (Exception e) {
             log.error("Rate Limit Redis Error: {}", e.getMessage());
             // Redis 장애 시 일단 허용할지, 차단할지 결정 (일반적으로는 서비스 가용성을 위해 true 반환)
-            return true; 
+            return true;
         }
     }
 }
