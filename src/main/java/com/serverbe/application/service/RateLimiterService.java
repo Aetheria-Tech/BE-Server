@@ -1,19 +1,21 @@
 package com.serverbe.application.service;
 
+import com.serverbe.application.port.in.ratelimit.RateLimitUseCase;
+import com.serverbe.application.port.out.ratelimit.RateLimitPort;
 import com.serverbe.infrastructure.config.properties.RateLimitProperties;
-import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Service;
 
-import java.util.Collections;
-import java.util.List;
-
+/**
+ * 처리율 제한(Rate Limit) 비즈니스 로직을 처리하는 서비스 클래스입니다.
+ * {@link RateLimitPort}를 통해 인프라 계층(Redis 등)과 통신하며,
+ * 설정된 정책({@link RateLimitProperties})에 따라 요청 허용 여부를 결정합니다.
+ */
 @Service
-public class RateLimiterService {
+public class RateLimiterService implements RateLimitUseCase {
 
-    private final StringRedisTemplate redisTemplate;
-    private final RedisScript<Boolean> rateLimitScript;
+    private final RateLimitPort rateLimitPort;
 
+    // 비즈니스 설정 값들
     private final int userCapacity;
     private final int userRefillRate;
     private final int ipCapacity;
@@ -21,13 +23,16 @@ public class RateLimiterService {
     private final String userPrefix;
     private final String ipPrefix;
 
+    /**
+     * 의존성 주입 및 설정 파일에서 정책 값을 초기화합니다.
+     */
     public RateLimiterService(
-            StringRedisTemplate redisTemplate,
-            RedisScript<Boolean> rateLimitScript,
+            RateLimitPort rateLimitPort,
             RateLimitProperties rateLimitProperties
     ) {
-        this.redisTemplate = redisTemplate;
-        this.rateLimitScript = rateLimitScript;
+        this.rateLimitPort = rateLimitPort;
+
+        // RateLimitProperties에서 설정 값을 로드하여 필드에 저장
         this.userCapacity = rateLimitProperties.user().capacity();
         this.userRefillRate = rateLimitProperties.user().refillRate();
         this.ipCapacity = rateLimitProperties.ip().capacity();
@@ -37,40 +42,24 @@ public class RateLimiterService {
     }
 
     /**
-     * 인증된 사용자 ID 기반의 요청 허용 여부 확인
-     * Key 예시: "rate:user:1" (prefix 설정에 따라 다름)
-     */
-    public boolean isAllowedForUser(Long userId) {
-        String key = userPrefix + userId;
-        return executeScript(key, userCapacity, userRefillRate);
-    }
-
-    /**
-     * IP 주소 기반의 요청 허용 여부 확인
-     * Key 예시: "rate:ip:127.0.0.1"
-     */
-    public boolean isAllowedForIp(String ip) {
-        String key = ipPrefix + ip;
-        return executeScript(key, ipCapacity, ipRefillRate);
-    }
-
-    /**
-     * 실제 Redis Lua 스크립트를 실행하는 핵심 메서드
-     * @param key Redis에 저장될 Key
-     * @param capacity 버킷의 최대 크기 (최대 허용 Burst)
-     * @param refillRate 초당 토큰 충전 속도
+     * 인증된 사용자 ID 기반의 요청 허용 여부를 확인합니다.
+     * @param userId 사용자 식별자
      * @return true(허용), false(차단)
      */
-    private boolean executeScript(String key, int capacity, int refillRate) {
-        List<String> keys = Collections.singletonList(key);
+    @Override
+    public boolean isAllowedForUser(Long userId) {
+        String key = userPrefix + userId;
+        return rateLimitPort.isAllowed(key, userCapacity, userRefillRate);
+    }
 
-        return Boolean.TRUE.equals(redisTemplate.execute(
-                rateLimitScript,
-                keys,
-                String.valueOf(capacity),
-                String.valueOf(refillRate),
-                "1", // requested tokens
-                String.valueOf(System.currentTimeMillis())
-        ));
+    /**
+     * IP 주소 기반의 요청 허용 여부를 확인합니다.
+     * @param ip 클라이언트 IP 주소
+     * @return true(허용), false(차단)
+     */
+    @Override
+    public boolean isAllowedForIp(String ip) {
+        String key = ipPrefix + ip;
+        return rateLimitPort.isAllowed(key, ipCapacity, ipRefillRate);
     }
 }

@@ -2,7 +2,7 @@ package com.serverbe.infrastructure.config.properties;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
-@ConfigurationProperties(prefix = "limit-rate")
+@ConfigurationProperties(prefix = "rate-limit")
 public record RateLimitProperties(
         User user,
         Ip ip,
