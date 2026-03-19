@@ -54,12 +54,15 @@ public class WebConfig implements WebMvcConfigurer {
      */
     @Override
     public void addCorsMappings(CorsRegistry registry) {
-        registry.addMapping("/**")
-                .allowedOrigins(corsProperties.allowedOrigins().toArray(new String[0])) // 리스트를 배열로 변환하여 주입
+        registry.addMapping("/**") // 모든 API 경로에 대해
+                .allowedOrigins(
+                        "http://localhost:5173",        // 로컬 테스트용
+                        "http://localhost:8080"
+                )
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS")
                 .allowedHeaders("*")
-                .allowCredentials(true) // 쿠키 공유를 위해 필수
-                .maxAge(3600);
+                .allowCredentials(true)
+                .maxAge(3600); // 프리플라이트 요청 캐싱 시간
     }
 
     /**
