@@ -19,6 +19,20 @@ spring:
     init:
       mode: always                                    # SQL 초기화 스크립트를 언제 실행할지 결정한다.
 
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        registerHealthIndicator: true # Actuator를 통해 상태 확인 가능
+        slidingWindowSize: 10 # 최근 10개의 요청을 기준으로 상태를 평가
+        failureRateThreshold: 50 # 10개 중 50%(5개) 이상 실패하면 서킷 오픈(차단)
+        waitDurationInOpenState: 30000 # 서킷이 열린 후 30초 동안은 Redis 호출 안 함 (30초 후 반열림 상태로 전환)
+        permittedNumberOfCallsInHalfOpenState: 3 # 반열림 상태에서 3개만 테스트로 날려봄
+        minimumNumberOfCalls: 5 # 최소 5번의 요청이 있어야 실패율 계산 시작
+    instances:
+      redisRateLimit:
+        baseConfig: default # 위에서 정의한 default 설정을 사용
+
 # Swagger 사용 설정
 springdoc:
   swagger-ui:

@@ -3,6 +3,8 @@ package com.serverbe.application.service;
 import com.serverbe.application.port.in.ratelimit.RateLimitUseCase;
 import com.serverbe.application.port.out.ratelimit.RateLimitPort;
 import com.serverbe.infrastructure.config.properties.RateLimitProperties;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 /**
@@ -10,6 +12,7 @@ import org.springframework.stereotype.Service;
  * {@link RateLimitPort}를 통해 인프라 계층(Redis 등)과 통신하며,
  * 설정된 정책({@link RateLimitProperties})에 따라 요청 허용 여부를 결정합니다.
  */
+@Slf4j
 @Service
 public class RateLimiterService implements RateLimitUseCase {
 
@@ -47,9 +50,18 @@ public class RateLimiterService implements RateLimitUseCase {
      * @return true(허용), false(차단)
      */
     @Override
+    @CircuitBreaker(name = "redisRateLimit", fallbackMethod = "fallbackForUser")
     public boolean isAllowedForUser(Long userId) {
         String key = userPrefix + userId;
         return rateLimitPort.isAllowed(key, userCapacity, userRefillRate);
+    }
+
+    public boolean fallbackForUser(Long userId, Throwable t) {
+        // 에러 로그를 남겨 모니터링 시스템(Datadog, Sentry 등)에서 알람이 울리도록 함
+        log.error("[Circuit Breaker] Redis 장애 감지! 유저 {}의 요청을 무조건 허용(Fail-Open)합니다. 사유: {}", userId, t.getMessage());
+
+        // Redis가 죽었으므로 통과를 차단하는 대신 무조건 통과시켜서 핵심 비즈니스 로직을 보호함
+        return true;
     }
 
     /**
@@ -58,8 +70,14 @@ public class RateLimiterService implements RateLimitUseCase {
      * @return true(허용), false(차단)
      */
     @Override
+    @CircuitBreaker(name = "redisRateLimit", fallbackMethod = "fallbackForIp")
     public boolean isAllowedForIp(String ip) {
         String key = ipPrefix + ip;
         return rateLimitPort.isAllowed(key, ipCapacity, ipRefillRate);
+    }
+
+    public boolean fallbackForIp(String ip, Throwable t) {
+        log.error("[Circuit Breaker] Redis 장애 감지! IP {}의 요청을 무조건 허용(Fail-Open)합니다. 사유: {}", ip, t.getMessage());
+        return true;
     }
 }
