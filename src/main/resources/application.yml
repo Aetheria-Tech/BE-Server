@@ -130,3 +130,8 @@ rate-limit:
   prefix:
     user: "rate:user:"
     ip: "rate:ip:"
+
+# 알림 설정
+notification:
+  discord:
+    webhook-url: ${DISCORD_WEB_HOOK}
