@@ -75,10 +75,12 @@ dependencies {
     // Lombok: Getter, Setter, Constructor 등을 어노테이션으로 자동 생성
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
+    testImplementation 'org.projectlombok:lombok'
 
     /**
      * Testing Support
      */
+    testImplementation 'com.squareup.okhttp3:mockwebserver:4.12.0'
     // Spring Boot Test: 통합 테스트를 위한 기본 환경 및 라이브러리(JUnit5, AssertJ 등) 제공
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     // Reactor Test: WebFlux의 Mono, Flux 비동기 스트림 테스트 지원
