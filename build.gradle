@@ -72,6 +72,7 @@ dependencies {
     // #41 에서 서킷 브레이커 구현에 사용.
     implementation 'io.github.resilience4j:resilience4j-spring-boot3:2.2.0'
     implementation 'org.springframework.boot:spring-boot-starter-aop'
+    implementation 'com.github.ben-manes.caffeine:caffeine'
 
     /**
      * Boilerplate Code Reduction (Lombok)

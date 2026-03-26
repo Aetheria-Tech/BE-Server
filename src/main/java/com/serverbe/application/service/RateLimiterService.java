@@ -6,6 +6,7 @@ import com.serverbe.infrastructure.config.properties.RateLimitProperties;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import com.github.benmanes.caffeine.cache.Cache;
 
 /**
  * 처리율 제한(Rate Limit) 비즈니스 로직을 처리하는 서비스 클래스입니다.
@@ -17,6 +18,7 @@ import org.springframework.stereotype.Service;
 public class RateLimiterService implements RateLimitUseCase {
 
     private final RateLimitPort rateLimitPort;
+    private final Cache<String, Integer> localRateLimitCache;
 
     // 비즈니스 설정 값들
     private final int userCapacity;
@@ -31,7 +33,8 @@ public class RateLimiterService implements RateLimitUseCase {
      */
     public RateLimiterService(
             RateLimitPort rateLimitPort,
-            RateLimitProperties rateLimitProperties
+            RateLimitProperties rateLimitProperties,
+            Cache<String, Integer> localRateLimitCache
     ) {
         this.rateLimitPort = rateLimitPort;
 
@@ -42,6 +45,7 @@ public class RateLimiterService implements RateLimitUseCase {
         this.ipRefillRate = rateLimitProperties.ip().refillRate();
         this.userPrefix = rateLimitProperties.prefix().user();
         this.ipPrefix = rateLimitProperties.prefix().ip();
+        this.localRateLimitCache = localRateLimitCache;
     }
 
     /**
@@ -56,11 +60,21 @@ public class RateLimiterService implements RateLimitUseCase {
         return rateLimitPort.isAllowed(key, userCapacity, userRefillRate);
     }
 
+    // 파라미터를 원본 메서드(Long userId)에 맞춤!
     public boolean fallbackForUser(Long userId, Throwable t) {
-        // 에러 로그를 남겨 모니터링 시스템(Datadog, Sentry 등)에서 알람이 울리도록 함
-        log.error("[Circuit Breaker] Redis 장애 감지! 유저 {}의 요청을 무조건 허용(Fail-Open)합니다. 사유: {}", userId, t.getMessage());
+        String key = userPrefix + userId; // 내부에서 Key 조립
 
-        // Redis가 죽었으므로 통과를 차단하는 대신 무조건 통과시켜서 핵심 비즈니스 로직을 보호함
+        Integer currentCount = localRateLimitCache.asMap().compute(key, (k, count) -> {
+            if (count == null) return 1;
+            return count + 1;
+        });
+
+        if (currentCount > userCapacity) { // 필드에 저장된 userCapacity 사용
+            log.warn("[L1 Local 방어막] 한도 초과 차단! Key: {}, 현재 요청 수: {}", key, currentCount);
+            return false;
+        }
+
+        log.info("[Circuit Breaker] Redis 장애! 로컬 캐시로 요청 허용 ({} / {})", currentCount, userCapacity);
         return true;
     }
 
