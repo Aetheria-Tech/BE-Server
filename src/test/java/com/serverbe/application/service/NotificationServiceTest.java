@@ -5,10 +5,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
-@SpringBootTest // ✅ 핵심: 진짜 스프링 부트를 띄웁니다!
+@SpringBootTest
 class NotificationServiceTest {
 
-    // ✅ 스프링이 떴기 때문에 @Autowired가 완벽하게 작동합니다.
     @Autowired
     private NotificationService notificationService;
 
