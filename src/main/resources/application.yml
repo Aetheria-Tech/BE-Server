@@ -2,12 +2,12 @@ spring:
 
   data:
     redis:
-      host: localhost
-      port: 6379
-      connect-timeout: 1000
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
+      connect-timeout: ${REDIS_CONNECT_TIMEOUT}
       lettuce:
         pool:
-          max-active: 8
+          max-active: ${REDIS_MAX_POOL}
 
   # 데이터베이스 연결 설정
   datasource:
@@ -76,8 +76,8 @@ jwt:
 
 # Redis
 redis:
-  port: 6379
-  host: localhost
+  port: ${REDIS_HOST}
+  host: ${REDIS_PORT}
   auth:
     prefix: user                      # 레디스 저장에 필요한 키 값 중 접두어
     suffix: rt                        # 레디스 저장에 필요한 키 값 중 접미어
@@ -132,11 +132,11 @@ cors:
 
 rate-limit:
   user:
-    capacity: 10 # 사용자가 한 번에 모아둘 수 있는 최대 토큰 개수 - 사용자가 잠시 쉬었다가 요청을 보낼 때, 순간적으로(Burst) 최대 10개까지는 연속 허용
-    refill-rate: 10 # 1초마다 채워지는 토큰의 속도입니다. - 장기적으로는 초당 평균 10회의 요청을 처리할 수 있다.
+    capacity: ${RATE_LIMIT_USER_CAPACITY} # 사용자가 한 번에 모아둘 수 있는 최대 토큰 개수 - 사용자가 잠시 쉬었다가 요청을 보낼 때, 순간적으로(Burst) 최대 10개까지는 연속 허용
+    refill-rate: ${RATE_LIMIT_USER_REFILL_RATE} # 1초마다 채워지는 토큰의 속도입니다. - 장기적으로는 초당 평균 10회의 요청을 처리할 수 있다.
   ip:
-    capacity: 10
-    refill-rate: 3
+    capacity: ${RATE_LIMIT_IP_CAPACITY}
+    refill-rate: ${RATE_LIMIT_IP_REFILL_RATE}
   prefix:
     user: "rate:user:"
     ip: "rate:ip:"
