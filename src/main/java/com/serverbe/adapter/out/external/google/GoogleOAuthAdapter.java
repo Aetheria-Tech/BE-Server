@@ -9,6 +9,9 @@ import com.serverbe.domain.exception.external.ExternalApiErrorCode;
 import com.serverbe.domain.exception.external.ExternalApiException;
 import com.serverbe.domain.model.user.vo.OAuthProvider;
 import com.serverbe.infrastructure.config.properties.GoogleProperties;
+import io.github.resilience4j.circuitbreaker.CircuitBreaker;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
+import io.github.resilience4j.reactor.circuitbreaker.operator.CircuitBreakerOperator;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
@@ -21,6 +24,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 import reactor.core.publisher.Mono;
 
 import java.net.URI;
+import java.time.Duration;
 
 /**
  * @author Duskafka
@@ -31,19 +35,32 @@ import java.net.URI;
 @Component
 public class GoogleOAuthAdapter implements OAuthClientPort {
 
-    private final GoogleProperties googleProperties;
+    private final GoogleOAuthFallbackHandler fallbackHandler;
+    private final CircuitBreaker googleCircuitBreaker;
 
     private final String oauthUrl;
     private final String apiUrl;
+    private final String clientId;
+    private final String clientSecret;
+    private final String redirectUri;
 
     private final WebClient webClient;
 
-    public GoogleOAuthAdapter(GoogleProperties googleProperties, WebClient.Builder webClientBuilder) {
+    public GoogleOAuthAdapter(
+            GoogleOAuthFallbackHandler fallbackHandler,
+            GoogleProperties googleProperties,
+            WebClient.Builder webClientBuilder,
+            CircuitBreakerRegistry circuitBreakerRegistry
+    ) {
+        this.fallbackHandler = fallbackHandler;
+        this.webClient = webClientBuilder.build();
+        this.googleCircuitBreaker = circuitBreakerRegistry.circuitBreaker("googleApi");
+
         this.oauthUrl = googleProperties.auth().oauthApi();
         this.apiUrl = googleProperties.auth().api();
-        this.googleProperties = googleProperties;
-        this.webClient = webClientBuilder
-                .build();
+        this.clientId = googleProperties.auth().clientId();
+        this.clientSecret = googleProperties.auth().clientSecret();
+        this.redirectUri = googleProperties.auth().redirectUri();
     }
 
     /**
@@ -65,7 +82,10 @@ public class GoogleOAuthAdapter implements OAuthClientPort {
                                 userInfo.email(),
                                 userInfo.name(),
                                 response.refreshToken() // 여기서 매번 받은 리프레시 토큰을 넘깁니다.
-                        )));
+                        )))
+                .timeout(Duration.ofSeconds(3))
+                .transformDeferred(CircuitBreakerOperator.of(googleCircuitBreaker))
+                .onErrorResume(throwable -> fallbackHandler.fallbackGetUserInfo(code, provider, throwable));
     }
 
     /**
@@ -79,9 +99,9 @@ public class GoogleOAuthAdapter implements OAuthClientPort {
     private Mono<GoogleTokenResponse> getGoogleTokenResponse(String code) {
         MultiValueMap<String, String> formData = new LinkedMultiValueMap<>();
         formData.add("code", code);
-        formData.add("client_id", googleProperties.auth().clientId());
-        formData.add("client_secret", googleProperties.auth().clientSecret());
-        formData.add("redirect_uri", googleProperties.auth().redirectUri());
+        formData.add("client_id", clientId);
+        formData.add("client_secret", clientSecret);
+        formData.add("redirect_uri", redirectUri);
         formData.add("grant_type", "authorization_code");
 
         // 주의: 구글 리프레시 토큰을 매번 받으려면,
@@ -140,7 +160,9 @@ public class GoogleOAuthAdapter implements OAuthClientPort {
                 .map(response -> true)
                 // 에러 발생 시(BusinessException 포함) 흐름을 끊지 않고 false로 치환하고 싶다면 아래 주석 활용
                 // .onErrorReturn(false)
-                .defaultIfEmpty(false);
+                .defaultIfEmpty(false).timeout(Duration.ofSeconds(3))
+                .transformDeferred(CircuitBreakerOperator.of(googleCircuitBreaker))
+                .onErrorResume(throwable -> fallbackHandler.fallbackUnlink(provider, oauthId, oauthRefreshToken, throwable));
     }
 
     /**
@@ -151,8 +173,8 @@ public class GoogleOAuthAdapter implements OAuthClientPort {
     public Mono<SocialTokenRefreshResult> refreshSocialToken(OAuthProvider provider, String refreshToken) {
         MultiValueMap<String, String> formData = new LinkedMultiValueMap<>();
         formData.add("grant_type", "refresh_token");
-        formData.add("client_id", googleProperties.auth().clientId());
-        formData.add("client_secret", googleProperties.auth().clientSecret());
+        formData.add("client_id", clientId);
+        formData.add("client_secret", clientSecret);
         formData.add("refresh_token", refreshToken);
 
         return webClient.post()
@@ -162,7 +184,10 @@ public class GoogleOAuthAdapter implements OAuthClientPort {
                 .retrieve()
                 .onStatus(HttpStatusCode::isError, res -> res.bodyToMono(String.class)
                         .map(body -> new ExternalApiException(ExternalApiErrorCode.FAILED_SOCIAL_API, "Google Refresh Error: " + body)))
-                .bodyToMono(SocialTokenRefreshResult.class);
+                .bodyToMono(SocialTokenRefreshResult.class)
+                .timeout(Duration.ofSeconds(3))
+                .transformDeferred(CircuitBreakerOperator.of(googleCircuitBreaker))
+                .onErrorResume(throwable -> fallbackHandler.fallbackRefreshSocialToken(provider, refreshToken, throwable));
     }
 
     /**
@@ -186,8 +211,8 @@ public class GoogleOAuthAdapter implements OAuthClientPort {
     @Override
     public String getLoginUrl() {
         return UriComponentsBuilder.fromHttpUrl("https://accounts.google.com/o/oauth2/v2/auth")
-                .queryParam("client_id", googleProperties.auth().clientId())
-                .queryParam("redirect_uri", googleProperties.auth().redirectUri())
+                .queryParam("client_id", clientId)
+                .queryParam("redirect_uri", redirectUri)
                 .queryParam("response_type", "code")
                 .queryParam("scope", "email profile")
                 .queryParam("access_type", "offline") // 리프레시 토큰 발급을 위해 필수
