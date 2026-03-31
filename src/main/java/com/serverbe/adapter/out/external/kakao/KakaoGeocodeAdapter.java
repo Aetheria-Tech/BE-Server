@@ -7,11 +7,16 @@ import com.serverbe.domain.exception.external.ExternalApiErrorCode;
 import com.serverbe.domain.exception.external.ExternalApiException;
 import com.serverbe.infrastructure.config.properties.KakaoProperties;
 import com.serverbe.domain.exception.BusinessException;
+import io.github.resilience4j.circuitbreaker.CircuitBreaker;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
+import io.github.resilience4j.reactor.circuitbreaker.operator.CircuitBreakerOperator;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
+
+import java.time.Duration;
 
 /**
  * @author Duskafka
@@ -22,6 +27,8 @@ import reactor.core.publisher.Mono;
 @Component
 public class KakaoGeocodeAdapter implements GeocodePort {
 
+    private final KakaoGeocodeFallbackHandler fallbackHandler;
+    private final CircuitBreaker geocodeCircuitBreaker;
     private final WebClient webClient;
     private final String clientId;
     private final String geocodeApiUrl;
@@ -34,11 +41,15 @@ public class KakaoGeocodeAdapter implements GeocodePort {
      */
     public KakaoGeocodeAdapter(
             WebClient.Builder builder,
-            KakaoProperties kakaoProperties
+            KakaoProperties kakaoProperties,
+            KakaoGeocodeFallbackHandler fallbackHandler,
+            CircuitBreakerRegistry circuitBreakerRegistry
     ) {
         this.webClient = builder.baseUrl(kakaoProperties.geocoding().dapi()).build();
         this.clientId = kakaoProperties.clientId();
         this.geocodeApiUrl = kakaoProperties.geocoding().geocodeApi();
+        this.fallbackHandler = fallbackHandler;
+        this.geocodeCircuitBreaker = circuitBreakerRegistry.circuitBreaker("kakaoGeocodeApi");
     }
 
     /**
@@ -72,7 +83,9 @@ public class KakaoGeocodeAdapter implements GeocodePort {
                 .bodyToMono(KakaoGeocodeResponse.class)
                 .flatMap(this::extractFirstDocument)
                 .map(this::convertToGeocodeResponse)
-                .doOnError(e -> log.error("[Kakao Geocoding] 주소 변환 실패: {}, 에러: {}", address, e.getMessage()));
+                .timeout(Duration.ofSeconds(3))
+                .transformDeferred(CircuitBreakerOperator.of(geocodeCircuitBreaker))
+                .onErrorResume(throwable -> fallbackHandler.fallbackGeocode(address, throwable));
     }
 
     /**

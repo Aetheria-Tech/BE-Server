@@ -33,21 +33,25 @@ resilience4j:
   circuitbreaker:
     configs:
       default:
-        registerHealthIndicator: true # Actuator를 통해 상태 확인 가능
-        slidingWindowSize: 10 # 최근 10개의 요청을 기준으로 상태를 평가
-        failureRateThreshold: 50 # 10개 중 50%(5개) 이상 실패하면 서킷 오픈(차단)
-        waitDurationInOpenState: 30000 # 서킷이 열린 후 30초 동안은 Redis 호출 안 함 (30초 후 반열림 상태로 전환)
-        permittedNumberOfCallsInHalfOpenState: 3 # 반열림 상태에서 3개만 테스트로 날려봄
-        minimumNumberOfCalls: 5 # 최소 5번의 요청이 있어야 실패율 계산 시작
+        registerHealthIndicator: true # Spring Boot Actuator 연동 (모니터링용)
+        slidingWindowType: COUNT_BASED # 횟수 기반 슬라이딩 윈도우 사용
+        slidingWindowSize: 10 # 최근 10번의 호출 상태를 기록
+        minimumNumberOfCalls: 5 # 최소 5번의 호출이 쌓여야 실패율 계산을 시작
+        failureRateThreshold: 50 # 실패율이 50% 이상이면 서킷 브레이커 OPEN (차단)
+        waitDurationInOpenState: 10s # OPEN 상태에서 10초 대기 후 HALF_OPEN으로 전환되어 재시도
+        permittedNumberOfCallsInHalfOpenState: 3 # HALF_OPEN 상태에서 허용할 테스트 호출 횟수
+        recordExceptions: # 실패로 기록할 예외 목록
+          - java.util.concurrent.TimeoutException
+          - java.io.IOException
+          - org.springframework.web.reactive.function.client.WebClientRequestException
+          - com.serverbe.domain.exception.external.ExternalApiException
     instances:
-      redisRateLimit:
-        baseConfig: default # 위에서 정의한 default 설정을 사용
-      kakaoApi: # 🚀 카카오 API 전용 서킷 브레이커 추가
+      kakaoApi:
         baseConfig: default
-        slidingWindowSize: 5 # 카카오 API는 5번만 실패(타임아웃 등)해도 바로 상태를 평가
-        failureRateThreshold: 50
-        waitDurationInOpenState: 15000 # 15초 동안은 카카오 서버에 요청을 보내지 않고 즉시 Fail 처리
-        permittedNumberOfCallsInHalfOpenState: 2
+      googleApi:
+        baseConfig: default
+      kakaoGeocodeApi:
+        baseConfig: default
 
 # Swagger 사용 설정
 springdoc:
