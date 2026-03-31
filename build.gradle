@@ -73,7 +73,7 @@ dependencies {
     implementation 'io.github.resilience4j:resilience4j-spring-boot3:2.2.0'
     implementation 'org.springframework.boot:spring-boot-starter-aop'
     implementation 'com.github.ben-manes.caffeine:caffeine'
-    implementation 'io.github.resilience4j:resilience4j-reactor' // WebFlux(Mono) 지원용
+    implementation 'io.github.resilience4j:resilience4j-reactor:2.2.0' // WebFlux(Mono) 지원용
 
     /**
      * Boilerplate Code Reduction (Lombok)

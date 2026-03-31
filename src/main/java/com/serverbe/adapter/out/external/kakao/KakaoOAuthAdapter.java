@@ -1,6 +1,5 @@
 package com.serverbe.adapter.out.external.kakao;
 
-
 import com.serverbe.adapter.out.external.kakao.dto.KakaoTokenResponse;
 import com.serverbe.adapter.out.external.kakao.dto.KakaoUserInfoResponse;
 import com.serverbe.application.port.out.dto.oauth.OAuthUserInfoResult;
@@ -13,7 +12,9 @@ import com.serverbe.domain.exception.server.ServerException;
 import com.serverbe.domain.model.user.vo.OAuthProvider;
 import com.serverbe.infrastructure.config.properties.KakaoProperties;
 import com.serverbe.domain.exception.BusinessException;
-import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.circuitbreaker.CircuitBreaker;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
+import io.github.resilience4j.reactor.circuitbreaker.operator.CircuitBreakerOperator;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
@@ -25,6 +26,8 @@ import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.util.UriComponentsBuilder;
 import reactor.core.publisher.Mono;
 
+import java.time.Duration;
+
 /**
  * @author Duskafka
  * @responsibility 카카오 OAuth 통신을 책임진다
@@ -34,6 +37,8 @@ import reactor.core.publisher.Mono;
 @Component
 public class KakaoOAuthAdapter implements OAuthClientPort {
 
+    private final KakaoOAuthFallbackHandler fallbackHandler;
+    private final CircuitBreaker kakaoCircuitBreaker;
     private final WebClient webClient;
     private final String kauthUrl;
     private final String kapiUrl;
@@ -41,7 +46,14 @@ public class KakaoOAuthAdapter implements OAuthClientPort {
     private final String adminKey;
     private final String redirectUri;
 
-    public KakaoOAuthAdapter(KakaoProperties kakaoProperties, WebClient.Builder webClientBuilder) {
+    public KakaoOAuthAdapter(
+            KakaoOAuthFallbackHandler kakaoOAuthFallbackHandler,
+            KakaoProperties kakaoProperties,
+            WebClient.Builder webClientBuilder,
+            CircuitBreakerRegistry circuitBreakerRegistry
+    ) {
+        this.fallbackHandler = kakaoOAuthFallbackHandler;
+
         this.kauthUrl = kakaoProperties.auth().kauth();
         this.kapiUrl = kakaoProperties.auth().kapi();
         this.clientId = kakaoProperties.clientId();
@@ -51,6 +63,8 @@ public class KakaoOAuthAdapter implements OAuthClientPort {
         // 주입받은 Builder를 사용하여 카카오 API 전용 설정을 입힌 WebClient 생성
         this.webClient = webClientBuilder
                 .build();
+
+        this.kakaoCircuitBreaker = circuitBreakerRegistry.circuitBreaker("kakaoApi");
     }
 
     /**
@@ -63,7 +77,6 @@ public class KakaoOAuthAdapter implements OAuthClientPort {
      * @responsibility 로그인이 성공한 사용자의 OAuth 코드로 사용자 정보를 받아온다.
      */
     @Override
-    @CircuitBreaker(name = "kakaoApi", fallbackMethod = "fallbackGetUserInfo")
     public Mono<OAuthUserInfoResult> getUserInfo(String code, OAuthProvider provider) {
         if (provider != OAuthProvider.KAKAO) {
             return Mono.error(new ServerException(
@@ -78,15 +91,10 @@ public class KakaoOAuthAdapter implements OAuthClientPort {
                                 accessToken.accessToken(),
                                 accessToken.refreshToken()
                         )
-                );
-    }
-
-    public Mono<OAuthUserInfoResult> fallbackGetUserInfo(String code, OAuthProvider provider, Throwable t) {
-        log.error("🚨 [CircuitBreaker/Timeout] 카카오 로그인 API 장애 발생: {}", t.getMessage());
-        return Mono.error(new ExternalApiException(
-                ExternalApiErrorCode.FAILED_SOCIAL_API,
-                "현재 카카오 로그인 서버의 응답이 지연되고 있습니다. 잠시 후 다시 시도해주세요."
-        ));
+                )
+                .timeout(Duration.ofSeconds(3))
+                .transformDeferred(CircuitBreakerOperator.of(kakaoCircuitBreaker))
+                .onErrorResume(throwable -> fallbackHandler.fallbackGetUserInfo(code, provider, throwable));
     }
 
     /**
@@ -148,7 +156,6 @@ public class KakaoOAuthAdapter implements OAuthClientPort {
      * @responsibility 사용자 회원 탈퇴를 수행한다.
      */
     @Override
-    @CircuitBreaker(name = "kakaoApi", fallbackMethod = "fallbackUnlink")
     public Mono<Boolean> unlink(OAuthProvider provider, String oauthId, String oauthRefreshToken) {
         // 카카오 어드민 키 방식 (사용자 동의 없이도 서버에서 강제 해제 가능)
         return webClient.post()
@@ -161,19 +168,13 @@ public class KakaoOAuthAdapter implements OAuthClientPort {
                 .onStatus(HttpStatusCode::isError, res -> res.bodyToMono(String.class)
                         .map(body -> new ExternalApiException(ExternalApiErrorCode.FAILED_SOCIAL_API, "Kakao Unlink Failed: " + body)))
                 .toBodilessEntity()
+                .timeout(Duration.ofSeconds(3))
                 .map(response -> true)
                 // 에러 발생 시(BusinessException 포함) 흐름을 끊지 않고 false로 치환하고 싶다면 아래 주석 활용
                 // .onErrorReturn(false)
-                .defaultIfEmpty(false);
-    }
-
-    public Mono<Boolean> fallbackUnlink(OAuthProvider provider, String oauthId, String oauthRefreshToken, Throwable t) {
-        log.error("🚨 [CircuitBreaker/Timeout] 카카오 연동 해제 API 장애 발생: {}", t.getMessage());
-        // 연동 해제 실패 시 false를 반환하여 호출 측에서 예외 처리를 하거나, 또는 아래처럼 에러를 던질 수 있습니다.
-        return Mono.error(new ExternalApiException(
-                ExternalApiErrorCode.FAILED_SOCIAL_API,
-                "카카오 서버 지연으로 인해 연동 해제에 실패했습니다."
-        ));
+                .defaultIfEmpty(false)
+                .transformDeferred(CircuitBreakerOperator.of(kakaoCircuitBreaker))
+                .onErrorResume(throwable -> fallbackHandler.fallbackUnlink(provider, oauthId, oauthRefreshToken, throwable));
     }
 
     /**
@@ -182,7 +183,6 @@ public class KakaoOAuthAdapter implements OAuthClientPort {
      * @deprecated
      */
     @Override
-    @CircuitBreaker(name = "kakaoApi", fallbackMethod = "fallbackRefreshSocialToken")
     public Mono<SocialTokenRefreshResult> refreshSocialToken(OAuthProvider provider, String refreshToken) {
         MultiValueMap<String, String> formData = new LinkedMultiValueMap<>();
         formData.add("grant_type", "refresh_token");
@@ -196,15 +196,10 @@ public class KakaoOAuthAdapter implements OAuthClientPort {
                 .retrieve()
                 .onStatus(HttpStatusCode::isError, res -> res.bodyToMono(String.class)
                         .map(body -> new ExternalApiException(ExternalApiErrorCode.FAILED_SOCIAL_API, "Kakao Refresh Error: " + body)))
-                .bodyToMono(SocialTokenRefreshResult.class);
-    }
-
-    public Mono<SocialTokenRefreshResult> fallbackRefreshSocialToken(OAuthProvider provider, String refreshToken, Throwable t) {
-        log.error("🚨 [CircuitBreaker/Timeout] 카카오 토큰 갱신 API 장애 발생: {}", t.getMessage());
-        return Mono.error(new ExternalApiException(
-                ExternalApiErrorCode.FAILED_SOCIAL_API,
-                "카카오 서버 지연으로 인해 토큰 갱신에 실패했습니다."
-        ));
+                .bodyToMono(SocialTokenRefreshResult.class)
+                .timeout(Duration.ofSeconds(3))
+                .transformDeferred(CircuitBreakerOperator.of(kakaoCircuitBreaker))
+                .onErrorResume(throwable -> fallbackHandler.fallbackRefreshSocialToken(provider, refreshToken, throwable));
     }
 
     /**
