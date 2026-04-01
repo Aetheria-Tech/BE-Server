@@ -13,7 +13,10 @@ public @interface RateLimit {
     int capacity() default 5; 
     
     // 이 API 전용 커스텀 리필 속도
-    int refillRate() default 5; 
+    int refillRate() default 5;
+
+    // 클라이언트에게 알려줄 재시도 대기 시간 (초 단위)
+    int retryAfterSeconds() default 60;
     
     // 타겟: "IP" 기준인지, "USER" 기준인지
     TargetType target() default TargetType.IP;

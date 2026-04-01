@@ -6,12 +6,12 @@ public interface RateLimitUseCase {
      * @param userId 검사할 사용자의 ID이며 이는 JWT 토큰에서 추출한다.
      * @return 제한에 걸린다면 true 아니면 false를 리턴한다.
      * */
-    boolean isAllowedForUser(Long userId, int capacity, int refillRate);
+    boolean isAllowedForUser(Long userId,String endpoint, int capacity, int refillRate);
 
     /**
      * 인증되지 않은 사용자가 속도 제한에 걸리지 않는지 검사하기 위한 메서드
      * @param ip 검사에 사용할 사용자의 IP.
      * @return 제한에 걸린다면 true 아니면 false를 리턴한다.
      * */
-    boolean isAllowedForIp(String ip, int capacity, int refillRate);
+    boolean isAllowedForIp(String ip,String endpoint, int capacity, int refillRate);
 }
