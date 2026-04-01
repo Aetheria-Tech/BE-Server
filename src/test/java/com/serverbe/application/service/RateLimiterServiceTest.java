@@ -70,7 +70,7 @@ class RateLimiterServiceTest {
 
         given(rateLimitPort.isAllowed(expectedKey, capacity, refillRate)).willReturn(true);
 
-        boolean result = rateLimiterService.isAllowedForUser(userId);
+        boolean result = rateLimiterService.isAllowedForUser(userId,5,5);
 
         assertThat(result).isTrue();
         verify(rateLimitPort).isAllowed(expectedKey, capacity, refillRate);
@@ -86,7 +86,7 @@ class RateLimiterServiceTest {
 
         given(rateLimitPort.isAllowed(expectedKey, capacity, refillRate)).willReturn(false);
 
-        boolean result = rateLimiterService.isAllowedForIp(ip);
+        boolean result = rateLimiterService.isAllowedForIp(ip,5,5);
 
         assertThat(result).isFalse();
         verify(rateLimitPort).isAllowed(expectedKey, capacity, refillRate);
@@ -101,7 +101,7 @@ class RateLimiterServiceTest {
         Throwable dummyException = new RuntimeException("Redis 죽음");
 
         // when: 용량(10) 이하인 첫 번째 호출
-        boolean result = rateLimiterService.fallbackForUser(userId, dummyException);
+        boolean result = rateLimiterService.fallbackForUser(userId, 5,5, dummyException);
 
         // then
         assertThat(result).isTrue();
@@ -121,7 +121,7 @@ class RateLimiterServiceTest {
         fakeCacheMap.put(key, 10);
 
         // when: 11번째 호출 시도
-        boolean result = rateLimiterService.fallbackForUser(userId, dummyException);
+        boolean result = rateLimiterService.fallbackForUser(userId, 5,5,dummyException);
 
         // then: L1 방어막이 차단(false)해야 함
         assertThat(result).isFalse();
@@ -138,7 +138,7 @@ class RateLimiterServiceTest {
         Throwable redisException = new RuntimeException("Redis Timeout");
 
         // when
-        boolean result = rateLimiterService.fallbackForUser(userId, redisException);
+        boolean result = rateLimiterService.fallbackForUser(userId, 5,5,redisException);
 
         // then
         assertThat(result).isTrue(); // 요청 허용
@@ -158,7 +158,7 @@ class RateLimiterServiceTest {
         fakeCacheMap.put(expectedKey, 9);
 
         // when (10번째 요청 시도)
-        boolean result = rateLimiterService.fallbackForUser(userId, redisException);
+        boolean result = rateLimiterService.fallbackForUser(userId, 5,5,redisException);
 
         // then
         assertThat(result).isTrue(); // 10번째까지는 허용
@@ -178,7 +178,7 @@ class RateLimiterServiceTest {
         fakeCacheMap.put(expectedKey, 10);
 
         // when (11번째 요청 시도)
-        boolean result = rateLimiterService.fallbackForUser(userId, redisException);
+        boolean result = rateLimiterService.fallbackForUser(userId,5,5, redisException);
 
         // then
         assertThat(result).isFalse(); // 11번째부터는 L1 방어막에 의해 차단!

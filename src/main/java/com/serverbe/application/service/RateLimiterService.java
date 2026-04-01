@@ -54,26 +54,23 @@ public class RateLimiterService implements RateLimitUseCase {
      * @return true(허용), false(차단)
      */
     @Override
+    @CircuitBreaker(name = "redisRateLimit", fallbackMethod = "fallbackForUser")
     public boolean isAllowedForUser(Long userId, int ipCapacity, int ipRefillRate) {
         String key = userPrefix + userId;
         return rateLimitPort.isAllowed(key, userCapacity, userRefillRate);
     }
 
-    // 파라미터를 원본 메서드(Long userId)에 맞춤!
-    public boolean fallbackForUser(Long userId, Throwable t) {
+    public boolean fallbackForUser(Long userId, int capacity, int refillRate, Throwable t) {
         String key = userPrefix + userId; // 내부에서 Key 조립
-
         Integer currentCount = localRateLimitCache.asMap().compute(key, (k, count) -> {
             if (count == null) return 1;
             return count + 1;
         });
-
-        if (currentCount > userCapacity) { // 필드에 저장된 userCapacity 사용
+        if (currentCount > capacity) {
             log.warn("[L1 Local 방어막] 한도 초과 차단! Key: {}, 현재 요청 수: {}", key, currentCount);
             return false;
         }
-
-        log.info("[Circuit Breaker] Redis 장애! 로컬 캐시로 요청 허용 ({} / {})", currentCount, userCapacity);
+        log.info("[Circuit Breaker] Redis 장애! 로컬 캐시로 요청 허용 ({} / {})", currentCount, capacity);
         return true;
     }
 
@@ -89,7 +86,7 @@ public class RateLimiterService implements RateLimitUseCase {
         return rateLimitPort.isAllowed(key, ipCapacity, ipRefillRate);
     }
 
-    public boolean fallbackForIp(String ip, Throwable t) {
+    public boolean fallbackForIp(String ip, int ipCapacity, int ipRefillRate, Throwable t) {
         log.error("[Circuit Breaker] Redis 장애 감지! IP {}의 요청을 무조건 허용(Fail-Open)합니다. 사유: {}", ip, t.getMessage());
         return true;
     }

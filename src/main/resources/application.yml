@@ -118,8 +118,8 @@ jwt:
 
 # Redis
 redis:
-  port: ${REDIS_HOST}
-  host: ${REDIS_PORT}
+  port: ${REDIS_PORT}
+  host: ${REDIS_HOST}
   auth:
     prefix: user                      # 레디스 저장에 필요한 키 값 중 접두어
     suffix: rt                        # 레디스 저장에 필요한 키 값 중 접미어

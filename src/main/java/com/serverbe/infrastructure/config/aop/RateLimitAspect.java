@@ -8,6 +8,7 @@ import com.serverbe.domain.exception.auth.AuthException;
 import com.serverbe.domain.exception.server.ServerErrorCode;
 import com.serverbe.domain.exception.server.ServerException;
 import com.serverbe.infrastructure.security.TokenExtractor;
+import com.serverbe.infrastructure.util.ClientIpUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -36,7 +37,7 @@ public class RateLimitAspect {
         boolean isAllowed = true;
 
         if (rateLimit.target() == RateLimit.TargetType.IP) {
-            String ip = getClientIp(request);
+            String ip = ClientIpUtils.getClientIp(request);
             isAllowed = rateLimiterService.isAllowedForIp(ip, rateLimit.capacity(), rateLimit.refillRate());
 
         } else if (rateLimit.target() == RateLimit.TargetType.USER) {
@@ -61,13 +62,5 @@ public class RateLimitAspect {
         }
 
         return joinPoint.proceed();
-    }
-
-    private String getClientIp(HttpServletRequest request) {
-        String ip = request.getHeader("X-Forwarded-For");
-        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getRemoteAddr();
-        }
-        return ip;
     }
 }
