@@ -45,19 +45,33 @@ resilience4j:
   circuitbreaker:
     configs:
       default:
-        registerHealthIndicator: true             # Spring Boot Actuator 연동 (모니터링용)
-        slidingWindowType: COUNT_BASED            # 횟수 기반 슬라이딩 윈도우 사용
-        slidingWindowSize: 5                     # 최근 10번의 호출 상태를 기록
-        minimumNumberOfCalls: 3                   # 최소 5번의 호출이 쌓여야 실패율 계산을 시작
-        failureRateThreshold: 50                  # 실패율이 50% 이상이면 서킷 브레이커 OPEN (차단)
-        waitDurationInOpenState: 30s              # OPEN 상태에서 10초 대기 후 HALF_OPEN으로 전환되어 재시도
-        permittedNumberOfCallsInHalfOpenState: 3  # HALF_OPEN 상태에서 허용할 테스트 호출 횟수
-        recordExceptions:                         # 실패로 기록할 예외 목록
+        registerHealthIndicator: true
+        slidingWindowType: COUNT_BASED
+
+        # 1. 윈도우 사이즈와 최소 평가 횟수 스케일업 (민감도 낮추기)
+        slidingWindowSize: 100                  # 최근 100번의 호출을 기준으로 평가
+        minimumNumberOfCalls: 30                # 최소 30번은 호출되어야 실패율 계산 시작
+
+        # 2. 실패율 및 지연(Slow Call) 차단 기준
+        failureRateThreshold: 50                # 실패율 50% 이상 시 OPEN
+        slowCallDurationThreshold: 2500ms       # 2.5초 이상 걸리면 '느린 호출'로 간주
+        slowCallRateThreshold: 50               # 느린 호출이 50% 이상이어도 OPEN (스레드 고갈 방지)
+
+        # 3. 복구 대기 시간 조정
+        waitDurationInOpenState: 15s            # OPEN 후 15초 대기 (빠른 복구 시도)
+        permittedNumberOfCallsInHalfOpenState: 5 # HALF_OPEN 상태에서 5번 찔러보기
+
+        # 4. 예외 기록 및 무시 (중요!)
+        recordExceptions:
           - java.util.concurrent.TimeoutException
           - java.io.IOException
           - org.springframework.web.reactive.function.client.WebClientRequestException
-          - com.serverbe.domain.exception.external.ExternalApiException
+          - com.serverbe.domain.exception.external.ExternalApiException # (5xx 에러 전용)
+        ignoreExceptions:
+          #- com.serverbe.domain.exception.external.ExternalApiClientException # (4xx 에러 전용)
+
     instances:
+      # 로그인과 지오코딩의 트래픽(TPS)이 다르다면 base-config를 분리하는 것도 좋습니다.
       kakaoUserInfoApi:
         base-config: default
       kakaoTokenApi:
@@ -68,6 +82,8 @@ resilience4j:
         base-config: default
       kakaoGeocodeApi:
         base-config: default
+        # 지오코딩은 트래픽이 더 많을 수 있으므로 윈도우 사이즈를 늘리는 오버라이딩 가능
+        # slidingWindowSize: 200
 
 # Swagger 사용 설정
 springdoc:
