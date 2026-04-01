@@ -54,8 +54,7 @@ public class RateLimiterService implements RateLimitUseCase {
      * @return true(허용), false(차단)
      */
     @Override
-    @CircuitBreaker(name = "redisRateLimit", fallbackMethod = "fallbackForUser")
-    public boolean isAllowedForUser(Long userId) {
+    public boolean isAllowedForUser(Long userId, int ipCapacity, int ipRefillRate) {
         String key = userPrefix + userId;
         return rateLimitPort.isAllowed(key, userCapacity, userRefillRate);
     }
@@ -85,7 +84,7 @@ public class RateLimiterService implements RateLimitUseCase {
      */
     @Override
     @CircuitBreaker(name = "redisRateLimit", fallbackMethod = "fallbackForIp")
-    public boolean isAllowedForIp(String ip) {
+    public boolean isAllowedForIp(String ip, int ipCapacity, int ipRefillRate) {
         String key = ipPrefix + ip;
         return rateLimitPort.isAllowed(key, ipCapacity, ipRefillRate);
     }

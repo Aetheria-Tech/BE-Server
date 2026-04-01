@@ -29,8 +29,8 @@ public class NotificationService {
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
 
-            // JSON 페이로드 생성 (따옴표 이스케이프 처리)
-            String payload = "{\"content\": \"" + message + "\"}";
+            // JSON 페이로드 생성 (안전하게 이스케이프 처리)
+            String payload = String.format("{\"content\": \"%s\"}", message.replace("\"", "\\\""));
             
             HttpEntity<String> entity = new HttpEntity<>(payload, headers);
             

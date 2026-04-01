@@ -37,7 +37,7 @@ public class RateLimitAspect {
 
         if (rateLimit.target() == RateLimit.TargetType.IP) {
             String ip = getClientIp(request);
-            isAllowed = rateLimiterService.isAllowedForIp(ip);
+            isAllowed = rateLimiterService.isAllowedForIp(ip, rateLimit.capacity(), rateLimit.refillRate());
 
         } else if (rateLimit.target() == RateLimit.TargetType.USER) {
             // 2. HTTP 요청에서 Access Token 추출
@@ -52,7 +52,7 @@ public class RateLimitAspect {
             // 4. TokenResolver를 사용해 토큰에서 userId 파싱 (예외는 내부에서 처리됨)
             Long userId = tokenResolver.getIdFromToken(accessToken);
 
-            isAllowed = rateLimiterService.isAllowedForUser(userId);
+            isAllowed = rateLimiterService.isAllowedForUser(userId, rateLimit.capacity(), rateLimit.refillRate());
         }
 
         if (!isAllowed) {
