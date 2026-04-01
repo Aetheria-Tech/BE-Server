@@ -50,7 +50,9 @@ resilience4j:
         base-config: default
       kakaoTokenApi:
         base-config: default
-      googleApi:
+      googleUserInfoApi:
+        base-config: default
+      googleTokenApi:
         base-config: default
       kakaoGeocodeApi:
         base-config: default
