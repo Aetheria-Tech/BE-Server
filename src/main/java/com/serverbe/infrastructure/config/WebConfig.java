@@ -6,7 +6,6 @@ import com.serverbe.adapter.in.web.support.resolver.DeviceIdArgumentResolver;
 import com.serverbe.adapter.in.web.support.resolver.TokenArgumentResolver;
 import com.serverbe.infrastructure.config.converter.StringToOAuthProviderConverter;
 import com.serverbe.infrastructure.config.properties.CorsProperties;
-import com.serverbe.infrastructure.crypto.EncryptionContextInterceptor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.format.FormatterRegistry;
@@ -25,7 +24,6 @@ import java.util.List;
 public class WebConfig implements WebMvcConfigurer {
 
     private final CorsProperties corsProperties;
-    private final EncryptionContextInterceptor encryptionContextInterceptor;
     private final DeviceIdArgumentResolver deviceIdArgumentResolver;
     private final TokenArgumentResolver tokenArgumentResolver;
     private final ClientIpArgumentResolver clientIpArgumentResolver;
