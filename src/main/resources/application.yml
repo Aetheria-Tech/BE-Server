@@ -29,16 +29,28 @@ spring:
     init:
       mode: always                                    # SQL 초기화 스크립트를 언제 실행할지 결정한다.
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, metrics
+  endpoint:
+    health:
+      show-details: always # 서킷 브레이커 상세 상태를 보기 위해 필수!
+  health:
+    circuitbreakers:
+      enabled: true
+
 resilience4j:
   circuitbreaker:
     configs:
       default:
         registerHealthIndicator: true             # Spring Boot Actuator 연동 (모니터링용)
         slidingWindowType: COUNT_BASED            # 횟수 기반 슬라이딩 윈도우 사용
-        slidingWindowSize: 10                     # 최근 10번의 호출 상태를 기록
-        minimumNumberOfCalls: 5                   # 최소 5번의 호출이 쌓여야 실패율 계산을 시작
+        slidingWindowSize: 5                     # 최근 10번의 호출 상태를 기록
+        minimumNumberOfCalls: 3                   # 최소 5번의 호출이 쌓여야 실패율 계산을 시작
         failureRateThreshold: 50                  # 실패율이 50% 이상이면 서킷 브레이커 OPEN (차단)
-        waitDurationInOpenState: 10s              # OPEN 상태에서 10초 대기 후 HALF_OPEN으로 전환되어 재시도
+        waitDurationInOpenState: 30s              # OPEN 상태에서 10초 대기 후 HALF_OPEN으로 전환되어 재시도
         permittedNumberOfCallsInHalfOpenState: 3  # HALF_OPEN 상태에서 허용할 테스트 호출 횟수
         recordExceptions:                         # 실패로 기록할 예외 목록
           - java.util.concurrent.TimeoutException

@@ -75,6 +75,9 @@ dependencies {
     implementation 'com.github.ben-manes.caffeine:caffeine'
     implementation 'io.github.resilience4j:resilience4j-reactor:2.2.0' // WebFlux(Mono) 지원용
 
+    // Spring Actuator
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+
     /**
      * Boilerplate Code Reduction (Lombok)
      */
