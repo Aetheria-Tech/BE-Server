@@ -13,7 +13,7 @@ import org.springframework.util.StopWatch;
  */
 @Slf4j
 @Aspect
-@Component
+@Component("customTimerAspect")
 public class TimerAspect {
 
     /**

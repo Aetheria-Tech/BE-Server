@@ -1,19 +1,16 @@
 package com.serverbe.infrastructure.config;
 
-import com.serverbe.adapter.in.web.interceptor.RateLimitInterceptor;
 import com.serverbe.adapter.in.web.support.resolver.AppVersionArgumentResolver;
 import com.serverbe.adapter.in.web.support.resolver.ClientIpArgumentResolver;
 import com.serverbe.adapter.in.web.support.resolver.DeviceIdArgumentResolver;
 import com.serverbe.adapter.in.web.support.resolver.TokenArgumentResolver;
 import com.serverbe.infrastructure.config.converter.StringToOAuthProviderConverter;
 import com.serverbe.infrastructure.config.properties.CorsProperties;
-import com.serverbe.infrastructure.crypto.EncryptionContextInterceptor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.format.FormatterRegistry;
 import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
-import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 import java.util.List;
@@ -27,8 +24,6 @@ import java.util.List;
 public class WebConfig implements WebMvcConfigurer {
 
     private final CorsProperties corsProperties;
-    private final EncryptionContextInterceptor encryptionContextInterceptor;
-    private final RateLimitInterceptor rateLimitInterceptor;
     private final DeviceIdArgumentResolver deviceIdArgumentResolver;
     private final TokenArgumentResolver tokenArgumentResolver;
     private final ClientIpArgumentResolver clientIpArgumentResolver;
@@ -73,22 +68,5 @@ public class WebConfig implements WebMvcConfigurer {
     @Override
     public void addFormatters(FormatterRegistry registry) {
         registry.addConverter(new StringToOAuthProviderConverter());
-    }
-
-    /**
-     * @param registry 인터셉터 체인을 관리하는 {@link InterceptorRegistry}
-     * @responsibility 컨트롤러 실행 전후에 공통 로직을 수행할 <b>인터셉터</b>를 등록합니다.
-     * @implNote 요청 스레드별 암호화 문맥을 관리하는 {@link EncryptionContextInterceptor}를 핸들러 매핑에 추가합니다.
-     * @implSpec 두 인터셉터의 순서가 바뀌면 안 됨.
-     */
-    @Override
-    public void addInterceptors(InterceptorRegistry registry) {
-        // 1. Rate Limiter가 가장 먼저 요청을 거릅니다. (가장 가벼운 검사)
-        registry.addInterceptor(rateLimitInterceptor)
-                .addPathPatterns("/**") // 모든 경로에 적용
-                .excludePathPatterns("/css/**", "/images/**", "/js/**", "/favicon.ico"); // 정적 리소스 제외
-
-        // 2. 그 다음 비즈니스 로직에 필요한 컨텍스트 설정
-        registry.addInterceptor(encryptionContextInterceptor);
     }
 }

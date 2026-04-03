@@ -38,6 +38,10 @@ public class SecurityConfig {
             "/api/v1/auth/reissue"
     };
 
+    private static final String[] ACTUATOR_PATHS = {
+            "/actuator/health"
+    };
+
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final CustomAuthenticationEntryPoint authenticationEntryPoint;
     private final CustomAccessDeniedHandler accessDeniedHandler;
@@ -86,6 +90,7 @@ public class SecurityConfig {
                         .requestMatchers(SWAGGER_PATHS).permitAll()
                         // 로그인은 인증 없이 접근 가능
                         .requestMatchers(LOGIN_PATHS).permitAll()
+                        .requestMatchers(ACTUATOR_PATHS).permitAll()
                         // 그 외 모든 요청은 인증 필요
                         .anyRequest().authenticated()
                 )

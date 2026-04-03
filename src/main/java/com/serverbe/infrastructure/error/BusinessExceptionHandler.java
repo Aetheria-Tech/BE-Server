@@ -2,6 +2,7 @@ package com.serverbe.infrastructure.error;
 
 import com.serverbe.domain.exception.BusinessException;
 import com.serverbe.domain.exception.auth.AuthErrorCode;
+import com.serverbe.domain.exception.server.RateLimitExceededException;
 import com.serverbe.domain.exception.server.ServerErrorCode;
 import com.serverbe.infrastructure.common.response.RestApiResponse;
 import jakarta.validation.ConstraintViolationException;
@@ -147,5 +148,20 @@ public class BusinessExceptionHandler {
         log.warn("[SECURITY ACCESS DENIED] 권한 없는 사용자의 자원 접근 시도 -> {}", e.getMessage());
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .body(RestApiResponse.fail(AuthErrorCode.ACCESS_DENIED));
+    }
+
+    /**
+     * @param e 처리율 제한 초과 예외
+     * @responsibility 429 에러 응답 시, HTTP 표준인 'Retry-After' 헤더에 재시도 가능 시간을 명시합니다.
+     */
+    @ExceptionHandler(RateLimitExceededException.class)
+    public ResponseEntity<RestApiResponse<Void>> handleRateLimitExceededException(RateLimitExceededException e) {
+        var errorCode = e.getErrorCode();
+        log.warn("[RATE LIMIT EXCEPTION] 요청 한도 초과 -> {} (Retry-After: {}초)",
+                errorCode.getMessage(), e.getRetryAfterSeconds());
+
+        return ResponseEntity.status(errorCode.getStatus())
+                .header("Retry-After", String.valueOf(e.getRetryAfterSeconds()))
+                .body(RestApiResponse.fail(errorCode, errorCode.getMessage()));
     }
 }

@@ -5,8 +5,10 @@ import com.serverbe.domain.exception.auth.AuthErrorCode;
 import com.serverbe.domain.exception.auth.AuthException;
 import com.serverbe.infrastructure.config.properties.JwtProperties;
 import com.serverbe.infrastructure.config.properties.RedisProperties;
+import jakarta.persistence.QueryTimeoutException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Component;
@@ -228,7 +230,17 @@ public class TokenPersistenceAdapter implements TokenPersistencePort {
      */
     @Override
     public boolean isAccessTokenBlacklisted(String accessToken) {
-        return Boolean.TRUE.equals(redisTemplate.hasKey(createAccessTokenBlacklistKey(accessToken)));
+
+        try {
+            return Boolean.TRUE.equals(redisTemplate.hasKey(createAccessTokenBlacklistKey(accessToken)));
+        } catch (RedisConnectionFailureException | QueryTimeoutException e) {
+            // Redis 장애 시 로그만 남기고 무조건 통과 (Fail-Open 전략)
+            log.error("Redis 장애로 인해 JWT 블랙리스트 검증을 건너뜁니다. 임시 허용 (Fail-Open)");
+            return false;
+        } catch (Exception e) {
+            log.error("예상치 못한 Redis 오류: {}", e.getMessage());
+            return false;
+        }
     }
 
     /**
