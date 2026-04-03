@@ -55,7 +55,7 @@ public class GoogleOAuthAdapter implements OAuthClientPort {
             CircuitBreakerRegistry circuitBreakerRegistry
     ) {
         this.fallbackHandler = fallbackHandler;
-        this.webClient = webClientBuilder.build();
+        this.webClient = webClientBuilder.clone().build();
 
         this.googleTokenCircuitBreaker = circuitBreakerRegistry.circuitBreaker("googleTokenApi");
         this.googleApiCircuitBreaker = circuitBreakerRegistry.circuitBreaker("googleUserInfoApi");

@@ -61,7 +61,7 @@ public class KakaoOAuthAdapter implements OAuthClientPort {
         this.adminKey = kakaoProperties.adminKey();
         this.redirectUri = kakaoProperties.auth().redirectUri();
 
-        this.webClient = webClientBuilder.build();
+        this.webClient = webClientBuilder.clone().build();
 
         this.kakaoTokenCircuitBreaker = circuitBreakerRegistry.circuitBreaker("kakaoTokenApi");
         this.kakaoApiCircuitBreaker = circuitBreakerRegistry.circuitBreaker("kakaoUserInfoApi");

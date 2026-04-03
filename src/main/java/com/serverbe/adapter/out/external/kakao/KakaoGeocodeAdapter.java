@@ -45,7 +45,7 @@ public class KakaoGeocodeAdapter implements GeocodePort {
             KakaoGeocodeFallbackHandler fallbackHandler,
             CircuitBreakerRegistry circuitBreakerRegistry
     ) {
-        this.webClient = builder.baseUrl(kakaoProperties.geocoding().dapi()).build();
+        this.webClient = builder.clone().baseUrl(kakaoProperties.geocoding().dapi()).build();
         this.clientId = kakaoProperties.clientId();
         this.geocodeApiUrl = kakaoProperties.geocoding().geocodeApi();
         this.fallbackHandler = fallbackHandler;
