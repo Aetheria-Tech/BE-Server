@@ -42,6 +42,10 @@ public class SecurityConfig {
             "/actuator/health"
     };
 
+    private static final String[] TEST_API_PATHS = {
+            "/api/v1/running-arts/sample"
+    };
+
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final CustomAuthenticationEntryPoint authenticationEntryPoint;
     private final CustomAccessDeniedHandler accessDeniedHandler;
@@ -91,6 +95,7 @@ public class SecurityConfig {
                         // 로그인은 인증 없이 접근 가능
                         .requestMatchers(LOGIN_PATHS).permitAll()
                         .requestMatchers(ACTUATOR_PATHS).permitAll()
+                        .requestMatchers(TEST_API_PATHS).permitAll()
                         // 그 외 모든 요청은 인증 필요
                         .anyRequest().authenticated()
                 )
