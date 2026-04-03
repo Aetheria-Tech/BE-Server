@@ -7,7 +7,6 @@ import com.serverbe.domain.exception.auth.AuthErrorCode;
 import com.serverbe.domain.exception.auth.AuthException;
 import com.serverbe.domain.exception.server.RateLimitExceededException;
 import com.serverbe.domain.exception.server.ServerErrorCode;
-import com.serverbe.domain.exception.server.ServerException;
 import com.serverbe.infrastructure.security.TokenExtractor;
 import com.serverbe.infrastructure.util.ClientIpUtils;
 import jakarta.servlet.http.HttpServletRequest;
@@ -20,8 +19,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
-
-// ... 기존 import 생략 ...
 
 @Slf4j
 @Aspect
@@ -48,8 +45,8 @@ public class RateLimitAspect {
         } else if (rateLimit.target() == RateLimit.TargetType.USER) {
             String accessToken = tokenExtractor.extractAccessToken(request);
 
-            if (!StringUtils.hasText(accessToken)) {
-                log.warn("[AOP Rate Limit] 유저 기반 제한이지만 토큰이 존재하지 않습니다.");
+            if (!StringUtils.hasText(accessToken) || !tokenResolver.validateAccessToken(accessToken)) {
+                log.warn("[AOP Rate Limit] 유효하지 않은 토큰입니다.");
                 throw new AuthException(AuthErrorCode.JWT_TOKEN_IS_EMPTY);
             }
 
