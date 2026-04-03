@@ -31,19 +31,21 @@ class RateLimiterServiceConcurrencyTest {
 
     private static final int THREAD_COUNT = 100; // 동시에 쏟아질 트래픽 수
     private static final Long TEST_USER_ID = 1004L; // 파라미터 타입에 맞춘 Long ID
+    private static final String TEST_ENDPOINT = "/api/test/concurrency"; // 테스트용 가짜 엔드포인트
 
     @BeforeEach
     void setUp() {
-        // Properties에서 Prefix를 가져와 실제 생성되는 Redis Key를 조합하여 초기화합니다.
-        String key = rateLimitProperties.prefix().user() + TEST_USER_ID;
+        // 🌟 수정됨: 새롭게 바뀐 Key 조합 규칙(prefix + id + ":" + endpoint) 적용
+        String key = rateLimitProperties.prefix().user() + TEST_USER_ID + ":" + TEST_ENDPOINT;
         redisTemplate.delete(key);
     }
 
     @Test
     @DisplayName("토큰 버킷 동시성 테스트: 100개의 스레드가 동시 요청해도 정확히 Capacity 설정값만큼만 통과해야 한다.")
     void isAllowedForUser_Concurrency_Test() throws InterruptedException {
-        // given: application.yml에 설정된 최대 버킷 용량을 동적으로 가져옴
-        final int expectedSuccessCount = rateLimitProperties.user().capacity();
+        // given: application.yml에 설정된 최대 버킷 용량과 보충 속도를 동적으로 가져옴
+        final int capacity = rateLimitProperties.user().capacity();
+        final int refillRate = rateLimitProperties.user().refillRate();
 
         ExecutorService executorService = Executors.newFixedThreadPool(THREAD_COUNT);
         CountDownLatch readyLatch = new CountDownLatch(THREAD_COUNT);
@@ -60,7 +62,10 @@ class RateLimiterServiceConcurrencyTest {
                 try {
                     startLatch.await();
 
-                    boolean isAllowed = rateLimiterService.isAllowedForUser(TEST_USER_ID);
+                    // 🌟 수정됨: 엔드포인트, capacity, refillRate 파라미터 추가 전달
+                    boolean isAllowed = rateLimiterService.isAllowedForUser(
+                            TEST_USER_ID, TEST_ENDPOINT, capacity, refillRate
+                    );
 
                     if (isAllowed) {
                         successCount.incrementAndGet();
@@ -87,14 +92,15 @@ class RateLimiterServiceConcurrencyTest {
 
         // then: 결과 출력 및 검증
         System.out.println("\n========== [Rate Limit 동시성 테스트 결과] ==========");
-        System.out.println("설정된 최대 허용량 (Capacity): " + expectedSuccessCount);
+        System.out.println("테스트 엔드포인트: " + TEST_ENDPOINT);
+        System.out.println("설정된 최대 허용량 (Capacity): " + capacity);
         System.out.println("총 소요 시간: " + (endTime - startTime) + " ms");
         System.out.println("통과된 요청 (Success): " + successCount.get() + " 개");
         System.out.println("차단된 요청 (Fail): " + failCount.get() + " 개");
         System.out.println("====================================================\n");
 
         // 검증: 성공한 요청은 정확히 버킷 용량(Capacity)과 일치해야 하고, 나머지는 모두 실패해야 함
-        assertThat(successCount.get()).isEqualTo(expectedSuccessCount);
-        assertThat(failCount.get()).isEqualTo(THREAD_COUNT - expectedSuccessCount);
+        assertThat(successCount.get()).isEqualTo(capacity);
+        assertThat(failCount.get()).isEqualTo(THREAD_COUNT - capacity);
     }
 }
