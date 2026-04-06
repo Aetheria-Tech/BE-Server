@@ -1,20 +1,30 @@
 package com.serverbe.application.service;
 
+import com.serverbe.application.port.in.art.CreateRunningArtUseCase;
 import com.serverbe.application.port.in.art.GetRunningArtUseCase;
 import com.serverbe.application.port.in.art.DeleteRunningArtUseCase;
 import com.serverbe.application.port.in.art.UpdateRunningArtUseCase;
 import com.serverbe.application.port.in.dto.art.RunningArtResult;
 import com.serverbe.application.port.in.dto.art.RunningArtUpdateCommand;
+import com.serverbe.application.port.out.ai.RunningArtAIPort;
+import com.serverbe.application.port.out.dto.ai.RunningArtGPX;
+import com.serverbe.application.port.out.geocode.GeocodePort;
 import com.serverbe.application.port.out.jpa.RunningArtRepositoryPort;
 import com.serverbe.domain.exception.art.ArtErrorCode;
 import com.serverbe.domain.exception.art.ArtException;
 import com.serverbe.domain.model.art.RunningArt;
 import com.serverbe.domain.exception.BusinessException;
+import com.serverbe.domain.model.art.vo.Proficiency;
+import com.serverbe.infrastructure.util.PolylineUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
+
+import java.time.LocalDate;
 
 /**
  * @responsibility 사용자가 생성한 런닝 아트(GPS 궤적 데이터 기반 기록)의 생명주기를 관리하고 접근 권한을 제어합니다.
@@ -22,8 +32,10 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 @RequiredArgsConstructor
-public class RunningArtService implements GetRunningArtUseCase, DeleteRunningArtUseCase, UpdateRunningArtUseCase {
+public class RunningArtService implements GetRunningArtUseCase, DeleteRunningArtUseCase, UpdateRunningArtUseCase, CreateRunningArtUseCase {
     private final RunningArtRepositoryPort repositoryPort;
+    private final RunningArtAIPort runningArtAIPort;
+    private final GeocodePort geocodePort;
 
     /**
      * @param userId   런닝 아트를 조회할 사용자의 고유 식별자
@@ -122,5 +134,36 @@ public class RunningArtService implements GetRunningArtUseCase, DeleteRunningArt
             );
         }
         return runningArt;
+    }
+
+    @Override
+    public Mono<RunningArtResult> createRunningArt(Long userId, String startPosition, String shape, Proficiency proficiency) {
+        return geocodePort.geocode(startPosition)
+                .flatMap(geocodeResult -> runningArtAIPort.createRunningArtGPX(
+                        geocodeResult.latitude(),
+                        geocodeResult.longitude(),
+                        shape,
+                        proficiency))
+                // 블로킹 작업(DB 저장)을 위해 전용 스레드 풀로 전환
+                .publishOn(Schedulers.boundedElastic())
+                .map(runningArtGPX -> {
+                    double[] startLocation = PolylineUtils.decodeFirstLocation(runningArtGPX.gpx());
+                    double startLat = startLocation[0];
+                    double startLon = startLocation[1];
+
+                    RunningArt runningArt = RunningArt.builder()
+                            .userId(userId)
+                            .title(startPosition + ":" + LocalDate.now())
+                            .gpx(runningArtGPX.gpx())
+                            .content("None")
+                            .shape(shape)
+                            .proficiency(proficiency)
+                            .startLat(startLat)
+                            .startLon(startLon)
+                            .build();
+                    return repositoryPort.save(runningArt);
+                })
+                // 다시 리액티브 타입으로 변환 및 결과 매핑
+                .map(RunningArtResult::toResult);
     }
 }

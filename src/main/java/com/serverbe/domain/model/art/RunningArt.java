@@ -1,6 +1,7 @@
 package com.serverbe.domain.model.art;
 
 import com.serverbe.domain.model.art.vo.Proficiency;
+import lombok.Builder;
 
 /**
  * @responsibility 사용자가 생성한 <b>런닝 아트</b>의 데이터를 관리하는 불변 객체입니다.
@@ -12,6 +13,7 @@ import com.serverbe.domain.model.art.vo.Proficiency;
  * @param gpx GPS 경로 데이터 (GPX 포맷)
  * @param userId 아트를 소유한 유저의 고유 식별자
  */
+@Builder
 public record RunningArt(
         Long id,
         String title,
@@ -19,7 +21,9 @@ public record RunningArt(
         String shape,
         Proficiency proficiency,
         String gpx,
-        Long userId
+        Long userId,
+        Double startLat,
+        Double startLon
 ) {
     /**
      * @responsibility 제목과 설명 등 아트의 메타데이터를 갱신한 새로운 인스턴스를 생성합니다.
@@ -35,7 +39,9 @@ public record RunningArt(
                 this.shape,
                 this.proficiency,
                 this.gpx,
-                this.userId
+                this.userId,
+                this.startLat,
+                this.startLon
         );
     }
 }

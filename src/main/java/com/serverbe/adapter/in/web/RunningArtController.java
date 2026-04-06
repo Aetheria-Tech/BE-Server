@@ -1,6 +1,8 @@
 package com.serverbe.adapter.in.web;
 
+import com.serverbe.adapter.in.web.dto.art.CreateRunningArtRequest;
 import com.serverbe.adapter.in.web.dto.art.RunningArtResponse;
+import com.serverbe.application.port.in.art.CreateRunningArtUseCase;
 import com.serverbe.application.port.in.art.GetRunningArtUseCase;
 import com.serverbe.application.port.in.art.DeleteRunningArtUseCase;
 import com.serverbe.application.port.in.art.UpdateRunningArtUseCase;
@@ -21,6 +23,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import reactor.core.publisher.Mono;
 
 @Tag(name = "Running Art", description = "런닝 아트 관리 API")
 @RestController
@@ -31,6 +34,7 @@ public class RunningArtController {
     private final GetRunningArtUseCase getRunningArtUseCase;
     private final DeleteRunningArtUseCase deleteRunningArtUseCase;
     private final UpdateRunningArtUseCase updateRunningArtUseCase;
+    private final CreateRunningArtUseCase createRunningArtUseCase;
 
     @Operation(
             summary = "내 런닝 아트 목록 조회",
@@ -152,6 +156,37 @@ public class RunningArtController {
         deleteRunningArtUseCase.deleteAllRunningArtsByUserId(userId);
         return RestApiResponse.noContent();
     }
+
+    @Operation(
+            summary = "새로운 런닝 아트 생성",
+            description = "사용자의 현재 위치와 원하는 모양, 숙련도를 바탕으로 AI가 런닝 경로를 생성합니다. " +
+                    "생성된 경로는 Google Encoded Polyline 형식으로 저장되며, " +
+                    "추후 반경 검색 최적화를 위해 시작점 좌표가 자동으로 추출되어 인덱싱됩니다.",
+            security = @SecurityRequirement(name = "jwtAuth"),
+            responses = {
+                    @ApiResponse(
+                            responseCode = "201",
+                            description = "런닝 아트 생성 성공",
+                            content = @Content(schema = @Schema(implementation = RunningArtResponse.class))
+                    ),
+                    @ApiResponse(responseCode = "400", description = "잘못된 요청 데이터"),
+                    @ApiResponse(responseCode = "401", description = "인증 실패"),
+                    @ApiResponse(responseCode = "500", description = "AI 서버 통신 및 서버 내부 오류")
+            }
+    )
+    @PostMapping
+    public Mono<RestApiResponse<RunningArtResponse>> create(@Parameter(hidden = true) @AuthenticationPrincipal Long userId) {
+        CreateRunningArtRequest request = CreateRunningArtRequest.builder()
+                .startPosition("용인 아르피아 체육공원")
+                .proficiency(Proficiency.MASTER)
+                .shape("강아지")
+                .build();
+
+        return createRunningArtUseCase
+                .createRunningArt(userId, request.startPosition(), request.shape(), request.proficiency())
+                .map(result -> RestApiResponse.created(RunningArtResponse.toResponse(result)));
+    }
+
 
     @Operation(
             summary = "샘플로 등록된 Polyline이 적용된 GPX 파일 조회",
