@@ -2,6 +2,7 @@ package com.serverbe.adapter.in.web;
 
 import com.serverbe.adapter.in.web.dto.art.CreateRunningArtRequest;
 import com.serverbe.adapter.in.web.dto.art.RunningArtResponse;
+import com.serverbe.application.annotation.RateLimit;
 import com.serverbe.application.port.in.art.*;
 import com.serverbe.adapter.in.web.dto.art.UpdateRunningArtRequest;
 import com.serverbe.domain.model.art.vo.Proficiency;
@@ -177,7 +178,7 @@ public class RunningArtController {
     @PostMapping
     public Mono<RestApiResponse<RunningArtResponse>> create(@Parameter(hidden = true) @AuthenticationPrincipal Long userId) {
         CreateRunningArtRequest request = CreateRunningArtRequest.builder()
-                .startPosition("용인 아르피아 체육공원")
+                .startPosition("서울특별시 강남구 테헤란로 427")
                 .proficiency(Proficiency.MASTER)
                 .shape("강아지")
                 .build();
@@ -202,6 +203,8 @@ public class RunningArtController {
                     @ApiResponse(responseCode = "500", description = "서버 내부 오류 (Redis 또는 DB 통신 실패)")
             }
     )
+    @RateLimit(target = RateLimit.TargetType.IP, capacity = 10, refillRate = 5)
+    @RateLimit(target = RateLimit.TargetType.USER, capacity = 5, refillRate = 3)
     @GetMapping("/nearby")
     public Mono<RestApiResponse<List<RunningArtResponse>>> getNearbyArts(
             @Parameter(hidden = true) @AuthenticationPrincipal Long userId,
