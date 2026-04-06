@@ -90,6 +90,13 @@ public class RunningArtPersistentAdapter implements RunningArtRepositoryPort {
         entity.updateMetadata(dto.title(), dto.content());
     }
 
+    /**
+     * @param ids 조회하고자 하는 런닝 아트의 고유 식별자 리스트
+     * @return 조회된 {@link RunningArt} 도메인 모델 리스트
+     * @responsibility 다수의 ID를 입력받아 해당하는 런닝 아트 상세 정보를 데이터베이스에서 한 번에 조회합니다.
+     * @implSpec {@link JpaRunningArtRepository#findAllById(Iterable)}를 사용하여 SQL의 `IN` 절을 생성하고 배치(Batch) 조회를 수행합니다. 조회된 엔티티는 매퍼를 통해 도메인 모델로 변환됩니다.
+     * @implNote RDBMS의 특성상 반환되는 리스트의 순서는 입력된 {@code ids} 리스트의 순서(예: 거리순 정렬)와 일치하지 않을 수 있습니다.
+     */
     @Override
     public List<RunningArt> findAllByIdIn(List<Long> ids) {
         return jpaRepository.findAllById(ids).stream()
