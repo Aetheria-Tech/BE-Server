@@ -13,7 +13,7 @@ import lombok.Builder;
  * @param gpx GPS 경로 데이터 (GPX 포맷)
  * @param userId 아트를 소유한 유저의 고유 식별자
  */
-@Builder
+@Builder(toBuilder = true)
 public record RunningArt(
         Long id,
         String title,
