@@ -59,4 +59,7 @@ public interface RunningArtRepositoryPort {
      * @param dto 수정될 정보를 포함하고 있는 {@link RunningArtUpdateCommand} DTO
      */
     void updateMetadata(Long runningArtId, RunningArtUpdateCommand dto);
+
+
+    List<RunningArt> findAllByIdIn(List<Long> ids);
 }

@@ -90,6 +90,13 @@ public class RunningArtPersistentAdapter implements RunningArtRepositoryPort {
         entity.updateMetadata(dto.title(), dto.content());
     }
 
+    @Override
+    public List<RunningArt> findAllByIdIn(List<Long> ids) {
+        return jpaRepository.findAllById(ids).stream()
+                .map(mapper::toDomain)
+                .toList();
+    }
+
     /**
      * @param runningArtId 삭제할 런닝아트 ID
      * @responsibility 고유 ID를 기준으로 런닝아트를 삭제합니다.
