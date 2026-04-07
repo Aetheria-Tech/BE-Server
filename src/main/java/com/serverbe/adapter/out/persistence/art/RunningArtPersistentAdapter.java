@@ -1,8 +1,11 @@
 package com.serverbe.adapter.out.persistence.art;
 
+import com.querydsl.jpa.impl.JPAQueryFactory;
 import com.serverbe.adapter.out.persistence.mapper.RunningArtMapper;
 import com.serverbe.adapter.out.persistence.user.JpaUserRepository;
 import com.serverbe.adapter.out.persistence.user.UserEntity;
+import com.serverbe.application.port.in.dto.art.QRunningArtLocationDto;
+import com.serverbe.application.port.in.dto.art.RunningArtLocationDto;
 import com.serverbe.application.port.in.dto.art.RunningArtUpdateCommand;
 import com.serverbe.application.port.out.jpa.RunningArtRepositoryPort;
 import com.serverbe.domain.exception.art.ArtErrorCode;
@@ -17,6 +20,9 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 import java.util.Optional;
 
+
+import static com.serverbe.adapter.out.persistence.art.QRunningArtEntity.runningArtEntity;
+
 /**
  * @author Duskafka
  * @responsibility 런닝아트 도메인 모델과 데이터베이스 엔티티 간의 매핑 및 데이터 영속화를 담당하는 아웃바운드 어댑터입니다.
@@ -27,6 +33,7 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class RunningArtPersistentAdapter implements RunningArtRepositoryPort {
 
+    private final JPAQueryFactory queryFactory;
     private final JpaRunningArtRepository jpaRepository;
     private final JpaUserRepository jpaUserRepository;
     private final RunningArtMapper mapper;
@@ -114,6 +121,24 @@ public class RunningArtPersistentAdapter implements RunningArtRepositoryPort {
     @Override
     public List<Long> findIdsByUserId(Long userId) {
         return jpaRepository.findIdsByUserId(userId);
+    }
+
+    @Override
+    public List<RunningArtLocationDto> findAllLocations() {
+        return queryFactory
+                // ✨ QDto를 사용해 Type-safe하게 데이터 매핑
+                .select(new QRunningArtLocationDto(
+                        runningArtEntity.id,
+                        runningArtEntity.startLat,
+                        runningArtEntity.startLon
+                ))
+                .from(runningArtEntity)
+                // 방어 로직: 좌표가 없는 비정상 데이터는 제외
+                .where(
+                        runningArtEntity.startLat.isNotNull(),
+                        runningArtEntity.startLon.isNotNull()
+                )
+                .fetch();
     }
 
     /**

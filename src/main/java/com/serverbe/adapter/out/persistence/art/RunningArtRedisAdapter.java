@@ -55,4 +55,11 @@ public class RunningArtRedisAdapter implements RunningArtRedisPort {
         return reactiveRedisTemplate.opsForGeo()
                 .remove(GEO_KEY, id.toString());
     }
+
+    @Override
+    public Mono<Boolean> clearAllLocations() {
+        return reactiveRedisTemplate.delete(GEO_KEY)
+                .map(count -> count > 0)
+                .defaultIfEmpty(false);
+    }
 }
