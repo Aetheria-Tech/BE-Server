@@ -105,6 +105,18 @@ public class RunningArtPersistentAdapter implements RunningArtRepositoryPort {
     }
 
     /**
+     * @param userId 조회할 사용자의 고유 ID
+     * @return 런닝아트의 고유 식별자(PK) 리스트
+     * @responsibility 특정 사용자가 소유한 런닝 아트의 식별자 목록만 고속으로 조회합니다.
+     * @implSpec JPA의 @Query를 사용하여 엔티티 전체를 로딩하지 않고 ID 컬럼만 Projection하여 조회 성능을 최적화합니다.
+     * @implNote 전체 삭제 전 Redis 데이터 동기화 등 가벼운 식별자 목록이 필요할 때 사용합니다.
+     */
+    @Override
+    public List<Long> findIdsByUserId(Long userId) {
+        return jpaRepository.findIdsByUserId(userId);
+    }
+
+    /**
      * @param runningArtId 삭제할 런닝아트 ID
      * @responsibility 고유 ID를 기준으로 런닝아트를 삭제합니다.
      * @implSpec {@link JpaRunningArtRepository#deleteById(Object)}를 호출하여 삭제 작업을 수행합니다.

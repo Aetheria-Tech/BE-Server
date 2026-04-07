@@ -1,6 +1,5 @@
 package com.serverbe.application.service;
 
-import com.serverbe.adapter.in.web.dto.art.RunningArtResponse;
 import com.serverbe.application.port.in.art.*;
 import com.serverbe.application.port.in.dto.art.RunningArtResult;
 import com.serverbe.application.port.in.dto.art.RunningArtUpdateCommand;
@@ -15,6 +14,7 @@ import com.serverbe.domain.exception.BusinessException;
 import com.serverbe.domain.model.art.vo.Proficiency;
 import com.serverbe.infrastructure.util.PolylineUtils;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -30,6 +30,7 @@ import java.util.List;
  * @responsibility 사용자가 생성한 런닝 아트(GPS 궤적 데이터 기반 기록)의 생명주기를 관리하고 접근 권한을 제어합니다.
  * @implSpec {@link GetRunningArtUseCase}, {@link DeleteRunningArtUseCase}, {@link UpdateRunningArtUseCase}를 모두 구현하는 통합 관리 서비스입니다.
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class RunningArtService implements
@@ -100,6 +101,12 @@ public class RunningArtService implements
         findAndVerifyOwner(userId, runningArtId);
 
         repositoryPort.deleteById(runningArtId);
+
+        runningArtRedisPort.removeLocation(runningArtId)
+                .subscribe(
+                        result -> log.info("Redis GEO 삭제 완료 (ArtId: {})", runningArtId),
+                        error -> log.error("Redis GEO 삭제 실패 (ArtId: {}): {}", runningArtId, error.getMessage())
+                );
     }
 
     /**
@@ -110,7 +117,23 @@ public class RunningArtService implements
     @Override
     @Transactional
     public void deleteAllRunningArtsByUserId(Long userId) {
+        // 1. 삭제할 모든 ID를 먼저 조회 (Redis 삭제를 위해 필요)
+        // repositoryPort에 유저 ID로 모든 아트 ID 목록만 가져오는 메서드가 있다고 가정
+        List<Long> artIdsToDelete = repositoryPort.findIdsByUserId(userId);
+
+        if (artIdsToDelete.isEmpty()) return;
+
+        // 2. DB에서 전체 삭제 (Blocking)
         repositoryPort.deleteByUserId(userId);
+
+        // 3. Redis에서 루프 돌며 삭제 (비동기)
+        Flux.fromIterable(artIdsToDelete)
+                .flatMap(runningArtRedisPort::removeLocation)
+                .subscribe(
+                        null, // 결과 로그는 생략 가능
+                        error -> log.error("Redis 일괄 삭제 중 오류 발생 (UserId: {}): {}", userId, error.getMessage()),
+                        () -> log.info("유저(ID: {})의 모든 Redis GEO 데이터 삭제 완료", userId)
+                );
     }
 
     /**
@@ -163,7 +186,7 @@ public class RunningArtService implements
                         shape,
                         proficiency))
                 .publishOn(Schedulers.boundedElastic())
-                .flatMap(runningArtAiResponse -> {
+                .map(runningArtAiResponse -> {
                     double[] startLocation = PolylineUtils.decodeFirstLocation(runningArtAiResponse.gpx());
                     double startLat = startLocation[0];
                     double startLon = startLocation[1];
@@ -180,11 +203,14 @@ public class RunningArtService implements
                             .build();
 
                     // 1. DB에 저장 (Blocking)
-                    RunningArt savedArt = repositoryPort.save(runningArt);
-
-                    // 2. Redis에 좌표 저장 동기화 (Non-blocking)
-                    return runningArtRedisPort.saveLocation(savedArt.id(), startLat, startLon)
-                            .thenReturn(savedArt); // Redis 저장 완료 후 도메인 객체 반환
+                    return repositoryPort.save(runningArt);
+                })
+                .doOnNext(savedArt -> {
+                    runningArtRedisPort.saveLocation(savedArt.id(), savedArt.startLat(), savedArt.startLon())
+                            .subscribe(
+                                    result -> log.info("Redis GEO 동기화 완료: {}", result),
+                                    error -> log.error("Redis GEO 동기화 실패 (ArtId={}): 나중에 배치로 복구해야 합니다.", savedArt.id(), error)
+                            );
                 })
                 .map(RunningArtResult::toResult);
     }

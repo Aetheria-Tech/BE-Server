@@ -49,4 +49,10 @@ public class RunningArtRedisAdapter implements RunningArtRedisPort {
                 )
                 .map(result -> Long.parseLong(result.getContent().getName()));
     }
+
+    @Override
+    public Mono<Long> removeLocation(Long id) {
+        return reactiveRedisTemplate.opsForGeo()
+                .remove(GEO_KEY, id.toString());
+    }
 }

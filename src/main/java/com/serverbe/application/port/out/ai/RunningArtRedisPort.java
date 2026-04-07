@@ -27,4 +27,6 @@ public interface RunningArtRedisPort {
      * @responsibility 주어진 좌표와 반경 정보를 바탕으로 주변에 있는 런닝 아트의 ID를 탐색하여 거리순으로 반환합니다.
      */
     Flux<Long> findNearbyIds(Double userLat, Double userLon, Double radiusKm);
+
+    Mono<Long> removeLocation(Long id);
 }

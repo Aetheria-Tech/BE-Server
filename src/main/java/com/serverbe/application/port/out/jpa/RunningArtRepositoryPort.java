@@ -62,4 +62,6 @@ public interface RunningArtRepositoryPort {
 
 
     List<RunningArt> findAllByIdIn(List<Long> ids);
+
+    List<Long> findIdsByUserId(Long userId);
 }
