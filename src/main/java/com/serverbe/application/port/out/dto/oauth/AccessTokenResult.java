@@ -19,8 +19,3 @@ public record AccessTokenResult(
         return new AccessTokenResult(accessToken, expireIn);
     }
 }
-
-/**
- * 1. 요청을 보내려고 함
- * 2. 만료 시간이 지났는가?
- * */

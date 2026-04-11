@@ -48,7 +48,7 @@ public record RestApiResponse<T>(
      * @param errorMessage 서버에서 정의한 에러 메시지 정보
      * @return 에러 코드와 메시지가 포함된 응답 객체
      */
-    public static <T> RestApiResponse<Void> fail(ErrorCode errorMessage) {
+    public static RestApiResponse<Void> fail(ErrorCode errorMessage) {
         return new RestApiResponse<>(
                 false,
                 errorMessage.getStatus(),

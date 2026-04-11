@@ -25,6 +25,10 @@ import reactor.core.scheduler.Schedulers;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * @responsibility 사용자가 생성한 런닝 아트(GPS 궤적 데이터 기반 기록)의 생명주기를 관리하고 접근 권한을 제어합니다.
@@ -230,15 +234,31 @@ public class RunningArtService implements
     public Flux<RunningArtResult> getNearbyArts(Double lat, Double lon, Double radius) {
         return runningArtRedisPort.findNearbyIds(lat, lon, radius)
                 .collectList()
-                .flatMapMany(ids -> {
-                    if (ids.isEmpty()) {
-                        return Flux.empty();
-                    }
+                // 1. Reactive 방식의 빈 리스트 방어 (imperative if문 제거)
+                .filter(ids -> !ids.isEmpty())
+                .flatMapMany(ids ->
+                        Mono.fromCallable(() -> {
+                                    // 2. DB에서 엔티티 일괄 조회 (순서 보장 안 됨)
+                                    List<RunningArt> arts = repositoryPort.findAllByIdIn(ids);
 
-                    return Mono.fromCallable(() -> repositoryPort.findAllByIdIn(ids))
-                            .subscribeOn(Schedulers.boundedElastic())
-                            .flatMapMany(Flux::fromIterable)
-                            .map(RunningArtResult::toResult);
-                });
+                                    // 3. 탐색 성능 최적화: List -> Map 변환 (O(N^2) -> O(N)으로 개선)
+                                    Map<Long, RunningArt> artMap = arts.stream()
+                                            .collect(Collectors.toMap(
+                                                    RunningArt::id,
+                                                    Function.identity(),
+                                                    (existing, replacement) -> existing // 중복 ID 방어 로직
+                                            ));
+
+                                    // 4. Redis 원본 ID 배열(거리 오름차순)을 순회하며 O(1)로 꺼내오기
+                                    return ids.stream()
+                                            .map(artMap::get)
+                                            .filter(Objects::nonNull) // DB에 없는 유령 데이터 필터링
+                                            .map(RunningArtResult::toResult)
+                                            .toList();
+                                })
+                                .subscribeOn(Schedulers.boundedElastic())
+                                // 5. 완성된 List를 바로 Flux로 평탄화하여 방출
+                                .flatMapIterable(Function.identity())
+                );
     }
 }
