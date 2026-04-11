@@ -211,10 +211,10 @@ public class RunningArtService implements
                 })
                 .doOnNext(savedArt -> {
                     runningArtRedisPort.saveLocation(savedArt.id(), savedArt.startLat(), savedArt.startLon())
-                            .subscribe(
-                                    result -> log.info("Redis GEO 동기화 완료: {}", result),
-                                    error -> log.error("Redis GEO 동기화 실패 (ArtId={}): 나중에 배치로 복구해야 합니다.", savedArt.id(), error)
-                            );
+                            .doOnSuccess(result -> log.info("Redis GEO 동기화 완료: {}", result))
+                            .doOnError(error -> log.error("Redis GEO 동기화 실패 (ArtId={}): 나중에 배치로 복구해야 합니다.", savedArt.id(), error))
+                            .onErrorResume(e -> Mono.empty())
+                            .subscribe();
                 })
                 .map(RunningArtResult::toResult);
     }
