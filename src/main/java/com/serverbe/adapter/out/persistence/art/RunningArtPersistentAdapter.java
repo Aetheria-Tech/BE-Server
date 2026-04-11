@@ -123,10 +123,16 @@ public class RunningArtPersistentAdapter implements RunningArtRepositoryPort {
         return jpaRepository.findIdsByUserId(userId);
     }
 
+    /**
+     * @return 런닝아트의 위치 정보(ID, 위도, 경도)를 담은 {@link RunningArtLocationDto} 리스트
+     * @responsibility Redis GEO 공간 인덱스 동기화(Warm-up) 등을 위해 전체 런닝아트의 좌표 데이터만 고속으로 추출합니다.
+     * @implSpec QueryDSL의 QDto를 활용하여 엔티티 전체 로딩 없이 필수 컬럼(ID, Lat, Lon)만 타입 세이프(Type-safe)하게 프로젝션하며, 좌표 값이 없는 비정상 데이터는 필터링합니다.
+     * @implNote 영속성 컨텍스트를 거치지 않고 순수 DTO로 반환되므로, 대용량 데이터 조회 시 메모리 낭비와 쿼리 부하를 극적으로 줄입니다.
+     */
     @Override
     public List<RunningArtLocationDto> findAllLocations() {
         return queryFactory
-                // ✨ QDto를 사용해 Type-safe하게 데이터 매핑
+                // QDto를 사용해 Type-safe하게 데이터 매핑
                 .select(new QRunningArtLocationDto(
                         runningArtEntity.id,
                         runningArtEntity.startLat,
