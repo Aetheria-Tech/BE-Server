@@ -122,7 +122,6 @@ public class RunningArtService implements
     @Transactional
     public void deleteAllRunningArtsByUserId(Long userId) {
         // 1. 삭제할 모든 ID를 먼저 조회 (Redis 삭제를 위해 필요)
-        // repositoryPort에 유저 ID로 모든 아트 ID 목록만 가져오는 메서드가 있다고 가정
         List<Long> artIdsToDelete = repositoryPort.findIdsByUserId(userId);
 
         if (artIdsToDelete.isEmpty()) return;
@@ -209,13 +208,13 @@ public class RunningArtService implements
                     // 1. DB에 저장 (Blocking)
                     return repositoryPort.save(runningArt);
                 })
-                .doOnNext(savedArt -> {
-                    runningArtRedisPort.saveLocation(savedArt.id(), savedArt.startLat(), savedArt.startLon())
-                            .doOnSuccess(result -> log.info("Redis GEO 동기화 완료: {}", result))
-                            .doOnError(error -> log.error("Redis GEO 동기화 실패 (ArtId={}): 나중에 배치로 복구해야 합니다.", savedArt.id(), error))
-                            .onErrorResume(e -> Mono.empty())
-                            .subscribe();
-                })
+                .flatMap(savedArt ->
+                        runningArtRedisPort.saveLocation(savedArt.id(), savedArt.startLat(), savedArt.startLon())
+                                .doOnSuccess(result -> log.info("Redis GEO 동기화 완료: {}", result))
+                                .doOnError(error -> log.error("Redis GEO 동기화 실패 (ArtId={}): 나중에 배치로 복구해야 합니다.", savedArt.id(), error))
+                                .onErrorResume(e -> Mono.empty())
+                                .thenReturn(savedArt)
+                )
                 .map(RunningArtResult::toResult);
     }
 
