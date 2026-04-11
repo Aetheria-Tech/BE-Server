@@ -20,15 +20,17 @@ public class RunningArtMapper {
     public RunningArt toDomain(RunningArtEntity entity) {
         if (entity == null) return null;
 
-        return new RunningArt(
-                entity.getId(),
-                entity.getTitle(),
-                entity.getContent(),
-                entity.getShape(),
-                entity.getProficiency(),
-                entity.getGpx(),
-                entity.getUser() != null ? entity.getUser().getId() : null
-        );
+        return RunningArt.builder()
+                .id(entity.getId())
+                .title(entity.getTitle())
+                .content(entity.getContent())
+                .shape(entity.getShape())
+                .proficiency(entity.getProficiency())
+                .gpx(entity.getGpx())
+                .userId(entity.getUser() != null ? entity.getUser().getId() : null)
+                .startLat(entity.getStartLat())
+                .startLon(entity.getStartLon())
+                .build();
     }
 
     /**
@@ -47,6 +49,8 @@ public class RunningArtMapper {
                 .shape(domain.shape())
                 .proficiency(domain.proficiency())
                 .gpx(domain.gpx())
+                .startLat(domain.startLat())
+                .startLon(domain.startLon())
                 .user(user)
                 .build();
     }

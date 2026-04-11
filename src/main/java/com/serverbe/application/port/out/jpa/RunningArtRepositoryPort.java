@@ -1,5 +1,6 @@
 package com.serverbe.application.port.out.jpa;
 
+import com.serverbe.application.port.in.dto.art.RunningArtLocationDto;
 import com.serverbe.application.port.in.dto.art.RunningArtUpdateCommand;
 import com.serverbe.domain.model.art.RunningArt;
 import org.springframework.data.domain.Page;
@@ -59,4 +60,11 @@ public interface RunningArtRepositoryPort {
      * @param dto 수정될 정보를 포함하고 있는 {@link RunningArtUpdateCommand} DTO
      */
     void updateMetadata(Long runningArtId, RunningArtUpdateCommand dto);
+
+
+    List<RunningArt> findAllByIdIn(List<Long> ids);
+
+    List<Long> findIdsByUserId(Long userId);
+
+    List<RunningArtLocationDto> findAllLocations();
 }

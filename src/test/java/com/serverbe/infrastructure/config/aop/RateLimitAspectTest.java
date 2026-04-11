@@ -94,7 +94,7 @@ class RateLimitAspectTest {
         given(joinPoint.proceed()).willReturn(expectedResponse);
 
         // when
-        Object result = rateLimitAspect.checkRateLimit(joinPoint, rateLimit);
+        Object result = rateLimitAspect.checkRateLimit(joinPoint);
 
         // then
         assertThat(result).isEqualTo(expectedResponse);
@@ -109,7 +109,7 @@ class RateLimitAspectTest {
         given(tokenExtractor.extractAccessToken(request)).willReturn(null); // 토큰 없음
 
         // when & then
-        assertThatThrownBy(() -> rateLimitAspect.checkRateLimit(joinPoint, rateLimit))
+        assertThatThrownBy(() -> rateLimitAspect.checkRateLimit(joinPoint))
                 .isInstanceOf(AuthException.class)
                 .extracting("errorCode")
                 .isEqualTo(AuthErrorCode.JWT_TOKEN_IS_EMPTY);
@@ -137,7 +137,7 @@ class RateLimitAspectTest {
         given(rateLimiterService.isAllowedForUser(userId, TEST_ENDPOINT, capacity, refillRate)).willReturn(false);
 
         // when & then
-        assertThatThrownBy(() -> rateLimitAspect.checkRateLimit(joinPoint, rateLimit))
+        assertThatThrownBy(() -> rateLimitAspect.checkRateLimit(joinPoint))
                 .isInstanceOf(RateLimitExceededException.class)
                 .satisfies(exception -> {
                     RateLimitExceededException e = (RateLimitExceededException) exception;
@@ -174,7 +174,7 @@ class RateLimitAspectTest {
         given(joinPoint.proceed()).willReturn(expectedResponse);
 
         // when
-        Object result = rateLimitAspect.checkRateLimit(joinPoint, rateLimit);
+        Object result = rateLimitAspect.checkRateLimit(joinPoint);
 
         // then
         assertThat(result).isEqualTo(expectedResponse);
@@ -203,7 +203,7 @@ class RateLimitAspectTest {
         given(rateLimiterService.isAllowedForIp(clientIp, TEST_ENDPOINT, capacity, refillRate)).willReturn(false);
 
         // when & then
-        assertThatThrownBy(() -> rateLimitAspect.checkRateLimit(joinPoint, rateLimit))
+        assertThatThrownBy(() -> rateLimitAspect.checkRateLimit(joinPoint))
                 .isInstanceOf(RateLimitExceededException.class)
                 .satisfies(exception -> {
                     RateLimitExceededException e = (RateLimitExceededException) exception;

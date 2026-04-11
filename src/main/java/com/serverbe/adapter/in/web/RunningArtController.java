@@ -1,9 +1,9 @@
 package com.serverbe.adapter.in.web;
 
+import com.serverbe.adapter.in.web.dto.art.CreateRunningArtRequest;
 import com.serverbe.adapter.in.web.dto.art.RunningArtResponse;
-import com.serverbe.application.port.in.art.GetRunningArtUseCase;
-import com.serverbe.application.port.in.art.DeleteRunningArtUseCase;
-import com.serverbe.application.port.in.art.UpdateRunningArtUseCase;
+import com.serverbe.application.annotation.RateLimit;
+import com.serverbe.application.port.in.art.*;
 import com.serverbe.adapter.in.web.dto.art.UpdateRunningArtRequest;
 import com.serverbe.domain.model.art.vo.Proficiency;
 import com.serverbe.infrastructure.common.response.RestApiResponse;
@@ -21,6 +21,9 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import reactor.core.publisher.Mono;
+
+import java.util.List;
 
 @Tag(name = "Running Art", description = "런닝 아트 관리 API")
 @RestController
@@ -31,6 +34,8 @@ public class RunningArtController {
     private final GetRunningArtUseCase getRunningArtUseCase;
     private final DeleteRunningArtUseCase deleteRunningArtUseCase;
     private final UpdateRunningArtUseCase updateRunningArtUseCase;
+    private final CreateRunningArtUseCase createRunningArtUseCase;
+    private final GetNearbyRunningArtUseCase getNearbyRunningArtUseCase;
 
     @Operation(
             summary = "내 런닝 아트 목록 조회",
@@ -152,6 +157,73 @@ public class RunningArtController {
         deleteRunningArtUseCase.deleteAllRunningArtsByUserId(userId);
         return RestApiResponse.noContent();
     }
+
+    @Operation(
+            summary = "새로운 런닝 아트 생성",
+            description = "사용자의 현재 위치와 원하는 모양, 숙련도를 바탕으로 AI가 런닝 경로를 생성합니다. " +
+                    "생성된 경로는 Google Encoded Polyline 형식으로 저장되며, " +
+                    "추후 반경 검색 최적화를 위해 시작점 좌표가 자동으로 추출되어 인덱싱됩니다.",
+            security = @SecurityRequirement(name = "jwtAuth"),
+            responses = {
+                    @ApiResponse(
+                            responseCode = "201",
+                            description = "런닝 아트 생성 성공",
+                            content = @Content(schema = @Schema(implementation = RunningArtResponse.class))
+                    ),
+                    @ApiResponse(responseCode = "400", description = "잘못된 요청 데이터"),
+                    @ApiResponse(responseCode = "401", description = "인증 실패"),
+                    @ApiResponse(responseCode = "500", description = "AI 서버 통신 및 서버 내부 오류")
+            }
+    )
+    @PostMapping
+    public Mono<RestApiResponse<RunningArtResponse>> create(@Parameter(hidden = true) @AuthenticationPrincipal Long userId) {
+        CreateRunningArtRequest request = CreateRunningArtRequest.builder()
+                .startPosition("서울특별시 강남구 테헤란로 427")
+                .proficiency(Proficiency.MASTER)
+                .shape("강아지")
+                .build();
+
+        return createRunningArtUseCase
+                .createRunningArt(userId, request.startPosition(), request.shape(), request.proficiency())
+                .map(result -> RestApiResponse.created(RunningArtResponse.toResponse(result)));
+    }
+
+    @Operation(
+            summary = "주변 런닝 아트 반경 검색",
+            description = "주어진 중심점 좌표(위도, 경도)를 기준으로 지정된 반경(km) 내에 있는 런닝 아트 목록을 조회합니다. 내부적으로 Redis 공간 인덱스(GEO)를 활용하여 대용량 데이터 환경에서도 고속으로 필터링됩니다.",
+            security = @SecurityRequirement(name = "jwtAuth"),
+            responses = {
+                    @ApiResponse(
+                            responseCode = "200",
+                            description = "반경 내 런닝 아트 검색 성공",
+                            useReturnTypeSchema = true
+                    ),
+                    @ApiResponse(responseCode = "400", description = "잘못된 파라미터 (위경도 형식 오류 등)"),
+                    @ApiResponse(responseCode = "401", description = "인증 실패"),
+                    @ApiResponse(responseCode = "500", description = "서버 내부 오류 (Redis 또는 DB 통신 실패)")
+            }
+    )
+    @RateLimit(target = RateLimit.TargetType.IP, capacity = 10, refillRate = 5)
+    @RateLimit(target = RateLimit.TargetType.USER, capacity = 5, refillRate = 3)
+    @GetMapping("/nearby")
+    public Mono<RestApiResponse<List<RunningArtResponse>>> getNearbyArts(
+            @Parameter(hidden = true) @AuthenticationPrincipal Long userId,
+
+            @Parameter(description = "중심점 위도 (Latitude)", example = "37.5665", required = true)
+            @RequestParam("lat") Double lat,
+
+            @Parameter(description = "중심점 경도 (Longitude)", example = "126.9780", required = true)
+            @RequestParam("lon") Double lon,
+
+            @Parameter(description = "검색 반경 (단위: km, 기본값: 5.0)", example = "5.0")
+            @RequestParam(value = "radius", defaultValue = "5.0") Double radius
+    ) {
+        return getNearbyRunningArtUseCase.getNearbyArts(lat, lon, radius)
+                .map(RunningArtResponse::toResponse)
+                .collectList()
+                .map(RestApiResponse::success);
+    }
+
 
     @Operation(
             summary = "샘플로 등록된 Polyline이 적용된 GPX 파일 조회",

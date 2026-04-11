@@ -118,6 +118,8 @@ jwt:
 
 # Redis
 redis:
+  keys:
+    running-art-geo: running_art:locations
   port: ${REDIS_PORT}
   host: ${REDIS_HOST}
   auth:

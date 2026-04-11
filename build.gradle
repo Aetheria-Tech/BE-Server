@@ -24,6 +24,17 @@ repositories {
     mavenCentral()
 }
 
+// build.gradle (Groovy 기준)
+sourceSets {
+    main {
+        java {
+            // Q클래스가 생성되는 위치를 소스 디렉토리에 추가
+            srcDirs += 'build/generated/sources/annotationProcessor/java/main'
+        }
+    }
+}
+
+
 dependencies {
     /**
      * Web & UI Support

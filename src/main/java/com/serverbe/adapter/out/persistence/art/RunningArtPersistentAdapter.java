@@ -1,8 +1,11 @@
 package com.serverbe.adapter.out.persistence.art;
 
+import com.querydsl.jpa.impl.JPAQueryFactory;
 import com.serverbe.adapter.out.persistence.mapper.RunningArtMapper;
 import com.serverbe.adapter.out.persistence.user.JpaUserRepository;
 import com.serverbe.adapter.out.persistence.user.UserEntity;
+import com.serverbe.application.port.in.dto.art.QRunningArtLocationDto;
+import com.serverbe.application.port.in.dto.art.RunningArtLocationDto;
 import com.serverbe.application.port.in.dto.art.RunningArtUpdateCommand;
 import com.serverbe.application.port.out.jpa.RunningArtRepositoryPort;
 import com.serverbe.domain.exception.art.ArtErrorCode;
@@ -17,6 +20,9 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 import java.util.Optional;
 
+
+import static com.serverbe.adapter.out.persistence.art.QRunningArtEntity.runningArtEntity;
+
 /**
  * @author Duskafka
  * @responsibility 런닝아트 도메인 모델과 데이터베이스 엔티티 간의 매핑 및 데이터 영속화를 담당하는 아웃바운드 어댑터입니다.
@@ -27,6 +33,7 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class RunningArtPersistentAdapter implements RunningArtRepositoryPort {
 
+    private final JPAQueryFactory queryFactory;
     private final JpaRunningArtRepository jpaRepository;
     private final JpaUserRepository jpaUserRepository;
     private final RunningArtMapper mapper;
@@ -88,6 +95,56 @@ public class RunningArtPersistentAdapter implements RunningArtRepositoryPort {
                 .orElseThrow(() -> new ArtException(ArtErrorCode.NOT_FOUND_RUNNING_ART, "런닝아트를 조회할 수 없습니다"));
 
         entity.updateMetadata(dto.title(), dto.content());
+    }
+
+    /**
+     * @param ids 조회하고자 하는 런닝 아트의 고유 식별자 리스트
+     * @return 조회된 {@link RunningArt} 도메인 모델 리스트
+     * @responsibility 다수의 ID를 입력받아 해당하는 런닝 아트 상세 정보를 데이터베이스에서 한 번에 조회합니다.
+     * @implSpec {@link JpaRunningArtRepository#findAllById(Iterable)}를 사용하여 SQL의 `IN` 절을 생성하고 배치(Batch) 조회를 수행합니다. 조회된 엔티티는 매퍼를 통해 도메인 모델로 변환됩니다.
+     * @implNote RDBMS의 특성상 반환되는 리스트의 순서는 입력된 {@code ids} 리스트의 순서(예: 거리순 정렬)와 일치하지 않을 수 있습니다.
+     */
+    @Override
+    public List<RunningArt> findAllByIdIn(List<Long> ids) {
+        return jpaRepository.findAllById(ids).stream()
+                .map(mapper::toDomain)
+                .toList();
+    }
+
+    /**
+     * @param userId 조회할 사용자의 고유 ID
+     * @return 런닝아트의 고유 식별자(PK) 리스트
+     * @responsibility 특정 사용자가 소유한 런닝 아트의 식별자 목록만 고속으로 조회합니다.
+     * @implSpec JPA의 @Query를 사용하여 엔티티 전체를 로딩하지 않고 ID 컬럼만 Projection하여 조회 성능을 최적화합니다.
+     * @implNote 전체 삭제 전 Redis 데이터 동기화 등 가벼운 식별자 목록이 필요할 때 사용합니다.
+     */
+    @Override
+    public List<Long> findIdsByUserId(Long userId) {
+        return jpaRepository.findIdsByUserId(userId);
+    }
+
+    /**
+     * @return 런닝아트의 위치 정보(ID, 위도, 경도)를 담은 {@link RunningArtLocationDto} 리스트
+     * @responsibility Redis GEO 공간 인덱스 동기화(Warm-up) 등을 위해 전체 런닝아트의 좌표 데이터만 고속으로 추출합니다.
+     * @implSpec QueryDSL의 QDto를 활용하여 엔티티 전체 로딩 없이 필수 컬럼(ID, Lat, Lon)만 타입 세이프(Type-safe)하게 프로젝션하며, 좌표 값이 없는 비정상 데이터는 필터링합니다.
+     * @implNote 영속성 컨텍스트를 거치지 않고 순수 DTO로 반환되므로, 대용량 데이터 조회 시 메모리 낭비와 쿼리 부하를 극적으로 줄입니다.
+     */
+    @Override
+    public List<RunningArtLocationDto> findAllLocations() {
+        return queryFactory
+                // QDto를 사용해 Type-safe하게 데이터 매핑
+                .select(new QRunningArtLocationDto(
+                        runningArtEntity.id,
+                        runningArtEntity.startLat,
+                        runningArtEntity.startLon
+                ))
+                .from(runningArtEntity)
+                // 방어 로직: 좌표가 없는 비정상 데이터는 제외
+                .where(
+                        runningArtEntity.startLat.isNotNull(),
+                        runningArtEntity.startLon.isNotNull()
+                )
+                .fetch();
     }
 
     /**

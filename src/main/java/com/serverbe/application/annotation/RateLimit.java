@@ -1,12 +1,10 @@
 package com.serverbe.application.annotation;
 
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
+import java.lang.annotation.*;
 
 @Target(ElementType.METHOD) // 메서드에만 붙일 수 있음
 @Retention(RetentionPolicy.RUNTIME) // 런타임까지 유지
+@Repeatable(RateLimits.class)
 public @interface RateLimit {
     
     // 이 API 전용 커스텀 용량 (기본값 설정 가능)

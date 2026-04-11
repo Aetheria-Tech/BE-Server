@@ -3,10 +3,13 @@ package com.serverbe.infrastructure.config;
 import com.serverbe.infrastructure.config.properties.RedisProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.data.redis.connection.ReactiveRedisConnectionFactory;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
+import org.springframework.data.redis.core.ReactiveRedisTemplate;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
+import org.springframework.data.redis.serializer.RedisSerializationContext;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
 /**
@@ -58,5 +61,23 @@ public class RedisConfig {
         redisTemplate.setHashValueSerializer(new GenericJackson2JsonRedisSerializer());
 
         return redisTemplate;
+    }
+
+
+    /**
+     * @responsibility WebFlux 환경에서 논블로킹으로 Redis GEO 및 캐시 작업을 수행하기 위한 템플릿입니다.
+     * @implNote Key와 Value 모두 String으로 직렬화하여 GEO 검색 시 ID(String) 처리를 최적화합니다.
+     */
+    @Bean
+    public ReactiveRedisTemplate<String, String> reactiveRedisTemplate(RedisConnectionFactory factory) {
+        StringRedisSerializer serializer = new StringRedisSerializer();
+        RedisSerializationContext<String, String> context = RedisSerializationContext
+                .<String, String>newSerializationContext(serializer)
+                .key(serializer)
+                .value(serializer)
+                .hashKey(serializer)
+                .hashValue(serializer)
+                .build();
+        return new ReactiveRedisTemplate<>((ReactiveRedisConnectionFactory) factory, context);
     }
 }

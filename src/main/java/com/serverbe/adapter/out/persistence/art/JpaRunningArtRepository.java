@@ -15,4 +15,7 @@ public interface JpaRunningArtRepository extends JpaRepository<RunningArtEntity,
     @Modifying
     @Query("DELETE FROM RunningArtEntity r WHERE r.user.id = :userId")
     void deleteByUserId(@Param("userId")Long userId);
+
+    @Query("SELECT r.id FROM RunningArtEntity r WHERE r.user.id = :userId")
+    List<Long> findIdsByUserId(@Param("userId") Long userId);
 }
