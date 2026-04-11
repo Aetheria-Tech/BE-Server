@@ -185,6 +185,12 @@ rate-limit:
     user: "rate:user:"
     ip: "rate:ip:"
 
+aws:
+  s3:
+    ai-input-bucket: "my-project-ai-inference-input-bucket" # 실제 생성된 버킷명
+  sagemaker:
+    endpoint-name: "my-project-async-inference-endpoint"    # 실제 생성된 엔드포인트명
+
 # 알림 설정
 notification:
   discord:

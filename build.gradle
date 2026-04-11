@@ -109,6 +109,12 @@ dependencies {
     testImplementation 'org.springframework.security:spring-security-test'
     // JUnit Platform Launcher: 테스트 실행을 위한 JUnit 플랫폼 엔진
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+    // AWS SDK v2 - S3 (파일 업로드/다운로드용)
+    implementation 'software.amazon.awssdk:s3:2.24.0' // 최신 버전에 맞게 조정하세요
+
+    // AWS SDK v2 - SageMaker Runtime (추론 엔드포인트 호출용)
+    implementation 'software.amazon.awssdk:sagemakerruntime:2.24.0'
 }
 
 tasks.named('test') {
