@@ -1,6 +1,7 @@
 package com.serverbe.adapter.out.external.ai;
 
 import com.serverbe.application.port.out.ai.SageMakerAsyncPort;
+import com.serverbe.infrastructure.config.properties.AwsProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -15,14 +16,15 @@ import software.amazon.awssdk.services.sagemakerruntime.model.InvokeEndpointAsyn
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class SageMakerAsyncAdapter implements SageMakerAsyncPort {
 
     private final SageMakerRuntimeClient sageMakerClient;
+    private final String endpointName;
 
-    // 인프라 환경(CDK)에서 배포한 SageMaker Endpoint 이름
-    @Value("${aws.sagemaker.endpoint-name}")
-    private String endpointName;
+    public SageMakerAsyncAdapter(SageMakerRuntimeClient sageMakerClient, AwsProperties awsProperties) {
+        this.sageMakerClient = sageMakerClient;
+        this.endpointName = awsProperties.sagemaker().endpointName();
+    }
 
     /**
      * @param inputS3Uri S3에 업로드된 요청 데이터의 URI

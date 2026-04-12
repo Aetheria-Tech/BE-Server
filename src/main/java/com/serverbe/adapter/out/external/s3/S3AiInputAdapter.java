@@ -1,9 +1,8 @@
 package com.serverbe.adapter.out.external.s3;
 
 import com.serverbe.application.port.out.s3.S3AiInputPort;
-import lombok.RequiredArgsConstructor;
+import com.serverbe.infrastructure.config.properties.AwsProperties;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -15,14 +14,15 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class S3AiInputAdapter implements S3AiInputPort {
 
     private final S3Client s3Client;
+    private final String inputBucketName;
 
-    // 인프라 환경(CDK)에서 설정한 S3 Input 버킷 이름
-    @Value("${aws.s3.ai-input-bucket}")
-    private String inputBucketName;
+    public S3AiInputAdapter(S3Client s3Client, AwsProperties awsProperties) {
+        this.s3Client = s3Client;
+        this.inputBucketName = awsProperties.s3().aiInputBucket();
+    }
 
     /**
      * @param taskId     발급된 고유 Task ID (UUID)

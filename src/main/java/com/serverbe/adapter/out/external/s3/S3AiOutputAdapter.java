@@ -20,7 +20,7 @@ import java.util.Optional;
 public class S3AiOutputAdapter implements S3AiOutputPort {
 
     private final S3Client s3Client;
-    private final ObjectMapper objectMapper; // ✨ JSON 파싱을 위해 추가
+    private final ObjectMapper objectMapper;
 
     /**
      * @param s3Uri 조회할 S3 경로

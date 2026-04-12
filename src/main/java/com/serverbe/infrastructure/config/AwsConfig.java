@@ -1,4 +1,4 @@
-package com.serverbe.infrastructure.aws.config;
+package com.serverbe.infrastructure.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
