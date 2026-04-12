@@ -1,41 +1,36 @@
 package com.serverbe.application.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper; // JSON 변환용
 import com.serverbe.adapter.in.web.dto.task.TaskStatusResponse;
 import com.serverbe.adapter.out.persistence.task.AiTaskEntity;
 import com.serverbe.adapter.out.persistence.task.JpaAiTaskRepository;
-import com.serverbe.application.port.out.ai.SageMakerAsyncPort;
+import com.serverbe.application.port.in.art.InitiateAiGenerationUseCase;
+import com.serverbe.application.port.in.task.GetTaskStatusUseCase;
+import com.serverbe.application.port.out.sagemaker.SageMakerAsyncPort;
 import com.serverbe.application.port.out.s3.S3AiInputPort;
+import com.serverbe.domain.model.art.vo.Proficiency;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * AI 생성 비동기 파이프라인을 총괄하는 서비스 (Facade)
- */
+import java.util.Map;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class AiGenerationService {
+public class AiGenerationService implements InitiateAiGenerationUseCase, GetTaskStatusUseCase { // ✨ UseCase 구현
 
     private final JpaAiTaskRepository taskRepository;
     private final S3AiInputPort s3AiInputPort;
     private final SageMakerAsyncPort sageMakerAdapter;
+    private final ObjectMapper objectMapper; // JSON 생성기
 
-    /**
-     * 사용자의 AI 생성 요청을 비동기 파이프라인에 등록합니다.
-     *
-     * @param userId      요청 사용자 ID
-     * @param promptJson  AI 모델에 전달할 프롬프트 및 파라미터 JSON
-     * @return 발급된 고유 Task ID (UUID)
-     * @responsibility 1. DB에 PENDING 상태로 Task를 생성합니다.
-     * 2. S3에 입력 데이터를 업로드하고 URI를 획득합니다.
-     * 3. SageMaker 비동기 엔드포인트를 호출합니다.
-     * 4. 성공 시 상태를 PROCESSING으로 변경하고 최종 Task ID를 반환합니다.
-     */
+    @Override
     @Transactional
-    public String initiateGeneration(Long userId, String promptJson) {
-        // 1. 대기 상태의 Task 레코드 생성 (ID 발급 목적)
+    public String initiateGeneration(Long userId, String startPosition, String shape, Proficiency proficiency) {
+
+        // 1. 대기 상태의 Task 레코드 생성
         AiTaskEntity task = AiTaskEntity.builder()
                 .userId(userId)
                 .build();
@@ -43,46 +38,41 @@ public class AiGenerationService {
         String taskId = savedTask.getId();
 
         try {
-            log.info("[AI Pipeline] 비동기 요청 시작 - TaskID: {}, UserID: {}", taskId, userId);
+            // 2. 입력받은 도메인 데이터를 AI 모델이 이해할 수 있는 JSON으로 변환
+            String promptJson = buildPromptJson(startPosition, shape, proficiency);
 
-            // 2. S3에 요청 JSON 업로드
+            // 3. S3에 요청 JSON 업로드
             String inputS3Uri = s3AiInputPort.uploadInputJson(taskId, promptJson);
 
-            // 3. SageMaker 비동기 엔드포인트 호출 (Trigger)
-            // 호출 시 예상되는 Output 경로를 리턴받습니다.
+            // 4. SageMaker 비동기 엔드포인트 호출
             String outputS3Uri = sageMakerAdapter.invokeAsync(inputS3Uri);
 
-            // 4. Task 정보 업데이트 (상태: PROCESSING)
+            // 5. Task 정보 업데이트
             savedTask.markAsProcessing(inputS3Uri, outputS3Uri);
-            log.info("[AI Pipeline] 비동기 요청 등록 완료 - TaskID: {}", taskId);
 
             return taskId;
 
         } catch (Exception e) {
-            log.error("[AI Pipeline Error] 요청 처리 중 치명적 오류 - TaskID: {}, 원인: {}", taskId, e.getMessage());
-
-            // 실패 상태 기록 (트랜잭션 내에서 상태 변경)
+            log.error("[AI Pipeline Error] 요청 처리 중 오류", e);
             savedTask.markAsFailed(e.getMessage());
-
-            // 필요에 따라 사용자 정의 예외로 래핑하여 던짐
             throw new RuntimeException("AI 생성 요청을 처리할 수 없습니다.", e);
         }
     }
 
-    /**
-     * @param taskId 조회할 작업의 고유 ID
-     * @param userId 요청자의 고유 ID (보안용)
-     * @return 현재 작업 상태를 담은 DTO
-     * @responsibility 클라이언트의 폴링 요청에 대해 Task DB를 조회하고 현재 상태를 반환합니다.
-     */
-    @Transactional(readOnly = true) // 성능 최적화를 위해 읽기 전용 트랜잭션 적용
+    @Override
+    @Transactional(readOnly = true)
     public TaskStatusResponse getTaskStatus(String taskId, Long userId) {
-
-        // 1. Task 조회 및 소유권 검증 (이전에 Repository에 만들어둔 메서드 활용!)
         AiTaskEntity task = taskRepository.findByIdAndUserId(taskId, userId)
-                .orElseThrow(() -> new IllegalArgumentException("해당 작업을 찾을 수 없거나 접근 권한이 없습니다."));
-
-        // 2. DTO로 변환하여 반환
+                .orElseThrow(() -> new IllegalArgumentException("작업을 찾을 수 없습니다."));
         return TaskStatusResponse.from(task);
+    }
+
+    private String buildPromptJson(String startPosition, String shape, Proficiency proficiency) throws Exception {
+        Map<String, Object> promptData = Map.of(
+                "start_position", startPosition,
+                "shape", shape,
+                "proficiency", proficiency.name()
+        );
+        return objectMapper.writeValueAsString(promptData);
     }
 }

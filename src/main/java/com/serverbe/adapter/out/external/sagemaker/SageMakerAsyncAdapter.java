@@ -1,10 +1,8 @@
-package com.serverbe.adapter.out.external.ai;
+package com.serverbe.adapter.out.external.sagemaker;
 
-import com.serverbe.application.port.out.ai.SageMakerAsyncPort;
+import com.serverbe.application.port.out.sagemaker.SageMakerAsyncPort;
 import com.serverbe.infrastructure.config.properties.AwsProperties;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import software.amazon.awssdk.services.sagemakerruntime.SageMakerRuntimeClient;
 import software.amazon.awssdk.services.sagemakerruntime.model.InvokeEndpointAsyncRequest;

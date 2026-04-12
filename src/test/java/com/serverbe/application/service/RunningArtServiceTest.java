@@ -1,9 +1,8 @@
 package com.serverbe.application.service;
 
-import com.serverbe.adapter.in.web.dto.geocode.GeocodeResponse;
 import com.serverbe.application.port.in.dto.art.RunningArtResult;
-import com.serverbe.application.port.out.ai.RunningArtAIPort;
-import com.serverbe.application.port.out.ai.RunningArtRedisPort;
+import com.serverbe.application.port.out.sagemaker.RunningArtAIPort;
+import com.serverbe.application.port.out.art.RunningArtRedisPort;
 import com.serverbe.application.port.out.dto.ai.RunningArtAiResponse;
 import com.serverbe.application.port.out.dto.geocoding.GeocodeResult;
 import com.serverbe.application.port.out.geocode.GeocodePort;

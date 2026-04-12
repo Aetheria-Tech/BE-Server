@@ -15,6 +15,7 @@ import com.serverbe.domain.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
@@ -47,6 +48,7 @@ public class LoginService implements LoginUseCase {
      * 2. 서비스 레이어에서의 {@code @Transactional}은 헬퍼 컴포넌트 내부로 전파되어 원자성을 보장받습니다.
      */
     @Override
+    @Transactional
     public Mono<TokenResult> login(String code, OAuthProvider provider, String deviceId) {
         OAuthClientPort client = getClient(provider);
 

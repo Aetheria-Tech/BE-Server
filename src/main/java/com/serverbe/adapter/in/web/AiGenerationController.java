@@ -1,7 +1,7 @@
 package com.serverbe.adapter.in.web;
 
 import com.serverbe.adapter.in.web.dto.task.TaskStatusResponse;
-import com.serverbe.application.service.AiGenerationService;
+import com.serverbe.application.port.in.task.GetTaskStatusUseCase;
 import io.swagger.v3.oas.annotations.Parameter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/v1/running-arts/tasks")
 public class AiGenerationController {
 
-    private final AiGenerationService aiGenerationService;
+    private final GetTaskStatusUseCase getTaskStatusUseCase;
 
     /**
      * @param taskId 생성 시 발급받은 Task ID
@@ -26,7 +26,7 @@ public class AiGenerationController {
             @PathVariable("taskId") String taskId,
             @Parameter(hidden = true) @AuthenticationPrincipal Long userId
     ) {
-        TaskStatusResponse response = aiGenerationService.getTaskStatus(taskId, userId);
+        TaskStatusResponse response = getTaskStatusUseCase.getTaskStatus(taskId, userId);
         return ResponseEntity.ok(response);
     }
 }

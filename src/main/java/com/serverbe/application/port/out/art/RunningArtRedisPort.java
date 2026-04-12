@@ -1,4 +1,4 @@
-package com.serverbe.application.port.out.ai;
+package com.serverbe.application.port.out.art;
 
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;

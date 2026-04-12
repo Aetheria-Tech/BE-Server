@@ -1,7 +1,7 @@
 package com.serverbe.application.service;
 
 import com.serverbe.application.port.in.dto.art.RunningArtLocationDto;
-import com.serverbe.application.port.out.ai.RunningArtRedisPort;
+import com.serverbe.application.port.out.art.RunningArtRedisPort;
 import com.serverbe.application.port.out.jpa.RunningArtRepositoryPort;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
