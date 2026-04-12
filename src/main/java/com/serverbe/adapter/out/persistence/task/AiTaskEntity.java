@@ -52,6 +52,9 @@ public class AiTaskEntity {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
+    @Column(name = "result_art_id")
+    private Long resultArtId; // AI 생성이 완료되어 저장된 RunningArt의 ID
+
     @Builder
     public AiTaskEntity(Long userId, String inputS3Uri) {
         this.userId = userId;
@@ -63,9 +66,9 @@ public class AiTaskEntity {
         this.status = status;
     }
 
-    public void markAsCompleted(String outputS3Uri) {
+    public void markAsCompleted(Long runningArtId) {
         this.status = TaskStatus.COMPLETED;
-        this.outputS3Uri = outputS3Uri;
+        this.resultArtId = runningArtId;
     }
 
     public void markAsFailed(String errorMessage) {

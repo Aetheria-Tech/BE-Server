@@ -1,5 +1,6 @@
-package com.serverbe.infrastructure.aws;
+package com.serverbe.adapter.out.external.ai;
 
+import com.serverbe.application.port.out.ai.SageMakerAsyncPort;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -15,7 +16,7 @@ import software.amazon.awssdk.services.sagemakerruntime.model.InvokeEndpointAsyn
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class SageMakerAsyncAdapter {
+public class SageMakerAsyncAdapter implements SageMakerAsyncPort {
 
     private final SageMakerRuntimeClient sageMakerClient;
 
@@ -28,6 +29,7 @@ public class SageMakerAsyncAdapter {
      * @return 추후 결과물이 저장될 S3 Output URI (SageMaker가 응답으로 알려줌)
      * @implNote 비동기 호출이므로 결과를 기다리지 않고 HTTP 202 Accepted 수준의 응답만 즉시 리턴받습니다.
      */
+    @Override
     public String invokeAsync(String inputS3Uri) {
         InvokeEndpointAsyncRequest request = InvokeEndpointAsyncRequest.builder()
                 .endpointName(endpointName)

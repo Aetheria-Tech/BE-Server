@@ -3,8 +3,8 @@ package com.serverbe.application.service;
 import com.serverbe.adapter.in.web.dto.task.TaskStatusResponse;
 import com.serverbe.adapter.out.persistence.task.AiTaskEntity;
 import com.serverbe.adapter.out.persistence.task.JpaAiTaskRepository;
-import com.serverbe.infrastructure.aws.S3AiInputAdapter;
-import com.serverbe.infrastructure.aws.SageMakerAsyncAdapter;
+import com.serverbe.application.port.out.ai.SageMakerAsyncPort;
+import com.serverbe.application.port.out.s3.S3AiInputPort;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -19,8 +19,8 @@ import org.springframework.transaction.annotation.Transactional;
 public class AiGenerationService {
 
     private final JpaAiTaskRepository taskRepository;
-    private final S3AiInputAdapter s3Adapter;
-    private final SageMakerAsyncAdapter sageMakerAdapter;
+    private final S3AiInputPort s3AiInputPort;
+    private final SageMakerAsyncPort sageMakerAdapter;
 
     /**
      * 사용자의 AI 생성 요청을 비동기 파이프라인에 등록합니다.
@@ -46,7 +46,7 @@ public class AiGenerationService {
             log.info("[AI Pipeline] 비동기 요청 시작 - TaskID: {}, UserID: {}", taskId, userId);
 
             // 2. S3에 요청 JSON 업로드
-            String inputS3Uri = s3Adapter.uploadInputJson(taskId, promptJson);
+            String inputS3Uri = s3AiInputPort.uploadInputJson(taskId, promptJson);
 
             // 3. SageMaker 비동기 엔드포인트 호출 (Trigger)
             // 호출 시 예상되는 Output 경로를 리턴받습니다.

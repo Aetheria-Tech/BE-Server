@@ -42,6 +42,9 @@ public class RunningArtEntity {
     @Column(name = "start_lon", nullable = false)
     private Double startLon;
 
+    @Column(name = "distance", nullable = false)
+    private Double distance;
+
     // 연관관계 설정 (주인)
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id")
@@ -54,6 +57,7 @@ public class RunningArtEntity {
             String shape,
             Proficiency proficiency,
             String gpx,
+            Double distance,
             UserEntity user,
             Double startLat,
             Double startLon
@@ -64,6 +68,7 @@ public class RunningArtEntity {
         this.proficiency = proficiency;
         this.gpx = gpx;
         this.user = user;
+        this.distance = distance;
         this.startLat = startLat;
         this.startLon = startLon;
     }

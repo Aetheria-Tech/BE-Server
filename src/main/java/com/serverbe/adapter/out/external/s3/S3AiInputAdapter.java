@@ -1,5 +1,6 @@
-package com.serverbe.infrastructure.aws;
+package com.serverbe.adapter.out.external.s3;
 
+import com.serverbe.application.port.out.s3.S3AiInputPort;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -15,7 +16,7 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class S3AiInputAdapter {
+public class S3AiInputAdapter implements S3AiInputPort {
 
     private final S3Client s3Client;
 
@@ -29,6 +30,7 @@ public class S3AiInputAdapter {
      * @return 업로드된 파일의 S3 URI (예: s3://my-bucket/inputs/uuid.json)
      * @implNote 파일명 충돌을 막기 위해 taskId를 S3 Object Key로 사용합니다.
      */
+    @Override
     public String uploadInputJson(String taskId, String promptJson) {
         // S3에 저장될 파일 경로 및 이름 (예: inputs/123e4567-e89b-12d3...json)
         String objectKey = "inputs/" + taskId + ".json";

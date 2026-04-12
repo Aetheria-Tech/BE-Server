@@ -1,7 +1,8 @@
-package com.serverbe.infrastructure.aws;
+package com.serverbe.adapter.out.external.s3;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.serverbe.application.port.in.dto.art.AiGenerationResultDto;
+import com.serverbe.application.port.out.s3.S3AiOutputPort;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -11,13 +12,12 @@ import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 
-import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class S3AiOutputAdapter {
+public class S3AiOutputAdapter implements S3AiOutputPort {
 
     private final S3Client s3Client;
     private final ObjectMapper objectMapper; // ✨ JSON 파싱을 위해 추가
@@ -26,6 +26,7 @@ public class S3AiOutputAdapter {
      * @param s3Uri 조회할 S3 경로
      * @return 파일이 존재하면 JSON을 파싱한 DTO 반환, 없으면 empty
      */
+    @Override
     public Optional<AiGenerationResultDto> downloadOutput(String s3Uri) {
         String bucket = s3Uri.replace("s3://", "").split("/")[0];
         String key = s3Uri.substring(s3Uri.indexOf(bucket) + bucket.length() + 1);
