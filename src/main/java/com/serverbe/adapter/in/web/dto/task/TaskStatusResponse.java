@@ -1,7 +1,7 @@
 package com.serverbe.adapter.in.web.dto.task;
 
 import com.serverbe.adapter.out.persistence.task.AiTaskEntity;
-import com.serverbe.domain.model.art.task.TaskStatus;
+import com.serverbe.domain.model.task.vo.TaskStatus;
 
 public record TaskStatusResponse(
         String taskId,

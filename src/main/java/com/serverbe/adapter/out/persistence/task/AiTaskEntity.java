@@ -1,6 +1,6 @@
 package com.serverbe.adapter.out.persistence.task;
 
-import com.serverbe.domain.model.art.task.TaskStatus;
+import com.serverbe.domain.model.task.vo.TaskStatus;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Builder;

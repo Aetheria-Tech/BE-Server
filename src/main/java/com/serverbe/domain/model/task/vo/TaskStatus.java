@@ -1,4 +1,4 @@
-package com.serverbe.domain.model.art.task;
+package com.serverbe.domain.model.task.vo;
 
 /**
  * 비동기 AI 이미지/폴리라인 생성 작업의 진행 상태

@@ -3,7 +3,7 @@ package com.serverbe.infrastructure.scheduler;
 import com.serverbe.adapter.out.persistence.task.AiTaskEntity;
 import com.serverbe.adapter.out.persistence.task.JpaAiTaskRepository;
 import com.serverbe.application.service.AiResultRetrievalService;
-import com.serverbe.domain.model.art.task.TaskStatus;
+import com.serverbe.domain.model.task.vo.TaskStatus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
