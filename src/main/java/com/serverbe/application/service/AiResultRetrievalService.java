@@ -43,7 +43,7 @@ public class AiResultRetrievalService {
     }
 
     /**
-     * 리턴 타입을 void에서 RunningArt로 변경했습니다. ✨
+     * 리턴 타입을 void에서 RunningArt로 변경했습니다.
      */
     private RunningArt saveFinalRunningArt(Long userId, AiGenerationResultDto dto) {
 

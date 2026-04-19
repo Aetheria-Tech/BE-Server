@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Component
@@ -19,7 +20,11 @@ public class AiTaskPersistenceAdapter implements TaskQueryPort, TaskUpdatePort {
     private final JpaAiTaskRepository jpaRepository;
     private final AiTaskMapper aiTaskMapper;
 
-    // 1. [조회] 엔티티 리스트를 도메인 리스트로 변환
+    @Override
+    public Optional<AiTask> findById(String taskId) {
+        return jpaRepository.findById(taskId).map(aiTaskMapper::toDomain);
+    }
+
     @Override
     public List<AiTask> findZombieTasks(LocalDateTime threshold) {
         List<AiTaskEntity> entities = jpaRepository.findZombieTasks(TaskStatus.PROCESSING, threshold);
@@ -29,7 +34,6 @@ public class AiTaskPersistenceAdapter implements TaskQueryPort, TaskUpdatePort {
                 .collect(Collectors.toList());
     }
 
-    // 2. [저장 및 업데이트] 변경된 도메인을 엔티티에 반영
     @Override
     public void save(AiTask domainTask) {
         if (domainTask.id() == null) {

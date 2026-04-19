@@ -36,4 +36,16 @@ public record AwsProperties(
              */
             String endpointName
     ) {}
+
+    /**
+     * SQS 관련 설정
+     * 매핑 경로: aws.sqs.*
+     */
+    public record Sqs(
+            /*
+             * AI 작업 완료 알림을 수신할 SQS 큐의 이름입니다.
+             * YAML 프로퍼티: aws.sqs.ai-notification-queue-name
+             */
+            String aiNotificationQueueName
+    ) {}
 }
