@@ -115,6 +115,9 @@ dependencies {
 
     // AWS SDK v2 - SageMaker Runtime (추론 엔드포인트 호출용)
     implementation 'software.amazon.awssdk:sagemakerruntime:2.24.0'
+
+    // Spring Cloud AWS SQS (Spring Boot 3.x 호환)
+    implementation 'io.awspring.cloud:spring-cloud-aws-starter-sqs:3.1.1'
 }
 
 tasks.named('test') {
