@@ -190,9 +190,7 @@ public class RunningArtService implements
                         proficiency))
                 .publishOn(Schedulers.boundedElastic())
                 .map(runningArtAiResponse -> {
-                    double[] startLocation = PolylineUtils.decodeFirstLocation(runningArtAiResponse.gpx());
-                    double startLat = startLocation[0];
-                    double startLon = startLocation[1];
+                    PolylineUtils.PolylineMetadata polylineMetadata = PolylineUtils.extractMetadata(runningArtAiResponse.gpx());
 
                     RunningArt runningArt = RunningArt.builder()
                             .userId(userId)
@@ -201,8 +199,9 @@ public class RunningArtService implements
                             .content("None")
                             .shape(shape)
                             .proficiency(proficiency)
-                            .startLat(startLat)
-                            .startLon(startLon)
+                            .distance(polylineMetadata.totalDistanceMeters())
+                            .startLat(polylineMetadata.startLat())
+                            .startLon(polylineMetadata.startLon())
                             .build();
 
                     // 1. DB에 저장 (Blocking)

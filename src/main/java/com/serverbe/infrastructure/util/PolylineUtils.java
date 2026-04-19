@@ -3,46 +3,94 @@ package com.serverbe.infrastructure.util;
 public final class PolylineUtils {
 
     private static final double PRECISION = 1e5; // 100,000
+    private static final double EARTH_RADIUS_METERS = 6371000.0; // 지구 반지름 (미터)
 
     /**
-     * Encoded Polyline 문자열에서 첫 번째 좌표(위경도)만 빠르게 추출합니다.
+     * 해독 결과를 담을 Record (Java 16+)
      */
-    public static double[] decodeFirstLocation(String encoded) {
+    public record PolylineMetadata(
+            double startLat,
+            double startLon,
+            double totalDistanceMeters // 총 거리 (미터 단위)
+    ) {}
+
+    /**
+     * Encoded Polyline 문자열을 끝까지 해독하여 첫 번째 좌표와 전체 거리를 계산합니다.
+     */
+    public static PolylineMetadata extractMetadata(String encoded) {
         if (encoded == null || encoded.isEmpty()) {
             throw new IllegalArgumentException("Encoded polyline string cannot be null or empty");
         }
 
-        int[] index = {0}; // 가변 인덱스를 전달하기 위해 배열 사용
+        int len = encoded.length();
+        int[] index = {0};
 
-        // 1. 위도(Latitude) 해독
-        int latE5 = decodeInt(encoded, index);
+        int currentLatE5 = 0;
+        int currentLngE5 = 0;
 
-        // 2. 경도(Longitude) 해독 (위도 해독 후 인덱스가 유지됨)
-        int lngE5 = decodeInt(encoded, index);
+        Double startLat = null;
+        Double startLon = null;
 
-        return new double[]{latE5 / PRECISION, lngE5 / PRECISION};
+        double prevLat = 0.0;
+        double prevLon = 0.0;
+        double totalDistance = 0.0;
+
+        while (index[0] < len) {
+            // 폴리라인은 이전 좌표와의 '차이(Delta)'를 저장하므로 계속 누적해야 합니다.
+            currentLatE5 += decodeInt(encoded, index);
+            currentLngE5 += decodeInt(encoded, index);
+
+            double lat = currentLatE5 / PRECISION;
+            double lon = currentLngE5 / PRECISION;
+
+            // 첫 번째 좌표 저장
+            if (startLat == null) {
+                startLat = lat;
+                startLon = lon;
+            } else {
+                // 두 번째 좌표부터는 이전 좌표와의 거리를 계산하여 누적
+                totalDistance += calculateHaversineDistance(prevLat, prevLon, lat, lon);
+            }
+
+            // 현재 좌표를 이전 좌표로 갱신
+            prevLat = lat;
+            prevLon = lon;
+        }
+
+        return new PolylineMetadata(startLat, startLon, totalDistance);
     }
 
     /**
      * 폴리라인 알고리즘의 핵심: 인코딩된 문자열에서 하나의 정수값을 뽑아냅니다.
-     * @param encoded 전체 문자열
-     * @param index 현재 읽고 있는 위치 (배열을 사용하여 참조 전달 효과)
-     * @return 해독된 정수값 (5단계 시프트 및 63 차감 등이 적용된 결과)
      */
     private static int decodeInt(String encoded, int[] index) {
         int result = 0;
         int shift = 0;
         int b;
-
         do {
-            // 인코딩 시 사용된 63(ASCII '?')을 차감
             b = encoded.charAt(index[0]++) - 63;
-            // 하위 5비트만 취해서 결과값에 시프트하여 더함
             result |= (b & 0x1f) << shift;
             shift += 5;
-        } while (b >= 0x20); // 0x20(32)보다 크면 뒤에 비트가 더 있다는 뜻
+        } while (b >= 0x20);
 
-        // 마지막 비트가 1이면 음수, 0이면 양수로 변환 (ZigZag Decoding)
         return ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
+    }
+
+    /**
+     * 하버사인(Haversine) 공식을 사용하여 두 위경도 좌표 사이의 거리를 계산합니다 (미터 단위).
+     */
+    private static double calculateHaversineDistance(double lat1, double lon1, double lat2, double lon2) {
+        double dLat = Math.toRadians(lat2 - lat1);
+        double dLon = Math.toRadians(lon2 - lon1);
+
+        double rLat1 = Math.toRadians(lat1);
+        double rLat2 = Math.toRadians(lat2);
+
+        double a = Math.pow(Math.sin(dLat / 2), 2) +
+                Math.cos(rLat1) * Math.cos(rLat2) * Math.pow(Math.sin(dLon / 2), 2);
+
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+        return EARTH_RADIUS_METERS * c;
     }
 }

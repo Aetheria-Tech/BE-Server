@@ -1,9 +1,12 @@
 package com.serverbe.adapter.in.web;
 
+import com.serverbe.adapter.in.web.dto.art.CreateRunningArtRequest;
 import com.serverbe.adapter.in.web.dto.task.TaskStatusResponse;
+import com.serverbe.application.port.in.art.InitiateAiGenerationUseCase;
 import com.serverbe.application.port.in.task.GetTaskStatusUseCase;
 import io.swagger.v3.oas.annotations.Parameter;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -14,6 +17,7 @@ import org.springframework.web.bind.annotation.*;
 public class AiGenerationController {
 
     private final GetTaskStatusUseCase getTaskStatusUseCase;
+    private final InitiateAiGenerationUseCase initiateAiGenerationUseCase;
 
     /**
      * @param taskId 생성 시 발급받은 Task ID
@@ -28,5 +32,22 @@ public class AiGenerationController {
     ) {
         TaskStatusResponse response = getTaskStatusUseCase.getTaskStatus(taskId, userId);
         return ResponseEntity.ok(response);
+    }
+
+    @PostMapping
+    public ResponseEntity<String> initiateGeneration(
+            @RequestBody CreateRunningArtRequest request,
+            @Parameter(hidden = true) @AuthenticationPrincipal Long userId
+    ) {
+        // Service의 생성 로직 호출! DB에 PENDING 상태로 저장되고 Task ID가 반환됨
+        String taskId = initiateAiGenerationUseCase.initiateGeneration(
+                userId,
+                request.startPosition(),
+                request.shape(),
+                request.proficiency()
+        );
+
+        // 생성된 taskId 반환 (HTTP 201 CREATED)
+        return ResponseEntity.status(HttpStatus.CREATED).body(taskId);
     }
 }
