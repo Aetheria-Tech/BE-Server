@@ -8,6 +8,8 @@ import com.serverbe.application.port.in.art.InitiateAiGenerationUseCase;
 import com.serverbe.application.port.in.task.GetTaskStatusUseCase;
 import com.serverbe.application.port.out.sagemaker.SageMakerAsyncPort;
 import com.serverbe.application.port.out.s3.S3AiInputPort;
+import com.serverbe.domain.exception.ai.AiErrorCode;
+import com.serverbe.domain.exception.ai.AiException;
 import com.serverbe.domain.model.art.vo.Proficiency;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,12 +21,12 @@ import java.util.Map;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class AiGenerationService implements InitiateAiGenerationUseCase, GetTaskStatusUseCase { // ✨ UseCase 구현
+public class AiGenerationService implements InitiateAiGenerationUseCase, GetTaskStatusUseCase {
 
     private final JpaAiTaskRepository taskRepository;
     private final S3AiInputPort s3AiInputPort;
     private final SageMakerAsyncPort sageMakerAdapter;
-    private final ObjectMapper objectMapper; // JSON 생성기
+    private final ObjectMapper objectMapper;
 
     @Override
     @Transactional
@@ -55,7 +57,7 @@ public class AiGenerationService implements InitiateAiGenerationUseCase, GetTask
         } catch (Exception e) {
             log.error("[AI Pipeline Error] 요청 처리 중 오류", e);
             savedTask.markAsFailed(e.getMessage());
-            throw new RuntimeException("AI 생성 요청을 처리할 수 없습니다.", e);
+            throw new AiException(AiErrorCode.AI_PIPELINE_ERROR);
         }
     }
 
@@ -63,7 +65,7 @@ public class AiGenerationService implements InitiateAiGenerationUseCase, GetTask
     @Transactional(readOnly = true)
     public TaskStatusResponse getTaskStatus(String taskId, Long userId) {
         AiTaskEntity task = taskRepository.findByIdAndUserId(taskId, userId)
-                .orElseThrow(() -> new IllegalArgumentException("작업을 찾을 수 없습니다."));
+                .orElseThrow(() -> new AiException(AiErrorCode.NOT_FOUND_AITASK));
         return TaskStatusResponse.from(task);
     }
 
