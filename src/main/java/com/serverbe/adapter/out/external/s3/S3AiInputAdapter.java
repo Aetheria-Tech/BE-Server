@@ -1,6 +1,8 @@
 package com.serverbe.adapter.out.external.s3;
 
 import com.serverbe.application.port.out.s3.S3AiInputPort;
+import com.serverbe.domain.exception.s3.S3ErrorCode;
+import com.serverbe.domain.exception.s3.S3Exception;
 import com.serverbe.infrastructure.config.properties.AwsProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -52,7 +54,7 @@ public class S3AiInputAdapter implements S3AiInputPort {
             
         } catch (Exception e) {
             log.error("[S3 Upload Error] 입력 데이터 업로드 실패 - TaskID: {}, 원인: {}", taskId, e.getMessage());
-            throw new RuntimeException("S3 입력 버킷 업로드 중 오류가 발생했습니다.", e);
+            throw new S3Exception(S3ErrorCode.S3_UPLOAD_ERROR, e.getMessage());
         }
     }
 }

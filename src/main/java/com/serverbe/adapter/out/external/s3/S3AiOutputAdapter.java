@@ -3,6 +3,8 @@ package com.serverbe.adapter.out.external.s3;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.serverbe.application.port.in.dto.art.AiGenerationResultDto;
 import com.serverbe.application.port.out.s3.S3AiOutputPort;
+import com.serverbe.domain.exception.s3.S3ErrorCode;
+import com.serverbe.domain.exception.s3.S3Exception;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -49,7 +51,7 @@ public class S3AiOutputAdapter implements S3AiOutputPort {
             return Optional.empty(); // 아직 작업 중임
         } catch (Exception e) {
             log.error("[S3 Download Error] 결과 JSON 읽기/파싱 실패: {}", s3Uri, e);
-            throw new RuntimeException("S3 결과 다운로드 및 파싱 중 오류 발생", e);
+            throw new S3Exception(S3ErrorCode.S3_DOWNLOAD_ERROR, e.getMessage());
         }
     }
 }

@@ -1,6 +1,8 @@
 package com.serverbe.adapter.out.external.sagemaker;
 
 import com.serverbe.application.port.out.sagemaker.SageMakerAsyncPort;
+import com.serverbe.domain.exception.sagemaker.SageMakerErrorCode;
+import com.serverbe.domain.exception.sagemaker.SageMakerException;
 import com.serverbe.infrastructure.config.properties.AwsProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -47,7 +49,7 @@ public class SageMakerAsyncAdapter implements SageMakerAsyncPort {
 
         } catch (Exception e) {
             log.error("[SageMaker Error] 엔드포인트 호출 실패 - Input: {}, 원인: {}", inputS3Uri, e.getMessage());
-            throw new RuntimeException("SageMaker 비동기 호출 중 오류가 발생했습니다.", e);
+            throw new SageMakerException(SageMakerErrorCode.SAGE_MAKER_ERROR_CODE, e.getMessage());
         }
     }
 }
