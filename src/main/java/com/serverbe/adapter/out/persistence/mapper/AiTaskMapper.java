@@ -57,19 +57,22 @@ public class AiTaskMapper {
     public void updateEntityFromDomain(AiTask domain, AiTaskEntity entity) {
         if (domain == null || entity == null) return;
 
-        // 도메인 모델의 변경 가능한 필드들을 엔티티에 덮어씌웁니다.
-        // (주의: id, userId, createdAt 등 불변 식별자는 덮어씌우지 않습니다.)
+        // 1. 도메인의 상태를 엔티티에 동기화 (가장 중요)
         entity.updateStatus(domain.status());
-        
-        // 엔티티 내부에 데이터 수정을 위한 setter 혹은 비즈니스 메서드가 열려있어야 합니다.
-        if (domain.outputS3Uri() != null) {
-            entity.markAsProcessing(domain.inputS3Uri(), domain.outputS3Uri());
-        }
-        if (domain.resultArtId() != null) {
-            entity.markAsCompleted(domain.resultArtId());
-        }
-        if (domain.errorMessage() != null) {
-            entity.markAsFailed(domain.errorMessage());
+
+        // 2. 도메인의 현재 상태에 맞춰서 필요한 데이터만 갱신 (if문 중첩으로 인한 상태 덮어쓰기 방지!)
+        switch (domain.status()) {
+            case PENDING -> {
+            }
+            case PROCESSING -> {
+                entity.markAsProcessing(domain.inputS3Uri(), domain.outputS3Uri());
+            }
+            case COMPLETED -> {
+                entity.markAsCompleted(domain.resultArtId());
+            }
+            case FAILED -> {
+                entity.markAsFailed(domain.errorMessage());
+            }
         }
     }
 }

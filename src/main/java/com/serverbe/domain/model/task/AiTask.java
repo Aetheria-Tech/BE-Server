@@ -33,17 +33,29 @@ public record AiTask(
 
     public AiTask markAsCompleted(Long runningArtId) {
         return new AiTask(
-                this.id, this.userId, TaskStatus.COMPLETED,
-                this.inputS3Uri, this.outputS3Uri, this.errorMessage,
-                this.createdAt, LocalDateTime.now(), runningArtId
+                this.id,
+                this.userId,
+                TaskStatus.COMPLETED,
+                this.inputS3Uri,
+                this.outputS3Uri,
+                this.errorMessage,
+                this.createdAt,
+                LocalDateTime.now(),
+                runningArtId
         );
     }
 
     public AiTask markAsFailed(String errorMessage) {
         return new AiTask(
-                this.id, this.userId, TaskStatus.FAILED,
-                this.inputS3Uri, this.outputS3Uri, errorMessage,
-                this.createdAt, LocalDateTime.now(), this.resultArtId
+                this.id,
+                this.userId,
+                TaskStatus.FAILED,
+                this.inputS3Uri,
+                this.outputS3Uri,
+                errorMessage,
+                this.createdAt,
+                LocalDateTime.now(),
+                this.resultArtId
         );
     }
 }
