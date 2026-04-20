@@ -5,6 +5,7 @@ import com.serverbe.domain.exception.auth.AuthErrorCode;
 import com.serverbe.domain.exception.server.RateLimitExceededException;
 import com.serverbe.domain.exception.server.ServerErrorCode;
 import com.serverbe.infrastructure.common.response.RestApiResponse;
+import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -148,6 +149,19 @@ public class BusinessExceptionHandler {
         log.warn("[SECURITY ACCESS DENIED] 권한 없는 사용자의 자원 접근 시도 -> {}", e.getMessage());
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .body(RestApiResponse.fail(AuthErrorCode.ACCESS_DENIED));
+    }
+
+    /**
+     * @param e JPA 영속성 컨텍스트 예외
+     * @responsibility 어댑터 계층(DB)에서 데이터 정합성이 깨지거나 동시성 문제가 발생했을 때 500 에러로 처리합니다.
+     * @implNote 도메인 계층의 404(Not Found) 에러와 달리, 이 예외는 서버 내부의 인프라적 장애를 의미합니다.
+     */
+    @ExceptionHandler(EntityNotFoundException.class)
+    public ResponseEntity<RestApiResponse<Void>> handleEntityNotFoundException(EntityNotFoundException e) {
+        log.error("[INFRA EXCEPTION] DB 데이터 정합성 오류 (동시성/삭제 문제 예상) -> {}", e.getMessage());
+
+        return ResponseEntity.status(ServerErrorCode.INTERNAL_SERVER_ERROR.getStatus())
+                .body(RestApiResponse.fail(ServerErrorCode.INTERNAL_SERVER_ERROR));
     }
 
     /**
