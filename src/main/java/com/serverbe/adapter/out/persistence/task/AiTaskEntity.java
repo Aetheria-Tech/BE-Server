@@ -82,16 +82,4 @@ public class AiTaskEntity {
         this.inputS3Uri = inputS3Uri;
         this.outputS3Uri = outputS3Uri;
     }
-
-    @PrePersist
-    public void prePersist() {
-        LocalDateTime now = LocalDateTime.now();
-        this.createdAt = now;
-        this.updatedAt = now;
-    }
-
-    @PreUpdate
-    public void preUpdate() {
-        this.updatedAt = LocalDateTime.now();
-    }
 }
