@@ -4,6 +4,7 @@ import com.serverbe.adapter.in.web.dto.art.CreateRunningArtRequest;
 import com.serverbe.adapter.in.web.dto.task.TaskStatusResponse;
 import com.serverbe.application.port.in.art.InitiateAiGenerationUseCase;
 import com.serverbe.application.port.in.task.GetTaskStatusUseCase;
+import com.serverbe.infrastructure.common.response.RestApiResponse;
 import io.swagger.v3.oas.annotations.Parameter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -26,16 +27,16 @@ public class AiGenerationController {
      * @responsibility 프론트엔드가 1~3초 주기로 호출하여 AI 비동기 작업의 진행 상황을 폴링(Polling)합니다.
      */
     @GetMapping("/{taskId}")
-    public ResponseEntity<TaskStatusResponse> checkTaskStatus(
+    public RestApiResponse<TaskStatusResponse> checkTaskStatus(
             @PathVariable("taskId") String taskId,
             @Parameter(hidden = true) @AuthenticationPrincipal Long userId
     ) {
         TaskStatusResponse response = getTaskStatusUseCase.getTaskStatus(taskId, userId);
-        return ResponseEntity.ok(response);
+        return RestApiResponse.success(response);
     }
 
     @PostMapping
-    public ResponseEntity<String> initiateGeneration(
+    public RestApiResponse<String> initiateGeneration(
             @RequestBody CreateRunningArtRequest request,
             @Parameter(hidden = true) @AuthenticationPrincipal Long userId
     ) {
@@ -48,6 +49,6 @@ public class AiGenerationController {
         );
 
         // 생성된 taskId 반환 (HTTP 201 CREATED)
-        return ResponseEntity.status(HttpStatus.CREATED).body(taskId);
+        return RestApiResponse.success(taskId);
     }
 }
