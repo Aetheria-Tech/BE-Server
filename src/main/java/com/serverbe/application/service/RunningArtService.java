@@ -270,7 +270,7 @@ public class RunningArtService implements
      * @responsibility 비동기 AI 작업이 완료된 후, 전달받은 GPX 데이터를 바탕으로 런닝아트를 생성하고 DB/Redis에 등록합니다.
      */
     @Override
-    @Transactional // ✨ 동기식으로 바꾸고 트랜잭션으로 묶어줍니다.
+    @Transactional
     public Long registerFromPolyline(Long userId, String polyline, String title, String shape, Proficiency proficiency) {
 
         // 1. Polyline에서 메타데이터(시작 좌표, 거리 등) 추출

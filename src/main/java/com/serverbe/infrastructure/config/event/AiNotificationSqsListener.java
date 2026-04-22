@@ -1,7 +1,13 @@
 package com.serverbe.infrastructure.config.event;
 
 import com.serverbe.adapter.in.web.dto.sqs.SageMakerNotificationDto;
-import com.serverbe.application.port.in.task.UpdateTaskStatusUseCase;
+import com.serverbe.application.port.in.task.RetrieveAiResultUseCase;
+import com.serverbe.application.port.out.notification.TaskNotificationPort;
+import com.serverbe.application.port.out.task.TaskQueryPort;
+import com.serverbe.application.port.out.task.TaskUpdatePort;
+import com.serverbe.domain.exception.ai.AiErrorCode;
+import com.serverbe.domain.exception.ai.AiException;
+import com.serverbe.domain.model.task.AiTask;
 import io.awspring.cloud.sqs.annotation.SqsListener;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -12,13 +18,15 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class AiNotificationSqsListener {
 
-    // 이제 SQS 리스너는 SSE 서비스나 DB 레포지토리를 직접 알 필요가 없습니다!
-    // 오직 하나의 유스케이스(인바운드 포트)만 의존합니다.
-    private final UpdateTaskStatusUseCase updateTaskStatusUseCase;
+    private final TaskQueryPort taskQueryPort;
+    private final TaskUpdatePort taskUpdatePort;
+    private final RetrieveAiResultUseCase retrieveAiResultUseCase;
+    private final TaskNotificationPort taskNotificationPort;
+
     private static final String QUEUE_NAME_PROPERTY = "${aws.sqs.ai-notification-queue-name}";
 
     /**
-     * @responsibility SQS 큐에서 SageMaker 완료/실패 알림을 수신하여 UseCase로 전달합니다.
+     * @responsibility SQS 큐에서 SageMaker 완료/실패 알림을 수신하여 핵심 비즈니스 로직으로 전달합니다.
      */
     @SqsListener(QUEUE_NAME_PROPERTY)
     public void receiveAiTaskNotification(SageMakerNotificationDto message) {
@@ -29,21 +37,40 @@ public class AiNotificationSqsListener {
                 String outputS3Uri = message.responseParameters().outputLocation();
                 String taskId = extractTaskIdFromUri(outputS3Uri);
 
-                // UseCase 호출 (내부적으로 DB 업데이트 + SSE 발송을 모두 수행함)
-                updateTaskStatusUseCase.completeTask(taskId, outputS3Uri);
+                // 1. DB에서 순수 Task 도메인 모델 조회
+                AiTask task = getTaskOrThrow(taskId);
+
+                // 2. 💡 형님이 작성하신 '견고한 로직' 실행 (S3 다운로드 -> RunningArt 엔티티 저장 -> 완료 상태 업데이트)
+                retrieveAiResultUseCase.processTaskResult(task);
 
             } else {
+                // 실패 처리
                 // 실패 처리
                 String failedS3Uri = message.responseParameters().outputLocation();
                 String taskId = extractTaskIdFromUri(failedS3Uri);
                 String reason = message.failureReason();
 
-                updateTaskStatusUseCase.failTask(taskId, reason);
+                AiTask task = getTaskOrThrow(taskId);
+                AiTask failedTask = task.markAsFailed("SageMaker 추론 실패: " + reason);
+                taskUpdatePort.save(failedTask);
+
+                // 💡 SageMaker 실패 시 프론트엔드에 알림 발송!
+                taskNotificationPort.notifyTaskFailed(taskId, reason);
+
+                log.error("[SQS Listener] Task 실패 처리 완료 - TaskID: {}, 사유: {}", taskId, reason);
             }
         } catch (Exception e) {
             log.error("[SQS Listener] SQS 메시지 처리 중 오류 발생", e);
             throw e; // 예외를 던져야 SQS 메시지가 보존/재시도(DLQ) 됩니다.
         }
+    }
+
+    /**
+     * 중복되는 Task 조회 및 예외 처리를 공통화한 헬퍼 메서드
+     */
+    private AiTask getTaskOrThrow(String taskId) {
+        return taskQueryPort.findById(taskId)
+                .orElseThrow(() -> new AiException(AiErrorCode.NOT_FOUND_AITASK, "존재하지 않는 Task입니다. TaskID: " + taskId));
     }
 
     /**

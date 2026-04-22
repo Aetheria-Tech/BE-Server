@@ -24,16 +24,16 @@ public class AiTaskCleanupService implements CleanupZombieTaskUseCase {
     @Transactional
     public void cleanUpZombieTasks() {
         LocalDateTime timeoutThreshold = LocalDateTime.now().minusMinutes(10);
-        
-        // 포트를 통해 도메인 객체(AiTask)를 가져옵니다. (JPA Entity 아님!)
+
+        // 포트를 통해 도메인 객체(AiTask)를 가져옵니다.
         List<AiTask> zombieTasks = taskQueryPort.findZombieTasks(timeoutThreshold);
 
         if (!zombieTasks.isEmpty()) {
             log.warn("[AI Pipeline] {}개의 좀비 Task FAILED 처리", zombieTasks.size());
-            
+
             for (AiTask task : zombieTasks) {
-                task.markAsFailed("AI 서버 응답 시간 초과 (Timeout)");
-                taskUpdatePort.save(task); // 변경된 도메인 상태를 포트를 통해 저장
+                AiTask failedTask = task.markAsFailed("AI 서버 응답 시간 초과 (Timeout)");
+                taskUpdatePort.save(failedTask);
             }
         }
     }

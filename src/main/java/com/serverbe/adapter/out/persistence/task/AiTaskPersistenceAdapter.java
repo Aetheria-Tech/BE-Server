@@ -35,6 +35,16 @@ public class AiTaskPersistenceAdapter implements TaskQueryPort, TaskUpdatePort {
     }
 
     @Override
+    public List<AiTask> findAllByStatus(TaskStatus status) {
+        // DB에서 엔티티 리스트를 가져와서, 이전에 잘 만들어두신 Mapper를 통해 도메인 리스트로 변환!
+        List<AiTaskEntity> entities = jpaRepository.findAllByStatus(status);
+
+        return entities.stream()
+                .map(aiTaskMapper::toDomain)
+                .collect(Collectors.toList());
+    }
+
+    @Override
     public void save(AiTask domainTask) {
         if (domainTask.id() == null) {
             // 신규 생성
