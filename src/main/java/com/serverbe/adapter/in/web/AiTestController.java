@@ -40,7 +40,8 @@ public class AiTestController {
     @PostMapping("/{taskId}/push-fail")
     public ResponseEntity<String> pushFailEvent(
             @PathVariable String taskId,
-            @RequestParam(defaultValue = "AI 연산 중 리소스 부족으로 실패했습니다.") String errorMessage) {
+            @RequestParam(defaultValue = "AI 연산 중 리소스 부족으로 실패했습니다.") String errorMessage
+    ) {
         
         log.info("[TEST] SSE 강제 실패 이벤트 발송 - Task ID: {}", taskId);
         taskNotificationPort.notifyTaskFailed(taskId, errorMessage);
@@ -54,7 +55,8 @@ public class AiTestController {
     @PostMapping("/{taskId}/mock-sqs-receive")
     public ResponseEntity<String> mockSqsReceive(
             @PathVariable String taskId,
-            @RequestParam(defaultValue = "Completed") String status) {
+            @RequestParam(defaultValue = "Completed") String status
+    ) {
 
         log.info("[TEST] SQS 가짜 메시지 생성 및 리스너 직접 호출 - Task ID: {}", taskId);
 

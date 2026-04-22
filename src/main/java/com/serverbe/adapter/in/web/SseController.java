@@ -1,9 +1,11 @@
 package com.serverbe.adapter.in.web;
 
 import com.serverbe.application.port.in.notification.SseSubscribeUseCase;
+import io.swagger.v3.oas.annotations.Parameter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -18,9 +20,9 @@ public class SseController {
     private final SseSubscribeUseCase sseSubscribeUseCase;
 
     @GetMapping(value = "/{taskId}/subscribe", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public ResponseEntity<SseEmitter> subscribe(@PathVariable String taskId) {
+    public ResponseEntity<SseEmitter> subscribe(@Parameter(hidden = true) @AuthenticationPrincipal Long userId, @PathVariable String taskId) {
 
-        SseEmitter emitter = sseSubscribeUseCase.subscribe(taskId);
+        SseEmitter emitter = sseSubscribeUseCase.subscribe(userId, taskId);
 
         return ResponseEntity.ok(emitter);
     }
