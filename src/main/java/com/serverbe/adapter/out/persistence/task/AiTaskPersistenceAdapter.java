@@ -10,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -27,8 +28,8 @@ public class AiTaskPersistenceAdapter implements TaskQueryPort, TaskUpdatePort {
     }
 
     @Override
-    public List<AiTask> findZombieTasks(LocalDateTime threshold) {
-        List<AiTaskEntity> entities = jpaRepository.findZombieTasks(TaskStatus.PROCESSING, threshold);
+    public List<AiTask> findZombieTasks(List<TaskStatus> statuses, LocalDateTime threshold) {
+        List<AiTaskEntity> entities = jpaRepository.findZombieTasks(statuses, threshold);
 
         return entities.stream()
                 .map(aiTaskMapper::toDomain)

@@ -13,17 +13,19 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArraySet;
 
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class SseNotificationAdapter implements TaskNotificationPort {
 
-    private final Map<String, SseEmitter> emitters = new ConcurrentHashMap<>();
+    private final Map<String, Set<SseEmitter>> emitters = new ConcurrentHashMap<>();
     private final SseProperties sseProperties;
 
-    // 💡 Redis 연동을 위한 의존성 추가
+    // Redis 연동을 위한 의존성 추가
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
 
@@ -36,18 +38,30 @@ public class SseNotificationAdapter implements TaskNotificationPort {
     public SseEmitter subscribe(String taskId) {
         SseEmitter emitter = new SseEmitter(sseProperties.timeout());
 
-        // 1. 무조건 Map에 먼저 넣습니다 (DB 조회하는 그 짧은 틈새에 알림이 올 수 있으므로)
-        emitters.put(taskId, emitter);
+        // 1. Map에 먼저 넣습니다
+        emitters.computeIfAbsent(taskId, k -> new CopyOnWriteArraySet<>()).add(emitter);
 
-        emitter.onCompletion(() -> emitters.remove(taskId));
-        emitter.onTimeout(() -> emitters.remove(taskId));
-        emitter.onError((e) -> emitters.remove(taskId));
+        // 💡하나의 Emitter(탭)만 안전하게 지우는 청소 로직
+        Runnable onCompletion = () -> {
+            Set<SseEmitter> taskEmitters = emitters.get(taskId);
+            if (taskEmitters != null) {
+                taskEmitters.remove(emitter); // 이 탭의 연결만 제거
+                if (taskEmitters.isEmpty()) {
+                    emitters.remove(taskId); // 모든 탭이 닫히면 Map에서도 키 삭제
+                }
+            }
+        };
+
+        // 방금 만든 안전한 청소 로직을 콜백으로 등록합니다!
+        emitter.onCompletion(onCompletion);
+        emitter.onTimeout(onCompletion);
+        emitter.onError((e) -> onCompletion.run());
 
         try {
             // 2. 연결 성공 이벤트 발송
             emitter.send(buildSseEvent("CONNECTED", "Connected. Task ID: " + taskId));
 
-            // 3. [Race Condition 방어] DB에서 현재 Task 상태를 바로 확인합니다.
+            // 3. [Race Condition 방어] DB 상태 확인
             taskQueryPort.findById(taskId).ifPresent(task -> {
                 try {
                     if ("COMPLETED".equals(task.status().name())) {
@@ -65,12 +79,13 @@ public class SseNotificationAdapter implements TaskNotificationPort {
             });
 
         } catch (IOException e) {
-            emitters.remove(taskId);
+            // 예외가 발생했을 때도 전체를 날리지 않고 해당 Emitter만 날립니다!
+            onCompletion.run();
         }
         return emitter;
     }
 
-    // 직접 보내지 않고 Redis로 Publish(발행) 합니다!
+    // 직접 보내지 않고 Redis로 Publish(발행)
     @Override
     public void notifyTaskCompleted(String taskId, String resultArtId) {
         publishToRedis(taskId, "COMPLETED", resultArtId);
@@ -96,22 +111,22 @@ public class SseNotificationAdapter implements TaskNotificationPort {
 
     // Redis 채널에서 방송을 들었을 때 (Subscriber) 호출될 실제 발송 로직
     public void sendToClient(SsePubSubMessage message) {
-        SseEmitter emitter = emitters.get(message.taskId());
+        Set<SseEmitter> taskEmitters = emitters.get(message.taskId());
 
-        // 내 서버에 Emitter가 있을 때만 쏜다! (다른 서버에 있으면 null이므로 무시됨)
-        if (emitter != null) {
-            try {
-                emitter.send(SseEmitter.event()
-                        .name(message.eventName())
-                        .data(message.data()));
-                log.info("[SSE Sub] 클라이언트로 알림 전송 성공! - Task ID: {}", message.taskId());
-                emitter.complete();
-            } catch (IOException e) {
-                emitters.remove(message.taskId());
-                log.error("[SSE Sub] 알림 전송 실패 - Task ID: {}", message.taskId(), e);
+        if (taskEmitters != null && !taskEmitters.isEmpty()) {
+            for (SseEmitter emitter : taskEmitters) {
+                try {
+                    emitter.send(SseEmitter.event()
+                            .name(message.eventName())
+                            .data(message.data()));
+                    emitter.complete(); // 전송 완료 후 연결 닫기
+                } catch (IOException e) {
+                    taskEmitters.remove(emitter); // 전송 실패(끊긴 연결) 시 해당 Emitter만 제거
+                    log.error("[SSE Sub] 단일 알림 전송 실패 - Task ID: {}", message.taskId(), e);
+                }
             }
+            log.info("[SSE Sub] 클라이언트 다중 알림 전송 완료! - Task ID: {}, 수신자 수: {}", message.taskId(), taskEmitters.size());
         } else {
-            // 이 로그는 정상입니다! 유저가 다른 서버에 붙어있다는 뜻입니다.
             log.debug("[SSE Sub] 이 서버에는 해당 클라이언트 연결이 없습니다. - Task ID: {}", message.taskId());
         }
     }

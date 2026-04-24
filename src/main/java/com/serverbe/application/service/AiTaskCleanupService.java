@@ -4,6 +4,7 @@ import com.serverbe.application.port.in.task.CleanupZombieTaskUseCase;
 import com.serverbe.application.port.out.task.TaskUpdatePort;
 import com.serverbe.application.port.out.task.TaskQueryPort;
 import com.serverbe.domain.model.task.AiTask;
+import com.serverbe.domain.model.task.vo.TaskStatus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -20,13 +21,18 @@ public class AiTaskCleanupService implements CleanupZombieTaskUseCase {
     private final TaskQueryPort taskQueryPort;
     private final TaskUpdatePort taskUpdatePort;
 
+    private final List<TaskStatus> zombieStatus = List.of(TaskStatus.PENDING, TaskStatus.PROCESSING);
+
     @Override
     @Transactional
     public void cleanUpZombieTasks() {
         LocalDateTime timeoutThreshold = LocalDateTime.now().minusMinutes(10);
 
         // 포트를 통해 도메인 객체(AiTask)를 가져옵니다.
-        List<AiTask> zombieTasks = taskQueryPort.findZombieTasks(timeoutThreshold);
+        List<AiTask> zombieTasks = taskQueryPort.findZombieTasks(
+                zombieStatus,
+                timeoutThreshold
+        );
 
         if (!zombieTasks.isEmpty()) {
             log.warn("[AI Pipeline] {}개의 좀비 Task FAILED 처리", zombieTasks.size());

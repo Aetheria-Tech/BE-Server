@@ -37,7 +37,7 @@ public class AiTaskEntity {
     private String shape;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "proficiency",nullable = false)
+    @Column(name = "proficiency", nullable = false)
     private Proficiency proficiency;
 
     @Enumerated(EnumType.STRING)

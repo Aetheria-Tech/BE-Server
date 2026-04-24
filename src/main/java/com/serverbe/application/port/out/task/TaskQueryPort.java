@@ -9,6 +9,6 @@ import java.util.Optional;
 
 public interface TaskQueryPort {
     Optional<AiTask> findById(String taskId);
-    List<AiTask> findZombieTasks(LocalDateTime threshold);
+    List<AiTask> findZombieTasks(List<TaskStatus> statuses, LocalDateTime threshold);
     List<AiTask> findAllByStatus(TaskStatus status);
 }

@@ -25,9 +25,9 @@ public interface JpaAiTaskRepository extends JpaRepository<AiTaskEntity, String>
     /**
      * 특정 상태에 머물러 있으면서 지정된 시간 이상 업데이트되지 않은 좀비 Task를 조회합니다.
      */
-    @Query("SELECT t FROM AiTaskEntity t WHERE t.status = :status AND t.updatedAt < :threshold")
+    @Query("SELECT t FROM AiTaskEntity t WHERE t.status IN (:statuses) AND t.updatedAt < :threshold")
     List<AiTaskEntity> findZombieTasks(
-            @Param("status") TaskStatus status,
+            @Param("statuses") List<TaskStatus> statuses,
             @Param("threshold") LocalDateTime threshold
     );
 }
