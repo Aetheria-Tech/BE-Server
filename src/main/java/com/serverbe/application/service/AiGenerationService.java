@@ -1,5 +1,6 @@
 package com.serverbe.application.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.serverbe.adapter.in.web.dto.task.TaskStatusResponse;
 import com.serverbe.application.port.in.art.InitiateAiGenerationUseCase;
@@ -12,7 +13,6 @@ import com.serverbe.domain.exception.ai.AiErrorCode;
 import com.serverbe.domain.exception.ai.AiException;
 import com.serverbe.domain.model.art.vo.Proficiency;
 import com.serverbe.domain.model.task.AiTask;
-import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -31,7 +31,12 @@ public class AiGenerationService implements InitiateAiGenerationUseCase, GetTask
     private final ObjectMapper objectMapper;
 
     @Override
-    public String initiateGeneration(Long userId, String startPosition, String shape, Proficiency proficiency) {
+    public String initiateGeneration(
+            Long userId,
+            String startPosition,
+            String shape,
+            Proficiency proficiency
+    ) {
         AiTask aiTask = taskUpdatePort.save(AiTask.createPending(userId, shape, proficiency));
 
         try {
@@ -66,7 +71,11 @@ public class AiGenerationService implements InitiateAiGenerationUseCase, GetTask
         return TaskStatusResponse.from(task);
     }
 
-    private String buildPromptJson(String startPosition, String shape, Proficiency proficiency) throws Exception {
+    private String buildPromptJson(
+            String startPosition,
+            String shape,
+            Proficiency proficiency
+    ) throws JsonProcessingException {
         Map<String, Object> promptData = Map.of(
                 "start_position", startPosition,
                 "shape", shape,

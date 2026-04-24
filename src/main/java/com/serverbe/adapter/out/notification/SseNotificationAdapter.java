@@ -45,18 +45,17 @@ public class SseNotificationAdapter implements TaskNotificationPort {
 
         try {
             // 2. 연결 성공 이벤트 발송
-            emitter.send(SseEmitter.event().name("CONNECT").data("Connected. Task ID: " + taskId));
+            emitter.send(buildSseEvent("CONNECTED", "Connected. Task ID: " + taskId));
 
             // 3. [Race Condition 방어] DB에서 현재 Task 상태를 바로 확인합니다.
             taskQueryPort.findById(taskId).ifPresent(task -> {
                 try {
-                    // 도메인(AiTask)의 상태 검사 로직에 맞게 메서드명은 살짝 수정해 주세요!
                     if ("COMPLETED".equals(task.status().name())) {
-                        emitter.send(SseEmitter.event().name("COMPLETED").data(task.outputS3Uri()));
+                        emitter.send(buildSseEvent("COMPLETED", String.valueOf(task.resultArtId())));
                         emitter.complete();
                         log.info("[SSE] 구독 즉시 완료 상태 확인되어 알림 발송 - Task ID: {}", taskId);
                     } else if ("FAILED".equals(task.status().name())) {
-                        emitter.send(SseEmitter.event().name("FAILED").data("이미 실패한 작업입니다."));
+                        emitter.send(buildSseEvent("FAILED", "이미 실패한 작업입니다."));
                         emitter.complete();
                         log.info("[SSE] 구독 즉시 실패 상태 확인되어 알림 발송 - Task ID: {}", taskId);
                     }
@@ -73,8 +72,8 @@ public class SseNotificationAdapter implements TaskNotificationPort {
 
     // 직접 보내지 않고 Redis로 Publish(발행) 합니다!
     @Override
-    public void notifyTaskCompleted(String taskId, String resultS3Uri) {
-        publishToRedis(taskId, "COMPLETED", resultS3Uri);
+    public void notifyTaskCompleted(String taskId, String resultArtId) {
+        publishToRedis(taskId, "COMPLETED", resultArtId);
     }
 
     @Override
@@ -115,5 +114,11 @@ public class SseNotificationAdapter implements TaskNotificationPort {
             // 이 로그는 정상입니다! 유저가 다른 서버에 붙어있다는 뜻입니다.
             log.debug("[SSE Sub] 이 서버에는 해당 클라이언트 연결이 없습니다. - Task ID: {}", message.taskId());
         }
+    }
+
+    private SseEmitter.SseEventBuilder buildSseEvent(String eventName, String data){
+        return SseEmitter.event()
+                .name(eventName)
+                .data(data);
     }
 }

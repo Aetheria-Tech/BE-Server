@@ -15,7 +15,8 @@ public final class PolylineUtils {
             double startLat,
             double startLon,
             double totalDistanceMeters // 총 거리 (미터 단위)
-    ) {}
+    ) {
+    }
 
     /**
      * Encoded Polyline 문자열을 끝까지 해독하여 첫 번째 좌표와 전체 거리를 계산합니다.
@@ -76,6 +77,13 @@ public final class PolylineUtils {
         int shift = 0;
         int b;
         do {
+            if (index[0] >= encoded.length()) {
+                throw new ServerException(
+                        ServerErrorCode.INTERNAL_SERVER_ERROR,
+                        "Truncated polyline string"
+                );
+            }
+
             b = encoded.charAt(index[0]++) - 63;
             result |= (b & 0x1f) << shift;
             shift += 5;
@@ -94,8 +102,10 @@ public final class PolylineUtils {
         double rLat1 = Math.toRadians(lat1);
         double rLat2 = Math.toRadians(lat2);
 
-        double a = Math.pow(Math.sin(dLat / 2), 2) +
-                Math.cos(rLat1) * Math.cos(rLat2) * Math.pow(Math.sin(dLon / 2), 2);
+        double sinDLat = Math.sin(dLat / 2);
+        double sinDLon = Math.sin(dLon / 2);
+        double a = sinDLat * sinDLat +
+                Math.cos(rLat1) * Math.cos(rLat2) * sinDLon * sinDLon;
 
         double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 

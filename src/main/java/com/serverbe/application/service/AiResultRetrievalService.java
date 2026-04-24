@@ -43,7 +43,10 @@ public class AiResultRetrievalService implements RetrieveAiResultUseCase {
                 updatedTask = aiTask.markAsCompleted(savedArtId);
 
                 // 4. SSE 알림 발송 (이것도 네트워크 I/O이므로 트랜잭션 밖에 있는 것이 훨씬 좋습니다!)
-                taskNotificationPort.notifyTaskCompleted(updatedTask.id(), updatedTask.outputS3Uri());
+                taskNotificationPort.notifyTaskCompleted(
+                        updatedTask.id(),
+                        String.valueOf(savedArtId)
+                );
 
                 log.info("[Result Retrieval] DB & Redis GEO 등록 성공 - TaskID: {}, ArtID: {}", updatedTask.id(), savedArtId);
 
