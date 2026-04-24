@@ -75,10 +75,18 @@ public class AiNotificationSqsListener {
 
     /**
      * S3 URI에서 Task ID (UUID) 부분만 파싱하는 헬퍼 메서드
+     * SageMaker 특유의 다중 확장자({taskId}.json.out) 문제를 방지합니다.
      */
     private String extractTaskIdFromUri(String s3Uri) {
-        if (s3Uri == null || !s3Uri.contains("/")) return "UNKNOWN_TASK";
+        if (s3Uri == null || !s3Uri.contains("/")) {
+            return "UNKNOWN_TASK";
+        }
+
+        // 1. URL에서 파일명만 추출 (예: "1234abcd-5678.json.out")
         String fileName = s3Uri.substring(s3Uri.lastIndexOf("/") + 1);
-        return fileName.contains(".") ? fileName.substring(0, fileName.lastIndexOf(".")) : fileName;
+
+        // 2. 첫 번째 점(.)이 등장하는 위치 앞까지만 잘라냅니다.
+        // UUID에는 점이 없으므로 안전하게 순수 Task ID만 추출됩니다.
+        return fileName.contains(".") ? fileName.substring(0, fileName.indexOf(".")) : fileName;
     }
 }

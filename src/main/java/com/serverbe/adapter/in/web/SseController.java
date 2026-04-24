@@ -1,7 +1,6 @@
 package com.serverbe.adapter.in.web;
 
 import com.serverbe.application.port.in.notification.SseSubscribeUseCase;
-import com.serverbe.infrastructure.common.response.RestApiResponse;
 import io.swagger.v3.oas.annotations.Parameter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
@@ -20,10 +19,7 @@ public class SseController {
     private final SseSubscribeUseCase sseSubscribeUseCase;
 
     @GetMapping(value = "/{taskId}/subscribe", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public RestApiResponse<SseEmitter> subscribe(@Parameter(hidden = true) @AuthenticationPrincipal Long userId, @PathVariable String taskId) {
-
-        SseEmitter emitter = sseSubscribeUseCase.subscribe(userId, taskId);
-
-        return RestApiResponse.success(emitter);
+    public SseEmitter subscribe(@Parameter(hidden = true) @AuthenticationPrincipal Long userId, @PathVariable String taskId) {
+        return sseSubscribeUseCase.subscribe(userId, taskId);
     }
 }

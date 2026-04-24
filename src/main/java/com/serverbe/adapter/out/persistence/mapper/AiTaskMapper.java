@@ -23,6 +23,8 @@ public class AiTaskMapper {
         return new AiTask(
                 entity.getId(),
                 entity.getUserId(),
+                entity.getShape(),
+                entity.getProficiency(),
                 entity.getStatus(),
                 entity.getInputS3Uri(),
                 entity.getOutputS3Uri(),
@@ -45,6 +47,8 @@ public class AiTaskMapper {
         return AiTaskEntity.builder()
                 .userId(domain.userId())
                 .inputS3Uri(domain.inputS3Uri())
+                .shape(domain.shape())
+                .proficiency(domain.proficiency())
                 .build();
     }
 

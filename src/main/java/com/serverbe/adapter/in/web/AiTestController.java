@@ -68,7 +68,7 @@ public class AiTestController {
 
         // 4. AWS SQS를 거치지 않고, 리스너 메서드를 직접 호출!
         try {
-            sqsListener.receiveAiTaskNotification(dummyMessage); // 형님의 리스너 메서드 이름에 맞게 수정해주세요
+            sqsListener.receiveAiTaskNotification(dummyMessage);
             return RestApiResponse.success("SQS 리스너 로컬 테스트 완료! (상태: " + status + ")\n서버 로그와 클라이언트 SSE 응답을 확인해보세요.");
         } catch (Exception e) {
             log.error("[TEST] SQS 로컬 테스트 중 에러 발생", e);

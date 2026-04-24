@@ -1,11 +1,13 @@
 package com.serverbe.adapter.out.persistence.task;
 
+import com.serverbe.domain.model.art.vo.Proficiency;
 import com.serverbe.domain.model.task.vo.TaskStatus;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.DynamicUpdate;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
@@ -18,6 +20,7 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "ai_generation_tasks")
 @Getter
+@DynamicUpdate
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @EntityListeners(AuditingEntityListener.class)
 public class AiTaskEntity {
@@ -29,6 +32,13 @@ public class AiTaskEntity {
 
     @Column(name = "user_id", nullable = false)
     private Long userId;
+
+    @Column(name = "shape", nullable = false)
+    private String shape;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "proficiency",nullable = false)
+    private Proficiency proficiency;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
@@ -56,10 +66,12 @@ public class AiTaskEntity {
     private Long resultArtId; // AI 생성이 완료되어 저장된 RunningArt의 ID
 
     @Builder
-    public AiTaskEntity(Long userId, String inputS3Uri) {
+    public AiTaskEntity(Long userId, String inputS3Uri, String shape, Proficiency proficiency) {
         this.userId = userId;
         this.status = TaskStatus.PENDING; // 초기 상태는 항상 PENDING
         this.inputS3Uri = inputS3Uri;
+        this.shape = shape;
+        this.proficiency = proficiency;
     }
 
     public void updateStatus(TaskStatus status) {
@@ -81,5 +93,17 @@ public class AiTaskEntity {
         this.status = TaskStatus.PROCESSING;
         this.inputS3Uri = inputS3Uri;
         this.outputS3Uri = outputS3Uri;
+    }
+
+    @PrePersist
+    public void prePersist() {
+        LocalDateTime now = LocalDateTime.now();
+        this.createdAt = now;
+        this.updatedAt = now;
+    }
+
+    @PreUpdate
+    public void preUpdate() {
+        this.updatedAt = LocalDateTime.now();
     }
 }

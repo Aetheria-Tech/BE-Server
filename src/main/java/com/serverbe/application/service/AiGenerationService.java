@@ -12,6 +12,7 @@ import com.serverbe.domain.exception.ai.AiErrorCode;
 import com.serverbe.domain.exception.ai.AiException;
 import com.serverbe.domain.model.art.vo.Proficiency;
 import com.serverbe.domain.model.task.AiTask;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -31,32 +32,24 @@ public class AiGenerationService implements InitiateAiGenerationUseCase, GetTask
 
     @Override
     public String initiateGeneration(Long userId, String startPosition, String shape, Proficiency proficiency) {
-
-        // 1. 순수 도메인 객체 생성 (Entity 의존성 완벽 제거)
-        // UUID 발급 등은 도메인 모델 내부 팩토리 메서드에서 처리한다고 가정합니다.
-        AiTask pendingTask = AiTask.createPending(userId, shape, proficiency);
-
-        // 2. 초기 상태(PENDING) 단기 트랜잭션으로 DB 저장
-        taskUpdatePort.save(pendingTask);
-        String taskId = pendingTask.id();
+        AiTask aiTask = taskUpdatePort.save(AiTask.createPending(userId, shape, proficiency));
 
         try {
             // 3. 외부 API 연동 (트랜잭션 밖이므로 병목 없음)
             String promptJson = buildPromptJson(startPosition, shape, proficiency);
-            String inputS3Uri = s3AiInputPort.uploadInputJson(taskId, promptJson);
+            String inputS3Uri = s3AiInputPort.uploadInputJson(aiTask.id(), promptJson);
             String outputS3Uri = sageMakerAdapter.invokeAsync(inputS3Uri);
 
             // 4. 상태 업데이트 후 저장 (도메인 메서드 사용)
-            AiTask processingTask = pendingTask.markAsProcessing(inputS3Uri, outputS3Uri);
+            AiTask processingTask = aiTask.markAsProcessing(inputS3Uri, outputS3Uri);
             taskUpdatePort.save(processingTask);
 
-            return taskId;
-
+            return aiTask.id();
         } catch (Exception e) {
             log.error("[AI Pipeline Error] 요청 처리 중 오류", e);
 
             // 5. 실패 상태 기록 (트랜잭션이 분리되어 있으므로 예외가 터져도 롤백되지 않고 DB에 정상 반영됨!)
-            AiTask failedTask = pendingTask.markAsFailed(e.getMessage());
+            AiTask failedTask = aiTask.markAsFailed(e.getMessage());
             taskUpdatePort.save(failedTask);
 
             throw new AiException(AiErrorCode.AI_PIPELINE_ERROR);

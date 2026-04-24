@@ -5,6 +5,7 @@ import com.serverbe.application.port.out.task.TaskQueryPort;
 import com.serverbe.application.port.out.task.TaskUpdatePort;
 import com.serverbe.domain.model.task.AiTask;
 import com.serverbe.domain.model.task.vo.TaskStatus;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -45,17 +46,19 @@ public class AiTaskPersistenceAdapter implements TaskQueryPort, TaskUpdatePort {
     }
 
     @Override
-    public void save(AiTask domainTask) {
-        if (domainTask.id() == null) {
+    public AiTask save(AiTask aiTask) {
+        if (aiTask.id() == null) {
             // 신규 생성
-            AiTaskEntity newEntity = aiTaskMapper.toEntity(domainTask);
-            jpaRepository.save(newEntity);
+            AiTaskEntity newEntity = aiTaskMapper.toEntity(aiTask);
+            AiTaskEntity save = jpaRepository.save(newEntity);
+            return aiTaskMapper.toDomain(save);
         } else {
             // 기존 데이터 업데이트 (Dirty Checking 발동)
-            AiTaskEntity existingEntity = jpaRepository.findById(domainTask.id())
-                    .orElseThrow(() -> new IllegalArgumentException("Task를 찾을 수 없습니다."));
+            AiTaskEntity existingEntity = jpaRepository.findById(aiTask.id())
+                    .orElseThrow(() -> new EntityNotFoundException("Task not found with ID: " + aiTask.id()));
 
-            aiTaskMapper.updateEntityFromDomain(domainTask, existingEntity);
+            aiTaskMapper.updateEntityFromDomain(aiTask, existingEntity);
+            return aiTaskMapper.toDomain(jpaRepository.save(existingEntity));
         }
     }
 }

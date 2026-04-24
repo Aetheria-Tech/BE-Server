@@ -12,5 +12,5 @@ public interface TaskUpdatePort {
      * @responsibility 순수 도메인 모델(Record)의 변경된 상태를 저장하거나 갱신합니다.
      * @param aiTask 저장 또는 갱신할 대상 도메인 객체 (불변 객체이므로 변경된 새 인스턴스가 넘어옴)
      */
-    void save(AiTask aiTask);
+    AiTask save(AiTask aiTask);
 }
