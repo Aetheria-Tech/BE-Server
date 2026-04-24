@@ -7,8 +7,6 @@ import com.serverbe.application.port.in.task.GetTaskStatusUseCase;
 import com.serverbe.infrastructure.common.response.RestApiResponse;
 import io.swagger.v3.oas.annotations.Parameter;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -49,6 +47,6 @@ public class AiGenerationController {
         );
 
         // 생성된 taskId 반환 (HTTP 201 CREATED)
-        return RestApiResponse.success(taskId);
+        return RestApiResponse.created(taskId);
     }
 }
