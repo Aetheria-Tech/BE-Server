@@ -1,9 +1,12 @@
 package com.serverbe.adapter.out.notification;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.serverbe.adapter.out.notification.dto.SsePubSubMessage;
 import com.serverbe.application.port.out.notification.TaskNotificationPort;
 import com.serverbe.infrastructure.config.properties.SseProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -13,20 +16,21 @@ import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @Component
-@RequiredArgsConstructor // SseProperties 주입을 위해 추가
+@RequiredArgsConstructor
 public class SseNotificationAdapter implements TaskNotificationPort {
 
     private final Map<String, SseEmitter> emitters = new ConcurrentHashMap<>();
-
-    // 외부 프로퍼티(yml)에서 주입받은 설정
     private final SseProperties sseProperties;
 
-    /**
-     * [구독 - 포트 구현] 클라이언트가 처음 연결을 맺을 때 Emitter를 생성하고 저장합니다.
-     */
+    // 💡 Redis 연동을 위한 의존성 추가
+    private final StringRedisTemplate redisTemplate;
+    private final ObjectMapper objectMapper;
+
+    // Redis Pub/Sub 채널 이름 설정
+    private static final String SSE_CHANNEL = "sse-notifications";
+
     @Override
     public SseEmitter subscribe(String taskId) {
-        // 객체 생성은 매 요청마다 하되, 타임아웃 값은 프로퍼티에서 동적으로 가져옵니다!
         SseEmitter emitter = new SseEmitter(sseProperties.timeout());
         emitters.put(taskId, emitter);
 
@@ -35,48 +39,56 @@ public class SseNotificationAdapter implements TaskNotificationPort {
         emitter.onError((e) -> emitters.remove(taskId));
 
         try {
-            emitter.send(SseEmitter.event()
-                    .name("CONNECT")
-                    .data("Connected successfully. Task ID: " + taskId));
+            emitter.send(SseEmitter.event().name("CONNECT").data("Connected. Task ID: " + taskId));
         } catch (IOException e) {
             emitters.remove(taskId);
-            log.error("[SSE] 초기 연결 이벤트 전송 실패 - Task ID: {}", taskId, e);
         }
-
         return emitter;
     }
 
+    // 직접 보내지 않고 Redis로 Publish(발행) 합니다!
     @Override
     public void notifyTaskCompleted(String taskId, String resultS3Uri) {
-        SseEmitter emitter = emitters.get(taskId);
-        if (emitter != null) {
-            try {
-                emitter.send(SseEmitter.event()
-                        .name("COMPLETED")
-                        .data(resultS3Uri));
-                log.info("[SSE] 작업 완료 알림 Push 성공 - Task ID: {}", taskId);
-                emitter.complete();
-            } catch (IOException e) {
-                emitters.remove(taskId);
-                log.error("[SSE] 완료 알림 Push 실패 - Task ID: {}", taskId, e);
-            }
-        } else {
-            log.warn("[SSE] 알림을 보낼 연결된 클라이언트가 없습니다. - Task ID: {}", taskId);
-        }
+        publishToRedis(taskId, "COMPLETED", resultS3Uri);
     }
 
     @Override
     public void notifyTaskFailed(String taskId, String errorMessage) {
-        SseEmitter emitter = emitters.get(taskId);
+        publishToRedis(taskId, "FAILED", errorMessage);
+    }
+
+    private void publishToRedis(String taskId, String eventName, String data) {
+        try {
+            SsePubSubMessage message = new SsePubSubMessage(taskId, eventName, data);
+            String jsonMessage = objectMapper.writeValueAsString(message);
+
+            // Redis 채널에 JSON 형태로 방송!
+            redisTemplate.convertAndSend(SSE_CHANNEL, jsonMessage);
+            log.info("[Redis Pub] SSE 알림 발행 완료 - Task ID: {}, Event: {}", taskId, eventName);
+        } catch (Exception e) {
+            log.error("[Redis Pub] 알림 발행 실패 - Task ID: {}", taskId, e);
+        }
+    }
+
+    // Redis 채널에서 방송을 들었을 때 (Subscriber) 호출될 실제 발송 로직
+    public void sendToClient(SsePubSubMessage message) {
+        SseEmitter emitter = emitters.get(message.taskId());
+
+        // 내 서버에 Emitter가 있을 때만 쏜다! (다른 서버에 있으면 null이므로 무시됨)
         if (emitter != null) {
             try {
                 emitter.send(SseEmitter.event()
-                        .name("FAILED")
-                        .data(errorMessage));
+                        .name(message.eventName())
+                        .data(message.data()));
+                log.info("[SSE Sub] 클라이언트로 알림 전송 성공! - Task ID: {}", message.taskId());
                 emitter.complete();
             } catch (IOException e) {
-                emitters.remove(taskId);
+                emitters.remove(message.taskId());
+                log.error("[SSE Sub] 알림 전송 실패 - Task ID: {}", message.taskId(), e);
             }
+        } else {
+            // 이 로그는 정상입니다! 유저가 다른 서버에 붙어있다는 뜻입니다.
+            log.debug("[SSE Sub] 이 서버에는 해당 클라이언트 연결이 없습니다. - Task ID: {}", message.taskId());
         }
     }
 }
