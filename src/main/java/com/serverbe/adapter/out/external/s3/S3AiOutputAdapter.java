@@ -16,6 +16,13 @@ import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 
 import java.util.Optional;
 
+/**
+ * AI 생성 결과물(JSON)을 AWS S3에서 다운로드하여 내부 DTO로 변환하는 외부 서비스 어댑터 구현체.
+ * <p>
+ * AI 모델(또는 외부 워커)이 S3에 비동기적으로 결과물을 업로드하면,
+ * 이 클래스가 해당 S3 객체를 조회하여 메모리 효율적인 스트림(Stream) 방식으로 즉시 역직렬화(파싱)합니다.
+ * </p>
+ */
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -25,11 +32,21 @@ public class S3AiOutputAdapter implements S3AiOutputPort {
     private final ObjectMapper objectMapper;
 
     /**
-     * @param s3Uri 조회할 S3 경로
-     * @return 파일이 존재하면 JSON을 파싱한 DTO 반환, 없으면 empty
+     * S3 URI 경로를 기반으로 AI 생성 결과 JSON 파일을 다운로드하여 DTO 객체로 반환합니다.
+     * <p>
+     * <b>주요 처리 로직:</b><br>
+     * 1. <b>URI 파싱:</b> {@code s3://bucket-name/key} 형태의 문자열에서 버킷명과 객체 키(Key)를 추출합니다.<br>
+     * 2. <b>스트림 파싱:</b> S3에서 제공하는 {@link ResponseInputStream}을 {@link ObjectMapper}에 직접 넘겨주어, 대용량 파일이어도 메모리 부담 없이 효율적으로 JSON을 객체화합니다.<br>
+     * 3. <b>비동기 상태 처리:</b> 아직 AI 작업이 완료되지 않아 S3에 파일이 없는 경우({@link NoSuchKeyException}), 에러를 발생시키지 않고 {@link Optional#empty()}를 반환하여 '작업 진행 중' 상태임을 알립니다.
+     * </p>
+     *
+     * @param s3Uri 조회할 S3의 전체 경로 (예: "s3://my-bucket/ai-outputs/result-123.json")
+     * @return S3 객체가 존재하고 파싱에 성공하면 데이터를 담은 {@link Optional}, 객체가 없으면 {@link Optional#empty()}
+     * @throws S3Exception S3 통신 장애 또는 JSON 데이터 구조가 맞지 않아 파싱에 실패할 경우
      */
     @Override
     public Optional<AiGenerationResultDto> downloadOutput(String s3Uri) {
+        // "s3://" 접두사(길이 5) 이후의 첫 번째 '/' 위치를 찾아 버킷명과 키(Key)를 분리합니다.
         int firstSlash = s3Uri.indexOf("/", 5);
         String bucket = s3Uri.substring(5, firstSlash);
         String key = s3Uri.substring(firstSlash + 1);
@@ -40,17 +57,19 @@ public class S3AiOutputAdapter implements S3AiOutputPort {
                     .key(key)
                     .build();
 
-            // S3에서 Stream으로 데이터를 가져옴
+            // S3에서 데이터를 Stream 형태로 가져옵니다.
             ResponseInputStream<GetObjectResponse> s3ObjectStream = s3Client.getObject(request);
 
-            // Stream을 바로 JSON DTO로 변환
+            // Stream을 String 등으로 변환하여 메모리에 올리지 않고, 바로 JSON DTO로 변환하여 성능을 최적화합니다.
             AiGenerationResultDto resultDto = objectMapper.readValue(s3ObjectStream, AiGenerationResultDto.class);
 
             return Optional.of(resultDto);
 
         } catch (NoSuchKeyException e) {
-            return Optional.empty(); // 아직 작업 중임
+            // 해당 키(파일)가 없다는 것은 아직 AI 작업이 끝나지 않았다는 의미이므로, 빈 Optional을 반환합니다.
+            return Optional.empty();
         } catch (Exception e) {
+            // 그 외 통신 에러나 JSON 파싱 에러(MismatchedInputException 등)는 시스템 예외로 처리합니다.
             log.error("[S3 Download Error] 결과 JSON 읽기/파싱 실패: {}", s3Uri, e);
             throw new S3Exception(S3ErrorCode.S3_DOWNLOAD_ERROR, e.getMessage());
         }
