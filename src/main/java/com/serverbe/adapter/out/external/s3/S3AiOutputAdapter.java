@@ -46,10 +46,13 @@ public class S3AiOutputAdapter implements S3AiOutputPort {
      */
     @Override
     public Optional<AiGenerationResultDto> downloadOutput(String s3Uri) {
-        // "s3://" 접두사(길이 5) 이후의 첫 번째 '/' 위치를 찾아 버킷명과 키(Key)를 분리합니다.
-        int firstSlash = s3Uri.indexOf("/", 5);
-        String bucket = s3Uri.substring(5, firstSlash);
-        String key = s3Uri.substring(firstSlash + 1);
+        // java.net.URI를 활용하여 안전하고 직관적인 버킷/키 추출
+        java.net.URI uri = java.net.URI.create(s3Uri);
+        String bucket = uri.getHost();
+        String path = uri.getPath();
+
+        // getPath()는 시작 부분에 '/'를 포함하므로 제거합니다. (경로가 비어있는 엣지 케이스 방어)
+        String key = (path != null && path.length() > 1) ? path.substring(1) : "";
 
         try {
             GetObjectRequest request = GetObjectRequest.builder()

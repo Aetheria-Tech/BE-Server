@@ -5,7 +5,7 @@ import com.serverbe.application.port.out.task.TaskUpdatePort;
 import com.serverbe.application.port.out.task.TaskQueryPort;
 import com.serverbe.domain.model.task.AiTask;
 import com.serverbe.domain.model.task.vo.TaskStatus;
-import lombok.RequiredArgsConstructor;
+import com.serverbe.infrastructure.config.properties.TaskProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,11 +22,11 @@ import java.util.List;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class AiTaskCleanupService implements CleanupZombieTaskUseCase {
 
     private final TaskQueryPort taskQueryPort;
     private final TaskUpdatePort taskUpdatePort;
+    private final int taskTimeoutThreshold;
 
     /**
      * 좀비 작업으로 간주할 대상 상태 목록.
@@ -34,11 +34,17 @@ public class AiTaskCleanupService implements CleanupZombieTaskUseCase {
      */
     private final List<TaskStatus> zombieStatus = List.of(TaskStatus.PENDING, TaskStatus.PROCESSING);
 
+    public AiTaskCleanupService(TaskQueryPort taskQueryPort, TaskUpdatePort taskUpdatePort, TaskProperties taskProperties) {
+        this.taskQueryPort = taskQueryPort;
+        this.taskUpdatePort = taskUpdatePort;
+        this.taskTimeoutThreshold = taskProperties.taskTimeoutThresholdMinutes();
+    }
+
     /**
-     * 임계 시간(Timeout)을 초과하여 방치된 좀비 작업들을 일괄적으로 실패(FAILED) 처리합니다.
+     * 설정된 임계 시간(Timeout)을 초과하여 방치된 좀비 작업들을 일괄적으로 실패(FAILED) 처리합니다.
      * <p>
      * <b>동작 방식:</b><br>
-     * 1. 현재 시간 기준으로 10분 이상 지난 {@code PENDING} 또는 {@code PROCESSING} 상태의 작업을 조회합니다.<br>
+     * 1. 현재 시간 기준으로 설정된 타임아웃 시간(예: 10분) 이상 지난 {@code PENDING} 또는 {@code PROCESSING} 상태의 작업을 조회합니다.<br>
      * 2. 조회된 작업들을 모두 'Timeout' 사유를 포함하여 {@code FAILED} 상태로 변경합니다.<br>
      * 3. 이 과정은 하나의 트랜잭션({@code @Transactional})으로 묶여 부분 업데이트(Partial Update)를 방지합니다.
      * </p>
@@ -46,8 +52,8 @@ public class AiTaskCleanupService implements CleanupZombieTaskUseCase {
     @Override
     @Transactional
     public void cleanUpZombieTasks() {
-        // 기준 시간 설정: 10분이 지나도 완료되지 않은 작업은 비정상(좀비)으로 간주합니다.
-        LocalDateTime timeoutThreshold = LocalDateTime.now().minusMinutes(10);
+        // 기준 시간 설정: 설정된 시간이 지나도 완료되지 않은 작업은 비정상(좀비)으로 간주합니다.
+        LocalDateTime timeoutThreshold = LocalDateTime.now().minusMinutes(taskTimeoutThreshold);
 
         // 포트를 통해 조건에 맞는 도메인 객체(AiTask) 목록을 가져옵니다.
         List<AiTask> zombieTasks = taskQueryPort.findZombieTasks(

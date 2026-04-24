@@ -211,3 +211,6 @@ app:
 notification:
   discord:
     webhook-url: ${DISCORD_WEB_HOOK}
+
+task:
+  task-timeout-threshold-minutes: 10

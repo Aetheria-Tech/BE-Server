@@ -6,6 +6,7 @@ import com.serverbe.application.port.in.art.InitiateAiGenerationUseCase;
 import com.serverbe.application.port.in.task.GetTaskStatusUseCase;
 import com.serverbe.infrastructure.common.response.RestApiResponse;
 import io.swagger.v3.oas.annotations.Parameter;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -42,7 +43,7 @@ public class AiGenerationController {
 
     @PostMapping
     public Mono<ResponseEntity<RestApiResponse<String>>> initiateGeneration(
-            @RequestBody CreateRunningArtRequest request,
+            @Valid @RequestBody CreateRunningArtRequest request,
             @Parameter(hidden = true) @AuthenticationPrincipal Long userId
     ) {
         // 1. 서비스가 Mono<String>을 반환
