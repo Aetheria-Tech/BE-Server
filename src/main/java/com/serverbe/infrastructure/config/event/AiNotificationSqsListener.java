@@ -7,6 +7,8 @@ import com.serverbe.application.port.out.task.TaskQueryPort;
 import com.serverbe.application.port.out.task.TaskUpdatePort;
 import com.serverbe.domain.exception.ai.AiErrorCode;
 import com.serverbe.domain.exception.ai.AiException;
+import com.serverbe.domain.exception.server.DataIntegrityViolationException;
+import com.serverbe.domain.exception.server.ServerErrorCode;
 import com.serverbe.domain.model.task.AiTask;
 import io.awspring.cloud.sqs.annotation.SqsListener;
 import lombok.RequiredArgsConstructor;
@@ -69,7 +71,10 @@ public class AiNotificationSqsListener {
      */
     private AiTask getTaskOrThrow(String taskId) {
         return taskQueryPort.findById(taskId)
-                .orElseThrow(() -> new AiException(AiErrorCode.NOT_FOUND_AITASK, "존재하지 않는 Task입니다. TaskID: " + taskId));
+                .orElseThrow(() -> new DataIntegrityViolationException(ServerErrorCode.RESOURCE_NOT_FOUND,
+                        "SQS 완료/실패 이벤트 수신 중 심각한 오류: DB에 Task(" + taskId + ")가 존재하지 않습니다! " +
+                                "(원인 예상: 동시성 문제, 백그라운드 삭제, 또는 트랜잭션 롤백)"
+                ));
     }
 
     /**

@@ -1,5 +1,8 @@
 package com.serverbe.infrastructure.util;
 
+import com.serverbe.domain.exception.server.ServerErrorCode;
+import com.serverbe.domain.exception.server.ServerException;
+
 public final class PolylineUtils {
 
     private static final double PRECISION = 1e5; // 100,000
@@ -36,25 +39,30 @@ public final class PolylineUtils {
         double totalDistance = 0.0;
 
         while (index[0] < len) {
-            // 폴리라인은 이전 좌표와의 '차이(Delta)'를 저장하므로 계속 누적해야 합니다.
             currentLatE5 += decodeInt(encoded, index);
             currentLngE5 += decodeInt(encoded, index);
 
             double lat = currentLatE5 / PRECISION;
             double lon = currentLngE5 / PRECISION;
 
-            // 첫 번째 좌표 저장
             if (startLat == null) {
                 startLat = lat;
                 startLon = lon;
             } else {
-                // 두 번째 좌표부터는 이전 좌표와의 거리를 계산하여 누적
                 totalDistance += calculateHaversineDistance(prevLat, prevLon, lat, lon);
             }
 
-            // 현재 좌표를 이전 좌표로 갱신
             prevLat = lat;
             prevLon = lon;
+        }
+
+        // 루프를 다 돌았는데도 시작 좌표가 null이라면, 유효한 좌표가 없는 문자열입니다.
+        // 이 처리를 통해 Record의 원시 타입(double)으로 Auto-unboxing 될 때 발생하는 NPE를 방지합니다.
+        if (startLat == null || startLon == null) {
+            throw new ServerException(
+                    ServerErrorCode.INTERNAL_SERVER_ERROR,
+                    "Invalid encoded polyline string: no points found"
+            );
         }
 
         return new PolylineMetadata(startLat, startLon, totalDistance);

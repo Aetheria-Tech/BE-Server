@@ -2,6 +2,7 @@ package com.serverbe.infrastructure.error;
 
 import com.serverbe.domain.exception.BusinessException;
 import com.serverbe.domain.exception.auth.AuthErrorCode;
+import com.serverbe.domain.exception.server.DataIntegrityViolationException;
 import com.serverbe.domain.exception.server.RateLimitExceededException;
 import com.serverbe.domain.exception.server.ServerErrorCode;
 import com.serverbe.infrastructure.common.response.RestApiResponse;
@@ -158,6 +159,16 @@ public class BusinessExceptionHandler {
      */
     @ExceptionHandler(EntityNotFoundException.class)
     public ResponseEntity<RestApiResponse<Void>> handleEntityNotFoundException(EntityNotFoundException e) {
+        // 일반적인 조회 실패는 서버 에러가 아니므로 warn 로그로 남깁니다.
+        log.warn("[CLIENT ERROR] 요청한 리소스를 찾을 수 없습니다 -> {}", e.getMessage());
+
+        // 404 상태 코드와 그에 맞는 에러 코드를 반환하도록 수정
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(RestApiResponse.fail(ServerErrorCode.RESOURCE_NOT_FOUND));
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<RestApiResponse<Void>> handleDataIntegrityViolationException(DataIntegrityViolationException e) {
         log.error("[INFRA EXCEPTION] DB 데이터 정합성 오류 (동시성/삭제 문제 예상) -> {}", e.getMessage());
 
         return ResponseEntity.status(ServerErrorCode.INTERNAL_SERVER_ERROR.getStatus())
