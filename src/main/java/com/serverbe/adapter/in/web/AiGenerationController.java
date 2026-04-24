@@ -7,8 +7,11 @@ import com.serverbe.application.port.in.task.GetTaskStatusUseCase;
 import com.serverbe.infrastructure.common.response.RestApiResponse;
 import io.swagger.v3.oas.annotations.Parameter;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import reactor.core.publisher.Mono;
 
 @RestController
 @RequiredArgsConstructor
@@ -25,28 +28,35 @@ public class AiGenerationController {
      * @responsibility 프론트엔드가 1~3초 주기로 호출하여 AI 비동기 작업의 진행 상황을 폴링(Polling)합니다.
      */
     @GetMapping("/{taskId}")
-    public RestApiResponse<TaskStatusResponse> checkTaskStatus(
+    public ResponseEntity<RestApiResponse<TaskStatusResponse>> checkTaskStatus(
             @PathVariable("taskId") String taskId,
             @Parameter(hidden = true) @AuthenticationPrincipal Long userId
     ) {
-        TaskStatusResponse response = getTaskStatusUseCase.getTaskStatus(taskId, userId);
-        return RestApiResponse.success(response);
+        return ResponseEntity.ok(
+                RestApiResponse.success(
+                        getTaskStatusUseCase.getTaskStatus(taskId, userId)
+                )
+        );
     }
 
+
     @PostMapping
-    public RestApiResponse<String> initiateGeneration(
+    public Mono<ResponseEntity<RestApiResponse<String>>> initiateGeneration(
             @RequestBody CreateRunningArtRequest request,
             @Parameter(hidden = true) @AuthenticationPrincipal Long userId
     ) {
-        // Service의 생성 로직 호출! DB에 PENDING 상태로 저장되고 Task ID가 반환됨
-        String taskId = initiateAiGenerationUseCase.initiateGeneration(
-                userId,
-                request.startPosition(),
-                request.shape(),
-                request.proficiency()
-        );
-
-        // 생성된 taskId 반환 (HTTP 201 CREATED)
-        return RestApiResponse.created(taskId);
+        // 1. 서비스가 Mono<String>을 반환
+        return initiateAiGenerationUseCase.initiateGeneration(
+                        userId,
+                        request.startPosition(),
+                        request.shape(),
+                        request.proficiency()
+                )
+                // 2. 💡 HTTP Header(201 Created)와 Body(RestApiResponse)를 명시적으로 결합!
+                .map(taskId ->
+                        ResponseEntity
+                                .status(HttpStatus.CREATED)
+                                .body(RestApiResponse.created(taskId))
+                );
     }
 }

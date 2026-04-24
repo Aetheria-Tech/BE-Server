@@ -12,6 +12,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -39,8 +40,10 @@ public class UserController {
             }
     )
     @GetMapping("/me")
-    public RestApiResponse<UserProfileResponse> getMyProfile(@Parameter(hidden = true) @AuthenticationPrincipal Long userId) {
-        return RestApiResponse.success(UserProfileResponse.toResponse(getUserUseCase.getMyProfile(userId)));
+    public ResponseEntity<RestApiResponse<UserProfileResponse>> getMyProfile(@Parameter(hidden = true) @AuthenticationPrincipal Long userId) {
+        return ResponseEntity.ok(RestApiResponse.success(
+                UserProfileResponse.toResponse(getUserUseCase.getMyProfile(userId))
+        ));
     }
 
     @Operation(
@@ -59,10 +62,12 @@ public class UserController {
             }
     )
     @PatchMapping("/me")
-    public RestApiResponse<UserProfileResponse> updateMyProfile(
+    public ResponseEntity<RestApiResponse<UserProfileResponse>> updateMyProfile(
             @Parameter(hidden = true) @AuthenticationPrincipal Long userId,
             @RequestBody @Valid UserUpdateRequest request
     ) {
-        return RestApiResponse.success(UserProfileResponse.toResponse(updateUserUseCase.updateMyProfile(userId, request.toCommand())));
+        return ResponseEntity.ok(RestApiResponse.success(
+                UserProfileResponse.toResponse(updateUserUseCase.updateMyProfile(userId, request.toCommand()))
+        ));
     }
 }

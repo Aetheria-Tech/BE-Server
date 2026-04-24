@@ -28,7 +28,9 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.constraints.NotBlank;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
@@ -36,6 +38,7 @@ import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
 import java.io.IOException;
+import java.net.URI;
 
 /**
  * 인증 및 권한 관련 HTTP 요청을 처리하는 웹 어댑터입니다.
@@ -82,22 +85,15 @@ public class AuthController {
             }
     )
     @GetMapping("/login/{provider}")
-    public Mono<Void> redirectToSocial(
+    public Mono<ResponseEntity<Void>> redirectToSocial(
             @Parameter(description = "소셜 로그인 제공자", example = "kakao")
-            @PathVariable(value = "provider") OAuthProvider provider,
-
-            @Parameter(hidden = true) HttpServletResponse response
+            @PathVariable(value = "provider") OAuthProvider provider
     ) {
         return Mono.fromCallable(() -> loginUseCase.getSocialLoginUrl(provider))
                 .subscribeOn(Schedulers.boundedElastic())
-                .flatMap(redirectUrl -> {
-                    try {
-                        response.sendRedirect(redirectUrl);
-                        return Mono.empty();
-                    } catch (IOException e) {
-                        return Mono.error(new ServerException(ServerErrorCode.INTERNAL_SERVER_ERROR));
-                    }
-                });
+                .map(url -> ResponseEntity.status(HttpStatus.FOUND)
+                        .location(URI.create(url))
+                        .build());
     }
 
     @Operation(
@@ -119,7 +115,7 @@ public class AuthController {
             }
     )
     @GetMapping("/callback/{provider}")
-    public Mono<RestApiResponse<AccessTokenResponse>> loginCallback(
+    public Mono<ResponseEntity<RestApiResponse<AccessTokenResponse>>> loginCallback(
             @Parameter(description = "소셜 로그인 제공자", example = "kakao")
             @PathVariable(value = "provider") OAuthProvider provider,
 
@@ -135,7 +131,7 @@ public class AuthController {
         return loginUseCase.login(code, provider, deviceId)
                 .map(tokenResponse -> {
                     addCookieToResponse(response, tokenResponse.refreshTokenResult().opaqueToken(), refreshTokenCookieExpireSeconds);
-                    return RestApiResponse.success(AccessTokenResponse.toResponse(tokenResponse.accessTokenResult()));
+                    return ResponseEntity.ok(RestApiResponse.success(AccessTokenResponse.toResponse(tokenResponse.accessTokenResult())));
                 });
     }
 
@@ -150,11 +146,14 @@ public class AuthController {
             }
     )
     @DeleteMapping("/me")
-    public Mono<RestApiResponse<Void>> withdraw(@Parameter(hidden = true) @AuthenticationPrincipal Long userId) {
+    public Mono<ResponseEntity<RestApiResponse<Void>>> withdraw(@Parameter(hidden = true) @AuthenticationPrincipal Long userId) {
         // DB 삭제 + 소셜 연동 해제(Unlink) + Redis 세션 삭제를 수행
         return withdrawUseCase.withdraw(userId).map(success -> {
-            if (success) return RestApiResponse.noContent();
-            return RestApiResponse.fail(ExternalApiErrorCode.FAILED_SOCIAL_API, "외부 서버의 문제로 연동 해제에 실패했습니다.");
+            if (success) {
+                return ResponseEntity.status(HttpStatus.NO_CONTENT).body(RestApiResponse.noContent());
+            }
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(RestApiResponse.fail(ExternalApiErrorCode.FAILED_SOCIAL_API));
         });
     }
 
@@ -176,18 +175,15 @@ public class AuthController {
             }
     )
     @PostMapping("/logout")
-    public RestApiResponse<Void> logout(
+    public ResponseEntity<RestApiResponse<Void>> logout(
             @Parameter(hidden = true) HttpServletResponse response,
             @ExtractAccessToken String accessToken,
             @ExtractRefreshToken String refreshToken,
             @ExtractDeviceId String deviceId
     ) {
-        // 1. 로그아웃 로직 수행 (Redis에서 리프레시 토큰 삭제 및 엑세스 토큰 블랙리스트 처리 등)
         logoutUseCase.logout(accessToken, refreshToken, deviceId);
-
-        // 2. 클라이언트 쿠키 삭제 (Max-Age를 0으로 설정하여 즉시 만료)
         addCookieToResponse(response, "", 0);
-        return RestApiResponse.noContent();
+        return ResponseEntity.status(HttpStatus.NO_CONTENT).body(RestApiResponse.noContent());
     }
 
     @Operation(
@@ -208,13 +204,13 @@ public class AuthController {
             }
     )
     @PostMapping("/logout/all")
-    public RestApiResponse<Void> globalLogout(
+    public ResponseEntity<RestApiResponse<Void>> globalLogout(
             @ExtractAccessToken String accessToken,
             @Parameter(hidden = true) HttpServletResponse response
     ) {
         logoutUseCase.globalLogout(accessToken);
         addCookieToResponse(response, "", 0);
-        return RestApiResponse.noContent();
+        return ResponseEntity.status(HttpStatus.NO_CONTENT).body(RestApiResponse.noContent());
     }
 
     @Operation(
@@ -250,7 +246,7 @@ public class AuthController {
             }
     )
     @PostMapping("/reissue")
-    public Mono<RestApiResponse<AccessTokenResponse>> reissue(
+    public Mono<ResponseEntity<RestApiResponse<AccessTokenResponse>>> reissue(
             @ExtractDeviceId String deviceId,
             @ExtractAccessToken String accessToken,
             @ExtractRefreshToken String refreshToken,
@@ -264,7 +260,7 @@ public class AuthController {
                 .subscribeOn(Schedulers.boundedElastic())
                 .map(tokenResponse -> {
                     addCookieToResponse(response, tokenResponse.refreshTokenResult().opaqueToken(), refreshTokenCookieExpireSeconds);
-                    return RestApiResponse.success(AccessTokenResponse.toResponse(tokenResponse.accessTokenResult()));
+                    return ResponseEntity.ok(RestApiResponse.success(AccessTokenResponse.toResponse(tokenResponse.accessTokenResult())));
                 });
     }
 

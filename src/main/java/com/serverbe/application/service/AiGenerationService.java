@@ -16,6 +16,8 @@ import com.serverbe.domain.model.task.AiTask;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 import java.util.Map;
 
@@ -31,34 +33,45 @@ public class AiGenerationService implements InitiateAiGenerationUseCase, GetTask
     private final ObjectMapper objectMapper;
 
     @Override
-    public String initiateGeneration(
+    public Mono<String> initiateGeneration(
             Long userId,
             String startPosition,
             String shape,
             Proficiency proficiency
     ) {
-        AiTask aiTask = taskUpdatePort.save(AiTask.createPending(userId, shape, proficiency));
+        // 1. [가이드 30번 준수] JPA DB 저장(Blocking)을 boundedElastic 스레드풀로 격리
+        return Mono.fromCallable(() -> taskUpdatePort.save(AiTask.createPending(userId, shape, proficiency)))
+                .subscribeOn(Schedulers.boundedElastic())
+                .flatMap(aiTask ->
+                        // 2. [가이드 8번 준수] 외부 I/O (S3, SageMaker) 작업 격리
+                        Mono.fromCallable(() -> {
+                                    String promptJson = buildPromptJson(startPosition, shape, proficiency);
+                                    String inputS3Uri = s3AiInputPort.uploadInputJson(aiTask.id(), promptJson);
+                                    String outputS3Uri = sageMakerAdapter.invokeAsync(inputS3Uri);
+                                    return aiTask.markAsProcessing(inputS3Uri, outputS3Uri);
+                                })
+                                .subscribeOn(Schedulers.boundedElastic())
+                                .flatMap(processingTask ->
+                                        // 3. 상태 업데이트를 위한 DB 저장 (다시 격리)
+                                        Mono.fromCallable(() -> {
+                                            taskUpdatePort.save(processingTask);
+                                            return aiTask.id();
+                                        }).subscribeOn(Schedulers.boundedElastic())
+                                )
+                                // 4. 에러 발생 시 실패 상태 저장
+                                .onErrorResume(e -> {
+                                    log.error("[AI Pipeline Error] 요청 처리 중 오류", e);
 
-        try {
-            // 3. 외부 API 연동 (트랜잭션 밖이므로 병목 없음)
-            String promptJson = buildPromptJson(startPosition, shape, proficiency);
-            String inputS3Uri = s3AiInputPort.uploadInputJson(aiTask.id(), promptJson);
-            String outputS3Uri = sageMakerAdapter.invokeAsync(inputS3Uri);
-
-            // 4. 상태 업데이트 후 저장 (도메인 메서드 사용)
-            AiTask processingTask = aiTask.markAsProcessing(inputS3Uri, outputS3Uri);
-            taskUpdatePort.save(processingTask);
-
-            return aiTask.id();
-        } catch (Exception e) {
-            log.error("[AI Pipeline Error] 요청 처리 중 오류", e);
-
-            // 5. 실패 상태 기록 (트랜잭션이 분리되어 있으므로 예외가 터져도 롤백되지 않고 DB에 정상 반영됨!)
-            AiTask failedTask = aiTask.markAsFailed(e.getMessage());
-            taskUpdatePort.save(failedTask);
-
-            throw new AiException(AiErrorCode.AI_PIPELINE_ERROR);
-        }
+                                    return Mono.fromCallable(() -> {
+                                                AiTask failedTask = aiTask.markAsFailed(e.getMessage());
+                                                taskUpdatePort.save(failedTask);
+                                                return failedTask; // 반환값은 무시되지만 Callable 구색 맞추기
+                                            })
+                                            .subscribeOn(Schedulers.boundedElastic())
+                                            // DB 저장 성공 여부와 상관없이 최종적으로 예외 던지기
+                                            .then(Mono.error(new AiException(AiErrorCode.AI_PIPELINE_ERROR)));
+                                })
+                );
     }
 
     @Override

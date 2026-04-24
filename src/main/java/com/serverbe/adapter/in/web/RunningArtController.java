@@ -19,6 +19,8 @@ import lombok.RequiredArgsConstructor;
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
@@ -52,12 +54,14 @@ public class RunningArtController {
             }
     )
     @GetMapping("/me")
-    public RestApiResponse<Page<RunningArtResponse>> getByUserId(
+    public ResponseEntity<RestApiResponse<Page<RunningArtResponse>>> getByUserId(
             @Parameter(hidden = true) @AuthenticationPrincipal Long userId,
             @ParameterObject Pageable pageable
     ) {
-        return RestApiResponse.success(getRunningArtUseCase.getRunningArtsByUserId(userId, pageable)
-                .map(RunningArtResponse::toResponse));
+        return ResponseEntity.ok(RestApiResponse.success(
+                getRunningArtUseCase.getRunningArtsByUserId(userId, pageable)
+                        .map(RunningArtResponse::toResponse)
+        ));
     }
 
     @Operation(
@@ -79,12 +83,14 @@ public class RunningArtController {
             }
     )
     @GetMapping("/{runningArtId}")
-    public RestApiResponse<RunningArtResponse> getById(
+    public ResponseEntity<RestApiResponse<RunningArtResponse>> getById(
             @Parameter(hidden = true) @AuthenticationPrincipal Long userId,
             @Parameter(description = "조회할 런닝 아트 ID", example = "1", required = true)
             @PathVariable(name = "runningArtId") Long runningArtId
     ) {
-        return RestApiResponse.success(RunningArtResponse.toResponse(getRunningArtUseCase.getRunningArtById(userId, runningArtId)));
+        return ResponseEntity.ok(RestApiResponse.success(
+                RunningArtResponse.toResponse(getRunningArtUseCase.getRunningArtById(userId, runningArtId))
+        ));
     }
 
     @Operation(
@@ -104,14 +110,14 @@ public class RunningArtController {
             }
     )
     @PatchMapping("/{runningArtId}")
-    public RestApiResponse<Void> update(
+    public ResponseEntity<RestApiResponse<Void>> update(
             @Parameter(hidden = true) @AuthenticationPrincipal Long userId,
             @Parameter(description = "수정할 런닝 아트 ID", example = "1", required = true)
             @PathVariable(name = "runningArtId") Long runningArtId,
             @RequestBody @Valid UpdateRunningArtRequest request
     ) {
         updateRunningArtUseCase.updateRunningArt(userId, runningArtId, request.toCommand());
-        return RestApiResponse.noContent();
+        return ResponseEntity.status(HttpStatus.NO_CONTENT).body(RestApiResponse.noContent());
     }
 
     @Operation(
@@ -130,13 +136,13 @@ public class RunningArtController {
             }
     )
     @DeleteMapping("/{runningArtId}")
-    public RestApiResponse<Void> delete(
+    public ResponseEntity<RestApiResponse<Void>> delete(
             @Parameter(hidden = true) @AuthenticationPrincipal Long userId,
             @Parameter(description = "삭제할 런닝 아트 ID", example = "1", required = true)
             @PathVariable(name = "runningArtId") Long runningArtId
     ) {
         deleteRunningArtUseCase.deleteRunningArt(userId, runningArtId);
-        return RestApiResponse.noContent();
+        return ResponseEntity.status(HttpStatus.NO_CONTENT).body(RestApiResponse.noContent());
     }
 
     @Operation(
@@ -153,9 +159,9 @@ public class RunningArtController {
             }
     )
     @DeleteMapping("/me")
-    public RestApiResponse<Void> deleteAllByUser(@Parameter(hidden = true) @AuthenticationPrincipal Long userId) {
+    public ResponseEntity<RestApiResponse<Void>> deleteAllByUser(@Parameter(hidden = true) @AuthenticationPrincipal Long userId) {
         deleteRunningArtUseCase.deleteAllRunningArtsByUserId(userId);
-        return RestApiResponse.noContent();
+        return ResponseEntity.status(HttpStatus.NO_CONTENT).body(RestApiResponse.noContent());
     }
 
     @Operation(
@@ -176,7 +182,7 @@ public class RunningArtController {
             }
     )
     @PostMapping
-    public Mono<RestApiResponse<RunningArtResponse>> create(@Parameter(hidden = true) @AuthenticationPrincipal Long userId) {
+    public Mono<ResponseEntity<RestApiResponse<RunningArtResponse>>> create(@Parameter(hidden = true) @AuthenticationPrincipal Long userId) {
         CreateRunningArtRequest request = CreateRunningArtRequest.builder()
                 .startPosition("서울특별시 강남구 테헤란로 427")
                 .proficiency(Proficiency.EXPERT)
@@ -185,7 +191,8 @@ public class RunningArtController {
 
         return createRunningArtUseCase
                 .createRunningArt(userId, request.startPosition(), request.shape(), request.proficiency())
-                .map(result -> RestApiResponse.created(RunningArtResponse.toResponse(result)));
+                .map(result -> ResponseEntity.status(HttpStatus.CREATED)
+                        .body(RestApiResponse.created(RunningArtResponse.toResponse(result))));
     }
 
     @Operation(
@@ -206,7 +213,7 @@ public class RunningArtController {
     @RateLimit(target = RateLimit.TargetType.IP, capacity = 10, refillRate = 5)
     @RateLimit(target = RateLimit.TargetType.USER, capacity = 5, refillRate = 3)
     @GetMapping("/nearby")
-    public Mono<RestApiResponse<List<RunningArtResponse>>> getNearbyArts(
+    public Mono<ResponseEntity<RestApiResponse<List<RunningArtResponse>>>> getNearbyArts(
             @Parameter(hidden = true) @AuthenticationPrincipal Long userId,
 
             @Parameter(description = "중심점 위도 (Latitude)", example = "37.5665", required = true)
@@ -221,7 +228,7 @@ public class RunningArtController {
         return getNearbyRunningArtUseCase.getNearbyArts(lat, lon, radius)
                 .map(RunningArtResponse::toResponse)
                 .collectList()
-                .map(RestApiResponse::success);
+                .map(list -> ResponseEntity.ok(RestApiResponse.success(list)));
     }
 
 
@@ -236,7 +243,7 @@ public class RunningArtController {
             }
     )
     @GetMapping("/sample")
-    public RestApiResponse<RunningArtResponse> polylineGpx() {
+    public ResponseEntity<RestApiResponse<RunningArtResponse>> polylineGpx() {
         RunningArtResponse response = RunningArtResponse.builder()
                 .id(1L)
                 .userId(1L)
@@ -248,6 +255,6 @@ public class RunningArtController {
                 .content("댕댕런 샘플 데이터!")
                 .title("댕댕런")
                 .build();
-        return RestApiResponse.success(response);
+        return ResponseEntity.ok(RestApiResponse.success(response));
     }
 }
