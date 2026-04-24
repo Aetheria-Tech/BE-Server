@@ -9,7 +9,6 @@ import com.serverbe.domain.model.task.AiTask;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
 @Service
@@ -22,15 +21,16 @@ public class AiResultRetrievalService implements RetrieveAiResultUseCase {
     private final RegisterCompletedArtUseCase registerCompletedArtUseCase;
 
     @Override
-    @Transactional
     public void processTaskResult(AiTask aiTask) {
+
+        // 1. DB 커넥션을 물고 있지 않은 상태에서 안전하게 S3 네트워크 통신 수행
         s3AiOutputPort.downloadOutput(aiTask.outputS3Uri()).ifPresent(resultDto -> {
             log.info("[Result Retrieval] 결과물 감지 - TaskID: {}", aiTask.id());
 
             AiTask updatedTask = aiTask;
 
             try {
-                // 1. UseCase를 호출하여 [DB 저장 + Redis GEO 등록]을 한 번에 처리합니다.
+                // 2. 이 UseCase 내부의 @Transactional을 타고 짧고 빠르게 DB+Redis 처리
                 Long savedArtId = registerCompletedArtUseCase.registerFromPolyline(
                         aiTask.userId(),
                         resultDto.gpx(),
@@ -39,10 +39,10 @@ public class AiResultRetrievalService implements RetrieveAiResultUseCase {
                         aiTask.proficiency()
                 );
 
-                // 2. Record 불변성 준수: 완료 상태의 새 도메인 객체 생성
+                // 3. 상태 갱신
                 updatedTask = aiTask.markAsCompleted(savedArtId);
 
-                // 3. 성공 알림 발송 (SSE)
+                // 4. SSE 알림 발송 (이것도 네트워크 I/O이므로 트랜잭션 밖에 있는 것이 훨씬 좋습니다!)
                 taskNotificationPort.notifyTaskCompleted(updatedTask.id(), updatedTask.outputS3Uri());
 
                 log.info("[Result Retrieval] DB & Redis GEO 등록 성공 - TaskID: {}, ArtID: {}", updatedTask.id(), savedArtId);
@@ -50,13 +50,11 @@ public class AiResultRetrievalService implements RetrieveAiResultUseCase {
             } catch (Exception e) {
                 log.error("[Result Retrieval Error] 결과물 등록 중 오류 발생 - TaskID: {}", aiTask.id(), e);
 
-                // 실패 상태로 변경
                 updatedTask = aiTask.markAsFailed("데이터 등록 실패: " + e.getMessage());
-
-                // 실패 알림 발송 (SSE)
                 taskNotificationPort.notifyTaskFailed(updatedTask.id(), "런닝 아트 등록 중 오류가 발생했습니다.");
+
             } finally {
-                // 4. 최종 상태(성공 or 실패)를 Port를 통해 영구 저장
+                // 5. 어댑터 자체 트랜잭션을 타고 안전하게 최종 상태 저장
                 taskUpdatePort.save(updatedTask);
             }
         });
