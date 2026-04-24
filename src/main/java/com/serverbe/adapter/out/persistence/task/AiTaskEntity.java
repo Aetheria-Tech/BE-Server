@@ -88,22 +88,9 @@ public class AiTaskEntity {
         this.errorMessage = errorMessage;
     }
 
-    // AiTaskEntity 내부에 추가
     public void markAsProcessing(String inputS3Uri, String outputS3Uri) {
         this.status = TaskStatus.PROCESSING;
         this.inputS3Uri = inputS3Uri;
         this.outputS3Uri = outputS3Uri;
-    }
-
-    @PrePersist
-    public void prePersist() {
-        LocalDateTime now = LocalDateTime.now();
-        this.createdAt = now;
-        this.updatedAt = now;
-    }
-
-    @PreUpdate
-    public void preUpdate() {
-        this.updatedAt = LocalDateTime.now();
     }
 }

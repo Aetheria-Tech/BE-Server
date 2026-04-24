@@ -45,7 +45,6 @@ public class AiNotificationSqsListener {
 
             } else {
                 // 실패 처리
-                // 실패 처리
                 String failedS3Uri = message.responseParameters().outputLocation();
                 String taskId = extractTaskIdFromUri(failedS3Uri);
                 String reason = message.failureReason();
@@ -54,7 +53,7 @@ public class AiNotificationSqsListener {
                 AiTask failedTask = task.markAsFailed("SageMaker 추론 실패: " + reason);
                 taskUpdatePort.save(failedTask);
 
-                // 💡 SageMaker 실패 시 프론트엔드에 알림 발송!
+                // SageMaker 실패 시 프론트엔드에 알림 발송!
                 taskNotificationPort.notifyTaskFailed(taskId, reason);
 
                 log.error("[SQS Listener] Task 실패 처리 완료 - TaskID: {}, 사유: {}", taskId, reason);

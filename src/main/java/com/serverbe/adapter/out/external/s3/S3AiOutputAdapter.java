@@ -30,8 +30,9 @@ public class S3AiOutputAdapter implements S3AiOutputPort {
      */
     @Override
     public Optional<AiGenerationResultDto> downloadOutput(String s3Uri) {
-        String bucket = s3Uri.replace("s3://", "").split("/")[0];
-        String key = s3Uri.substring(s3Uri.indexOf(bucket) + bucket.length() + 1);
+        int firstSlash = s3Uri.indexOf("/", 5);
+        String bucket = s3Uri.substring(5, firstSlash);
+        String key = s3Uri.substring(firstSlash + 1);
 
         try {
             GetObjectRequest request = GetObjectRequest.builder()
@@ -42,7 +43,7 @@ public class S3AiOutputAdapter implements S3AiOutputPort {
             // S3에서 Stream으로 데이터를 가져옴
             ResponseInputStream<GetObjectResponse> s3ObjectStream = s3Client.getObject(request);
 
-            // ✨ Stream을 바로 JSON DTO로 변환 (메모리 효율적)
+            // Stream을 바로 JSON DTO로 변환
             AiGenerationResultDto resultDto = objectMapper.readValue(s3ObjectStream, AiGenerationResultDto.class);
 
             return Optional.of(resultDto);
