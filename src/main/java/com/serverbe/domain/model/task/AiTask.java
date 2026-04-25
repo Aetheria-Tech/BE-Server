@@ -92,6 +92,10 @@ public record AiTask(
     }
 
     public AiTask markAsFailed(String errorMessage) {
+        String truncatedMessage = (errorMessage != null && errorMessage.length() > 1000)
+                ? errorMessage.substring(0, 997) + "..."
+                : errorMessage;
+
         return new AiTask(
                 this.id,
                 this.userId,
@@ -100,7 +104,7 @@ public record AiTask(
                 TaskStatus.FAILED,
                 this.inputS3Uri,
                 this.outputS3Uri,
-                errorMessage,
+                truncatedMessage,
                 this.createdAt,
                 LocalDateTime.now(),
                 this.resultArtId
