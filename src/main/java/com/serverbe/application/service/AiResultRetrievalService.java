@@ -57,7 +57,7 @@ public class AiResultRetrievalService implements RetrieveAiResultUseCase {
                 Long savedArtId = registerCompletedArtUseCase.registerFromPolyline(
                         aiTask.userId(),
                         resultDto.gpx(),
-                        aiTask.shape() + " 코스 (" + aiTask.proficiency() + ")",
+                        aiTask.shape() + " 코스 (" + aiTask.proficiency().getProficiency() + ")",
                         aiTask.shape(),
                         aiTask.proficiency()
                 );

@@ -10,10 +10,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 @Component
 @RequiredArgsConstructor
@@ -33,7 +31,7 @@ public class AiTaskPersistenceAdapter implements TaskQueryPort, TaskUpdatePort {
 
         return entities.stream()
                 .map(aiTaskMapper::toDomain)
-                .collect(Collectors.toList());
+                .toList();
     }
 
     @Override
@@ -43,7 +41,7 @@ public class AiTaskPersistenceAdapter implements TaskQueryPort, TaskUpdatePort {
 
         return entities.stream()
                 .map(aiTaskMapper::toDomain)
-                .collect(Collectors.toList());
+                .toList();
     }
 
     @Override
