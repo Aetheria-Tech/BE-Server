@@ -51,6 +51,7 @@ public class RunningArtMapper {
                 .gpx(domain.gpx())
                 .startLat(domain.startLat())
                 .startLon(domain.startLon())
+                .distance(domain.distance())
                 .user(user)
                 .build();
     }

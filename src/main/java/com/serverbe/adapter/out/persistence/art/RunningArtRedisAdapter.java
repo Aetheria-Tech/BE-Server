@@ -1,6 +1,6 @@
 package com.serverbe.adapter.out.persistence.art;
 
-import com.serverbe.application.port.out.ai.RunningArtRedisPort;
+import com.serverbe.application.port.out.art.RunningArtRedisPort;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.geo.Circle;

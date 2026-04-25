@@ -109,6 +109,15 @@ dependencies {
     testImplementation 'org.springframework.security:spring-security-test'
     // JUnit Platform Launcher: 테스트 실행을 위한 JUnit 플랫폼 엔진
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+    /**
+     * AWS 인프라 연동
+     */
+    // AWS SDK BOM: AWS SDK 모듈 간의 버전 충돌을 방지하고 버전을 중앙 관리합니다.
+    implementation platform('software.amazon.awssdk:bom:2.24.0')
+    implementation 'software.amazon.awssdk:s3'
+    implementation 'software.amazon.awssdk:sagemakerruntime'
+    implementation 'io.awspring.cloud:spring-cloud-aws-starter-sqs:3.1.1'
 }
 
 tasks.named('test') {

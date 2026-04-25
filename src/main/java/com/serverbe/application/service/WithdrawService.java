@@ -12,6 +12,7 @@ import com.serverbe.domain.model.user.vo.OAuthProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
@@ -41,6 +42,7 @@ public class WithdrawService implements WithdrawUseCase {
      * 3. <b>트랜잭션 보장</b>: 자기 호출 문제를 방지하기 위해 {@link UserDataCleanupManager}를 통해 외부 호출 방식으로 데이터 파기를 수행합니다.
      */
     @Override
+    @Transactional
     public Mono<Boolean> withdraw(Long userId) {
         return Mono.fromCallable(() -> userRepositoryPort.findById(userId)
                         .orElseThrow(() -> new UserException(UserErrorCode.NOT_FOUND_USER)))

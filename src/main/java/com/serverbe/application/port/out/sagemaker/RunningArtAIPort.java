@@ -1,4 +1,4 @@
-package com.serverbe.application.port.out.ai;
+package com.serverbe.application.port.out.sagemaker;
 
 import com.serverbe.application.port.out.dto.ai.RunningArtAiResponse;
 import com.serverbe.domain.model.art.vo.Proficiency;

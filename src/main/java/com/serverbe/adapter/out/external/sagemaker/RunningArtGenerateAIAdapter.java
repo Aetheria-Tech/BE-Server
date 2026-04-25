@@ -1,6 +1,6 @@
-package com.serverbe.adapter.out.external.ai;
+package com.serverbe.adapter.out.external.sagemaker;
 
-import com.serverbe.application.port.out.ai.RunningArtAIPort;
+import com.serverbe.application.port.out.sagemaker.RunningArtAIPort;
 import com.serverbe.application.port.out.dto.ai.RunningArtAiResponse;
 import com.serverbe.domain.model.art.vo.Proficiency;
 import org.springframework.stereotype.Component;

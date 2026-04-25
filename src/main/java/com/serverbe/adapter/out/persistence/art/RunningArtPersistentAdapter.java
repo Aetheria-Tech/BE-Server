@@ -8,10 +8,8 @@ import com.serverbe.application.port.in.dto.art.QRunningArtLocationDto;
 import com.serverbe.application.port.in.dto.art.RunningArtLocationDto;
 import com.serverbe.application.port.in.dto.art.RunningArtUpdateCommand;
 import com.serverbe.application.port.out.jpa.RunningArtRepositoryPort;
-import com.serverbe.domain.exception.art.ArtErrorCode;
-import com.serverbe.domain.exception.art.ArtException;
 import com.serverbe.domain.model.art.RunningArt;
-import com.serverbe.domain.exception.BusinessException;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -87,12 +85,14 @@ public class RunningArtPersistentAdapter implements RunningArtRepositoryPort {
      * @param dto          수정할 정보를 담은 {@link RunningArtUpdateCommand} DTO
      * @responsibility 런닝아트의 메타데이터(제목, 내용)를 수정합니다.
      * @implSpec 영속성 컨텍스트 내의 엔티티를 조회한 후 엔티티 내부의 수정 메서드를 호출하여 Dirty Checking에 의해 업데이트가 수행되도록 합니다.
-     * @implNote 해당 ID의 데이터가 없을 경우 {@link BusinessException}을 발생시킵니다.
+     * @implNote 해당 ID의 데이터가 없을 경우 {@link EntityNotFoundException}을 발생시킵니다.
      */
     @Override
     public void updateMetadata(Long runningArtId, RunningArtUpdateCommand dto) {
         RunningArtEntity entity = jpaRepository.findById(runningArtId)
-                .orElseThrow(() -> new ArtException(ArtErrorCode.NOT_FOUND_RUNNING_ART, "런닝아트를 조회할 수 없습니다"));
+                .orElseThrow(() -> new EntityNotFoundException(
+                        "업데이트 실패: 해당 런닝아트를 DB에서 찾을 수 없습니다. (ID: " + runningArtId + ")"
+                ));
 
         entity.updateMetadata(dto.title(), dto.content());
     }

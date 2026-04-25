@@ -3,8 +3,8 @@ package com.serverbe.application.service;
 import com.serverbe.application.port.in.art.*;
 import com.serverbe.application.port.in.dto.art.RunningArtResult;
 import com.serverbe.application.port.in.dto.art.RunningArtUpdateCommand;
-import com.serverbe.application.port.out.ai.RunningArtAIPort;
-import com.serverbe.application.port.out.ai.RunningArtRedisPort;
+import com.serverbe.application.port.out.sagemaker.RunningArtAIPort;
+import com.serverbe.application.port.out.art.RunningArtRedisPort;
 import com.serverbe.application.port.out.geocode.GeocodePort;
 import com.serverbe.application.port.out.jpa.RunningArtRepositoryPort;
 import com.serverbe.domain.exception.art.ArtErrorCode;
@@ -38,7 +38,13 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class RunningArtService implements
-        GetRunningArtUseCase, DeleteRunningArtUseCase, UpdateRunningArtUseCase, CreateRunningArtUseCase, GetNearbyRunningArtUseCase {
+        GetRunningArtUseCase,
+        DeleteRunningArtUseCase,
+        UpdateRunningArtUseCase,
+        CreateRunningArtUseCase,
+        GetNearbyRunningArtUseCase,
+        RegisterCompletedArtUseCase
+{
 
     private final RunningArtRepositoryPort repositoryPort;
     private final RunningArtAIPort runningArtAIPort;
@@ -175,7 +181,7 @@ public class RunningArtService implements
      * @responsibility 사용자가 입력한 시작 위치와 모양을 바탕으로 AI를 통해 런닝 코스를 생성하고, 결과를 DB와 공간 인덱스(Redis)에 동기화하여 저장합니다.
      * @implSpec 1. {@link GeocodePort}를 통해 입력된 텍스트 주소를 위경도 좌표로 변환합니다.<br>
      * 2. {@link RunningArtAIPort}를 호출하여 AI가 생성한 경로(GPX/Polyline) 데이터를 획득합니다.<br>
-     * 3. {@link PolylineUtils#decodeFirstLocation(String)} 알고리즘을 사용해 인코딩된 경로에서 시작점 좌표를 고속으로 추출합니다.<br>
+     * 3. {@link PolylineUtils#extractMetadata(String gpx 문자열)} (double, double, double, double)} (String)} 알고리즘을 사용해 인코딩된 경로에서 시작점 좌표를 고속으로 추출합니다.<br>
      * 4. 영속성 계층(DB) 저장을 위해 {@link Schedulers#boundedElastic()} 스레드 풀로 전환하여 Event Loop의 블로킹 오버헤드를 방지합니다.<br>
      * 5. DB 저장이 성공하면 {@link RunningArtRedisPort}를 호출하여 Redis GEO에 비동기(Non-blocking) 방식으로 위치 데이터를 등록합니다.
      * @implNote 외부 API 통신, 블로킹 DB I/O, 논블로킹 Redis I/O가 혼합된 복합 스트림입니다. 스레드 스위칭(`publishOn`)의 위치가 파이프라인의 성능을 결정하는 중요한 요소입니다.
@@ -190,9 +196,7 @@ public class RunningArtService implements
                         proficiency))
                 .publishOn(Schedulers.boundedElastic())
                 .map(runningArtAiResponse -> {
-                    double[] startLocation = PolylineUtils.decodeFirstLocation(runningArtAiResponse.gpx());
-                    double startLat = startLocation[0];
-                    double startLon = startLocation[1];
+                    PolylineUtils.PolylineMetadata polylineMetadata = PolylineUtils.extractMetadata(runningArtAiResponse.gpx());
 
                     RunningArt runningArt = RunningArt.builder()
                             .userId(userId)
@@ -201,8 +205,9 @@ public class RunningArtService implements
                             .content("None")
                             .shape(shape)
                             .proficiency(proficiency)
-                            .startLat(startLat)
-                            .startLon(startLon)
+                            .distance(polylineMetadata.totalDistanceMeters())
+                            .startLat(polylineMetadata.startLat())
+                            .startLon(polylineMetadata.startLon())
                             .build();
 
                     // 1. DB에 저장 (Blocking)
@@ -259,5 +264,46 @@ public class RunningArtService implements
                                 // 5. 완성된 List를 바로 Flux로 평탄화하여 방출
                                 .flatMapIterable(Function.identity())
                 );
+    }
+
+    /**
+     * @responsibility 비동기 AI 작업이 완료된 후, 전달받은 GPX 데이터를 바탕으로 런닝아트를 생성하고 DB/Redis에 등록합니다.
+     */
+    @Override
+    @Transactional
+    public Long registerFromPolyline(Long userId, String polyline, String title, String shape, Proficiency proficiency) {
+
+        // 1. Polyline에서 메타데이터(시작 좌표, 거리 등) 추출
+        PolylineUtils.PolylineMetadata metadata = PolylineUtils.extractMetadata(polyline);
+
+        // 2. 도메인 엔티티 조립
+        RunningArt runningArt = RunningArt.builder()
+                .userId(userId)
+                .title(title)
+                .gpx(polyline) // 변수명은 gpx지만 실제론 polyline 데이터가 들어갑니다.
+                .content("AI 생성 런닝 아트")
+                .shape(shape)
+                .proficiency(proficiency)
+                .distance(metadata.totalDistanceMeters())
+                .startLat(metadata.startLat())
+                .startLon(metadata.startLon())
+                .build();
+
+        // 3. DB 저장 (JPA Blocking 방식)
+        RunningArt savedArt = repositoryPort.save(runningArt);
+        log.info("DB 런닝아트 저장 완료 (ArtId: {})", savedArt.id());
+
+        // 4. Redis 동기화 (기존 비동기 코드를 여기서만 살짝 block 해줍니다)
+        try {
+            runningArtRedisPort.saveLocation(savedArt.id(), savedArt.startLat(), savedArt.startLon())
+                    .block(); // ✨ SQS 리스너 워커 스레드이므로 block() 해도 전혀 문제없습니다!
+            log.info("Redis 동기화 완료 (ArtId: {})", savedArt.id());
+        } catch (Exception e) {
+            // Redis 저장이 실패해도 DB 저장을 롤백시키지 않으려면 try-catch로 감싸줍니다.
+            log.error("Redis GEO 동기화 실패 (ArtId={}): 나중에 배치로 복구해야 합니다.", savedArt.id(), e);
+        }
+
+        // 5. 최종 ID 반환!
+        return savedArt.id();
     }
 }

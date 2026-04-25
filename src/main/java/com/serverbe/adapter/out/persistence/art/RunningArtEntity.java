@@ -7,11 +7,17 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.LastModifiedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
+
+import java.time.LocalDateTime;
 
 @Entity
 @Getter
 @Table(name = "running_arts")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
+@EntityListeners(AuditingEntityListener.class)
 public class RunningArtEntity {
 
     @Id
@@ -42,6 +48,16 @@ public class RunningArtEntity {
     @Column(name = "start_lon", nullable = false)
     private Double startLon;
 
+    @Column(name = "distance", nullable = false)
+    private Double distance;
+
+    @CreatedDate
+    @Column(updatable = false)
+    private LocalDateTime createdAt;
+
+    @LastModifiedDate
+    private LocalDateTime updatedAt;
+
     // 연관관계 설정 (주인)
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id")
@@ -54,6 +70,7 @@ public class RunningArtEntity {
             String shape,
             Proficiency proficiency,
             String gpx,
+            Double distance,
             UserEntity user,
             Double startLat,
             Double startLon
@@ -64,6 +81,7 @@ public class RunningArtEntity {
         this.proficiency = proficiency;
         this.gpx = gpx;
         this.user = user;
+        this.distance = distance;
         this.startLat = startLat;
         this.startLon = startLon;
     }

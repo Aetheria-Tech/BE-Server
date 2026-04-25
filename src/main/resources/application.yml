@@ -1,4 +1,13 @@
 spring:
+  profiles:
+    active: local
+
+  cloud:
+    aws:
+      region:
+        static: ap-northeast-2 # 서울 리전
+      credentials:
+
 
   data:
     redis:
@@ -185,7 +194,23 @@ rate-limit:
     user: "rate:user:"
     ip: "rate:ip:"
 
+aws:
+  s3:
+    ai-input-bucket: "my-project-ai-inference-input-bucket" # 실제 생성된 버킷명
+  sagemaker:
+    endpoint-name: "my-project-async-inference-endpoint"    # 실제 생성된 엔드포인트명
+  sqs:
+    ai-notification-queue-name: "ai-generation-notification-queue" # 나중에 CDK로 만들 큐 이름
+
+
+app:
+  sse:
+    timeout: 600000 # 10분 (10 * 60 * 1000 ms)
+
 # 알림 설정
 notification:
   discord:
     webhook-url: ${DISCORD_WEB_HOOK}
+
+task:
+  task-timeout-threshold-minutes: 10

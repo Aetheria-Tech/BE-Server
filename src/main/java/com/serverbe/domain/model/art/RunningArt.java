@@ -9,6 +9,7 @@ import lombok.Builder;
  * @param title 아트의 제목
  * @param content 아트에 대한 상세 설명
  * @param shape 아트의 외형 정보를 나타내는 데이터
+ * @param distance 런닝 아트의 거리
  * @param proficiency 아트를 완성하기 위한 권장 숙련도 {@link Proficiency}
  * @param gpx GPS 경로 데이터 (GPX 포맷)
  * @param userId 아트를 소유한 유저의 고유 식별자
@@ -19,6 +20,7 @@ public record RunningArt(
         String title,
         String content,
         String shape,
+        Double distance,
         Proficiency proficiency,
         String gpx,
         Long userId,
@@ -37,6 +39,7 @@ public record RunningArt(
                 title,
                 content,
                 this.shape,
+                this.distance,
                 this.proficiency,
                 this.gpx,
                 this.userId,
