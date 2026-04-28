@@ -32,12 +32,15 @@ public class MockS3AiOutputAdapter implements S3AiOutputPort {
     }
 
     @Override
-    public void deleteOutput(String s3Uri) throws InterruptedException {
-        // 실제 AWS API를 찌르지 않고 삭제되었다고 로그만 남깁니다.
+    public void deleteOutput(String s3Uri) {
         log.info("[MOCK S3] 🗑️ S3 데이터 삭제 요청 수신! (실제로는 삭제되지 않습니다) 삭제 대상 URI: {}", s3Uri);
 
-        // 여기에 Thread.sleep(100); 등을 넣어서 약간의 딜레이를 주면
-        // 네트워크 I/O를 더욱 현실감 있게 시뮬레이션할 수도 있습니다.
-        Thread.sleep(100);
+        try {
+            Thread.sleep(100);
+        } catch (InterruptedException e) {
+            // 스레드 인터럽트 상태를 다시 설정해 주는 것이 자바 멀티스레딩의 정석입니다.
+            Thread.currentThread().interrupt();
+            log.warn("[MOCK S3] Sleep interrupted", e);
+        }
     }
 }

@@ -11,5 +11,5 @@ public interface S3AiOutputPort {
      * S3 비용 최적화를 위해 사용 완료된 객체를 삭제합니다.
      * * @param s3Uri 삭제할 S3 객체의 전체 URI (또는 Object Key)
      */
-    void deleteOutput(String s3Uri) throws InterruptedException;
+    void deleteOutput(String s3Uri);
 }
