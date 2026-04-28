@@ -10,13 +10,14 @@ import com.serverbe.domain.model.task.AiTask;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * AI 작업(Task)의 결과물을 조회하고 후속 처리를 담당하는 비즈니스 서비스 구현체.
  * <p>
  * 외부 네트워크 I/O(S3 연동, SSE 알림) 작업 시 DB 커넥션 풀 고갈을 방지하기 위해
- * 의도적으로 클래스 레벨의 @Transactional을 배제하고,
- * 내부 UseCase 및 Port 호출 시에만 짧은 트랜잭션이 유지되도록 설계되었습니다.
+ * 의도적으로 선언적 트랜잭션(@Transactional)을 배제하고,
+ * TransactionTemplate을 사용하여 DB 등록 과정만 프로그래밍 방식으로 원자성을 보장합니다.
  * </p>
  */
 @Slf4j
@@ -28,6 +29,7 @@ public class AiResultRetrievalService implements RetrieveAiResultUseCase {
     private final S3AiOutputPort s3AiOutputPort;
     private final TaskNotificationPort taskNotificationPort;
     private final RegisterCompletedArtUseCase registerCompletedArtUseCase;
+    private final TransactionTemplate transactionTemplate;
 
     @Override
     public void processTaskResult(AiTask aiTask) {
@@ -43,22 +45,31 @@ public class AiResultRetrievalService implements RetrieveAiResultUseCase {
     }
 
     /**
-     * 성공 파이프라인: 데이터 등록 -> 상태 갱신 -> 임시 파일 삭제 -> 클라이언트 알림
+     * 트랜잭션 내에서 처리할 반환값을 묶기 위한 레코드
      */
-    private void handleSuccess(AiTask aiTask, AiGenerationResultDto resultDto) {
-        // 1. 핵심 비즈니스 로직 (실패 시 Exception을 던져 handleFailure로 롤백)
-        Long savedArtId = saveArt(aiTask, resultDto);
-        AiTask updatedTask = updateTask(aiTask, savedArtId);
-        log.info("[Result Retrieval] Task 최종 상태 DB 저장 완료 - TaskID: {}", updatedTask.id());
-
-        // 2. 부가 로직 (실패하더라도 메인 비즈니스에 영향을 주지 않도록 내부 격리됨)
-        deleteDataFromS3(aiTask);
-        sendCompletionNotification(updatedTask, savedArtId);
+    private record ProcessResult(Long savedArtId, AiTask updatedTask) {
     }
 
     /**
-     * 실패 파이프라인: Task 상태 복구(FAILED) 및 클라이언트 에러 알림 발송
+     * 성공 파이프라인: 데이터 등록 -> 상태 갱신 -> 임시 파일 삭제 -> 클라이언트 알림
      */
+    private void handleSuccess(AiTask aiTask, AiGenerationResultDto resultDto) {
+
+        // 1. 핵심 비즈니스 로직 (TransactionTemplate으로 원자성 보장)
+        // 여기서 에러가 나면 saveArt와 updateTask가 함께 롤백되고 Exception이 던져집니다.
+        ProcessResult processResult = transactionTemplate.execute(status -> {
+            Long artId = saveArt(aiTask, resultDto);
+            AiTask task = updateTask(aiTask, artId);
+            return new ProcessResult(artId, task);
+        });
+
+        log.info("[Result Retrieval] Task 최종 상태 DB 저장 완료 - TaskID: {}", processResult.updatedTask().id());
+
+        // 2. 부가 로직 (외부 I/O이므로 트랜잭션 블록 밖에서 안전하게 실행)
+        deleteDataFromS3(aiTask);
+        sendCompletionNotification(processResult.updatedTask(), processResult.savedArtId());
+    }
+
     private void handleFailure(AiTask aiTask, Exception e) {
         log.error("[Result Retrieval Error] 결과물 등록 중 오류 발생 - TaskID: {}", aiTask.id(), e);
 
@@ -85,11 +96,7 @@ public class AiResultRetrievalService implements RetrieveAiResultUseCase {
     }
 
     private void deleteDataFromS3(AiTask aiTask) {
-        try {
-            s3AiOutputPort.deleteOutput(aiTask.outputS3Uri());
-        } catch (Exception e) {
-            log.warn("[Result Retrieval Warning] S3 임시 파일 삭제 실패 (1일 후 자동 삭제됨) - TaskID: {}", aiTask.id(), e);
-        }
+        s3AiOutputPort.deleteOutput(aiTask.outputS3Uri());
     }
 
     private void sendCompletionNotification(AiTask updatedTask, Long savedArtId) {

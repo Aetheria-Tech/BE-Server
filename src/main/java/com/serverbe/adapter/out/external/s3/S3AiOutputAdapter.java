@@ -8,6 +8,8 @@ import com.serverbe.domain.exception.s3.S3Exception;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import org.springframework.util.Assert;
+import org.springframework.util.StringUtils;
 import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
@@ -48,7 +50,7 @@ public class S3AiOutputAdapter implements S3AiOutputPort {
      */
     @Override
     public Optional<AiGenerationResultDto> downloadOutput(String s3Uri) {
-        BucketAndKey bucketAndKey = getBucketAndKey(s3Uri);
+        BucketAndKey bucketAndKey = BucketAndKey.fromUri(s3Uri);
 
         try {
             GetObjectRequest request = GetObjectRequest.builder()
@@ -87,7 +89,7 @@ public class S3AiOutputAdapter implements S3AiOutputPort {
      */
     @Override
     public void deleteOutput(String s3Uri) {
-        BucketAndKey bucketAndKey = getBucketAndKey(s3Uri);
+        BucketAndKey bucketAndKey = BucketAndKey.fromUri(s3Uri);
 
         try {
             DeleteObjectRequest deleteRequest = DeleteObjectRequest.builder()
@@ -107,20 +109,23 @@ public class S3AiOutputAdapter implements S3AiOutputPort {
     /**
     * @responsibility 버킷과 키를 담기 위한 DTO
     * */
-    record BucketAndKey(
+    private record BucketAndKey(
             String bucket,
             String key
-    ){}
+    ){
+        public static BucketAndKey fromUri(String s3Uri) {
+            // 1. 방어적 프로그래밍 (파라미터 검증)
+            Assert.isTrue(StringUtils.hasText(s3Uri), "s3Uri는 null이거나 비어있을 수 없습니다.");
+            Assert.isTrue(s3Uri.startsWith("s3://"), () -> "유효하지 않은 S3 URI 형식입니다. (s3:// 로 시작해야 함): " + s3Uri);
 
-    /**
-     * @responsibility {@link S3AiOutputAdapter#downloadOutput(String)}와 {@link S3AiOutputAdapter#deleteOutput(String)}의 코드 중복을 줄이기 위한 메서드
-     * @return 버킷과 키가 담긴 DTO
-     * */
-    private BucketAndKey getBucketAndKey(String s3Uri) {
-        URI uri = URI.create(s3Uri);
-        String bucket = uri.getHost();
-        String path = uri.getPath();
-        String key = (path != null && path.length() > 1) ? path.substring(1) : "";
-        return new BucketAndKey(bucket, key);
+            // 2. 파싱 로직 (검증이 끝났으므로 URI.create는 안전하게 동작함)
+            URI uri = URI.create(s3Uri);
+            String bucket = uri.getHost();
+            String path = uri.getPath();
+
+            // 3. Key 추출 및 객체 생성
+            String key = (path != null && path.length() > 1) ? path.substring(1) : "";
+            return new BucketAndKey(bucket, key);
+        }
     }
 }
