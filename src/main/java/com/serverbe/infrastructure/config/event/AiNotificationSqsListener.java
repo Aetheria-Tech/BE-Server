@@ -56,7 +56,7 @@ public class AiNotificationSqsListener {
                 // 1. DB에서 순수 Task 도메인 모델 조회
                 AiTask task = getTaskOrThrow(taskId);
 
-                // 2. 형님이 작성하신 '견고한 로직' 실행 (S3 다운로드 -> RunningArt 엔티티 저장 -> 완료 상태 업데이트)
+                // 2. AI 결과 처리 실행 (S3 다운로드 -> RunningArt 엔티티 저장 -> 완료 상태 업데이트)
                 retrieveAiResultUseCase.processTaskResult(task);
 
             } else {

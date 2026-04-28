@@ -121,6 +121,7 @@ public class S3AiOutputAdapter implements S3AiOutputPort {
             // 2. 파싱 로직 (검증이 끝났으므로 URI.create는 안전하게 동작함)
             URI uri = URI.create(s3Uri);
             String bucket = uri.getHost();
+            Assert.hasText(bucket, () -> "S3 URI에서 버킷명을 추출할 수 없습니다: " + s3Uri);
             String path = uri.getPath();
 
             // 3. Key 추출 및 객체 생성
