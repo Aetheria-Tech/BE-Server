@@ -17,10 +17,9 @@ public class MockS3AiOutputAdapter implements S3AiOutputPort {
 
     @Override
     public Optional<AiGenerationResultDto> downloadOutput(String s3Uri) {
-        log.info("[MOCK S3] 진짜 S3 대신 가짜 데이터를 반환합니다! 요청 URI: {}", s3Uri);
+        log.info("[MOCK S3] 진짜 S3 대신 가짜 데이터를 반환합니다! 다운로드 요청 URI: {}", s3Uri);
 
         // 실제 S3에 접속하지 않고, DB와 Redis GEO에 들어갈 완벽한 가짜(Mock) 데이터를 조립합니다.
-        // (형님의 AiGenerationResultDto 생성자 스펙에 맞춰서 살짝 수정해주세요!)
         AiGenerationResultDto mockResult = new AiGenerationResultDto(
                 37.5665, // startLat (예: 서울)
                 126.9780, // startLon
@@ -30,5 +29,15 @@ public class MockS3AiOutputAdapter implements S3AiOutputPort {
 
         // 마치 S3에서 다운로드에 성공한 것처럼 Optional로 감싸서 반환
         return Optional.of(mockResult);
+    }
+
+    @Override
+    public void deleteOutput(String s3Uri) throws InterruptedException {
+        // 실제 AWS API를 찌르지 않고 삭제되었다고 로그만 남깁니다.
+        log.info("[MOCK S3] 🗑️ S3 데이터 삭제 요청 수신! (실제로는 삭제되지 않습니다) 삭제 대상 URI: {}", s3Uri);
+
+        // 여기에 Thread.sleep(100); 등을 넣어서 약간의 딜레이를 주면
+        // 네트워크 I/O를 더욱 현실감 있게 시뮬레이션할 수도 있습니다.
+        Thread.sleep(100);
     }
 }

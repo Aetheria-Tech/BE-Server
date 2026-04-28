@@ -10,10 +10,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 
+import java.net.URI;
 import java.util.Optional;
 
 /**
@@ -46,18 +48,12 @@ public class S3AiOutputAdapter implements S3AiOutputPort {
      */
     @Override
     public Optional<AiGenerationResultDto> downloadOutput(String s3Uri) {
-        // java.net.URI를 활용하여 안전하고 직관적인 버킷/키 추출
-        java.net.URI uri = java.net.URI.create(s3Uri);
-        String bucket = uri.getHost();
-        String path = uri.getPath();
-
-        // getPath()는 시작 부분에 '/'를 포함하므로 제거합니다. (경로가 비어있는 엣지 케이스 방어)
-        String key = (path != null && path.length() > 1) ? path.substring(1) : "";
+        BucketAndKey bucketAndKey = getBucketAndKey(s3Uri);
 
         try {
             GetObjectRequest request = GetObjectRequest.builder()
-                    .bucket(bucket)
-                    .key(key)
+                    .bucket(bucketAndKey.bucket())
+                    .key(bucketAndKey.key())
                     .build();
 
             // S3에서 데이터를 Stream 형태로 가져옵니다.
@@ -76,5 +72,55 @@ public class S3AiOutputAdapter implements S3AiOutputPort {
             log.error("[S3 Download Error] 결과 JSON 읽기/파싱 실패: {}", s3Uri, e);
             throw new S3Exception(S3ErrorCode.S3_DOWNLOAD_ERROR, e.getMessage());
         }
+    }
+
+    /**
+     * 작업이 완료되어 더 이상 필요 없는 S3 결과물(JSON) 파일을 즉시 삭제하여 스토리지 비용을 최적화합니다.
+     * <p>
+     * <b>장애 격리 (Fault Isolation):</b><br>
+     * 삭제 로직이 실패하더라도(S3 권한 에러 등), 이미 DB에 데이터가 저장된 핵심 비즈니스 로직이나
+     * 클라이언트에게 알림을 발송하는 후속 파이프라인이 중단되지 않도록 예외를 던지지 않고 에러 로그만 남깁니다.
+     * (만약 삭제되지 않은 찌꺼기 파일이 남더라도, S3 Lifecycle 정책을 통해 1일 후 자동 삭제되도록 방어막을 구축합니다.)
+     * </p>
+     *
+     * @param s3Uri 삭제할 S3의 전체 경로
+     */
+    @Override
+    public void deleteOutput(String s3Uri) {
+        BucketAndKey bucketAndKey = getBucketAndKey(s3Uri);
+
+        try {
+            DeleteObjectRequest deleteRequest = DeleteObjectRequest.builder()
+                    .bucket(bucketAndKey.bucket())
+                    .key(bucketAndKey.key())
+                    .build();
+
+            s3Client.deleteObject(deleteRequest);
+            log.info("[S3 Delete] 비용 최적화 - S3 객체 삭제 완료: {}", s3Uri);
+
+        } catch (Exception e) {
+            // 데이터 등록이라는 메인 비즈니스는 이미 성공했으므로, 부가적인 삭제 작업의 실패는 로그만 남기고 무시합니다.
+            log.error("[S3 Delete Error] S3 객체 삭제 실패 (Lifecycle 정책에 의해 1일 후 자동 삭제됨): {}", s3Uri, e);
+        }
+    }
+
+    /**
+    * @responsibility 버킷과 키를 담기 위한 DTO
+    * */
+    record BucketAndKey(
+            String bucket,
+            String key
+    ){}
+
+    /**
+     * @responsibility {@link S3AiOutputAdapter#downloadOutput(String)}와 {@link S3AiOutputAdapter#deleteOutput(String)}의 코드 중복을 줄이기 위한 메서드
+     * @return 버킷과 키가 담인 DTO
+     * */
+    private BucketAndKey getBucketAndKey(String s3Uri) {
+        URI uri = java.net.URI.create(s3Uri);
+        String bucket = uri.getHost();
+        String path = uri.getPath();
+        String key = (path != null && path.length() > 1) ? path.substring(1) : "";
+        return new BucketAndKey(bucket, key);
     }
 }
