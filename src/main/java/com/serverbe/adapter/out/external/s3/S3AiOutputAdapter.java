@@ -114,10 +114,10 @@ public class S3AiOutputAdapter implements S3AiOutputPort {
 
     /**
      * @responsibility {@link S3AiOutputAdapter#downloadOutput(String)}와 {@link S3AiOutputAdapter#deleteOutput(String)}의 코드 중복을 줄이기 위한 메서드
-     * @return 버킷과 키가 담인 DTO
+     * @return 버킷과 키가 담긴 DTO
      * */
     private BucketAndKey getBucketAndKey(String s3Uri) {
-        URI uri = java.net.URI.create(s3Uri);
+        URI uri = URI.create(s3Uri);
         String bucket = uri.getHost();
         String path = uri.getPath();
         String key = (path != null && path.length() > 1) ? path.substring(1) : "";
