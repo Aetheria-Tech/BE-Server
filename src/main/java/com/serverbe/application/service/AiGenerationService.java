@@ -59,7 +59,7 @@ public class AiGenerationService implements InitiateAiGenerationUseCase, GetTask
     @Override
     public Mono<String> initiateGeneration(
             Long userId,
-            String startPosition,
+            String startPosition, //TODO 시작 위치를 지오코딩으로 위도와 경도로 변환할 필요가 있음.
             String shape,
             Proficiency proficiency
     ) {
