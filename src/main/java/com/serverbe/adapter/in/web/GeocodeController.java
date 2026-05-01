@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 @Tag(name = "Geocode", description = "주소 및 위치 관련 API")
 @RestController
@@ -45,9 +46,10 @@ public class GeocodeController {
     ) {
         new Address(address); // 유효성 검사 수행
 
-        // 💡 비동기 체인 유지 + ResponseEntity로 200 OK 헤더 명시
+        // 비동기 체인 유지 + ResponseEntity로 200 OK 헤더 명시
         return geocodePort.geocode(address)
                 .map(GeocodeResponse::toResponse)
+                .subscribeOn(Schedulers.boundedElastic())
                 .map(response -> ResponseEntity.ok(RestApiResponse.success(response)));
     }
 }

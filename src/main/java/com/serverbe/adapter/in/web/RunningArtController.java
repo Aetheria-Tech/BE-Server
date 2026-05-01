@@ -24,6 +24,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 import java.util.List;
 
@@ -228,6 +229,7 @@ public class RunningArtController {
         return getNearbyRunningArtUseCase.getNearbyArts(lat, lon, radius)
                 .map(RunningArtResponse::toResponse)
                 .collectList()
+                .subscribeOn(Schedulers.boundedElastic())
                 .map(list -> ResponseEntity.ok(RestApiResponse.success(list)));
     }
 }

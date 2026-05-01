@@ -13,6 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 @RestController
 @RequiredArgsConstructor
@@ -53,7 +54,8 @@ public class AiGenerationController {
                         request.shape(),
                         request.proficiency()
                 )
-                // 2. 💡 HTTP Header(201 Created)와 Body(RestApiResponse)를 명시적으로 결합!
+                .subscribeOn(Schedulers.boundedElastic())
+                // 2. HTTP Header(201 Created)와 Body(RestApiResponse)를 명시적으로 결합!
                 .map(taskId ->
                         ResponseEntity
                                 .status(HttpStatus.CREATED)

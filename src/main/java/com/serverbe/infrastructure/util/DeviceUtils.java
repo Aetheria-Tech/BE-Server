@@ -70,17 +70,4 @@ public final class DeviceUtils {
         }
         return "UNKNOWN_VERSION"; // 헤더가 없을 경우 기본값 반환
     }
-
-    // Helper: 바이트 배열을 16진수 문자열로 변환
-    private static String bytesToHex(byte[] hash) {
-        StringBuilder hexString = new StringBuilder(2 * hash.length);
-        for (byte b : hash) {
-            String hex = Integer.toHexString(0xff & b);
-            if (hex.length() == 1) {
-                hexString.append('0');
-            }
-            hexString.append(hex);
-        }
-        return hexString.toString();
-    }
 }
