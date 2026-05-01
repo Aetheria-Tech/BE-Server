@@ -337,13 +337,8 @@ public class TokenPersistenceAdapter implements TokenPersistencePort {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             byte[] hash = digest.digest(refreshToken.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-            StringBuilder hexString = new StringBuilder();
-            for (byte b : hash) {
-                String hex = Integer.toHexString(0xff & b);
-                if (hex.length() == 1) hexString.append('0');
-                hexString.append(hex);
-            }
-            return String.format("%s:%s", rtBlacklistPrefix, hexString);
+            String hexHash = java.util.HexFormat.of().formatHex(hash);
+            return String.format("%s:%s", rtBlacklistPrefix, hexHash);
         } catch (java.security.NoSuchAlgorithmException e) {
             throw new AuthException(AuthErrorCode.FAILED_HASH_REFRESH_TOKEN, e.getMessage());
         }
