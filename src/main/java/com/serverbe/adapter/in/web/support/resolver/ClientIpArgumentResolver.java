@@ -1,7 +1,7 @@
 package com.serverbe.adapter.in.web.support.resolver;
 
 import com.serverbe.adapter.in.web.support.annotation.ExtractIp;
-import com.serverbe.infrastructure.util.NetworkUtils;
+import com.serverbe.infrastructure.util.ClientIpUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.core.MethodParameter;
 import org.springframework.stereotype.Component;
@@ -30,6 +30,6 @@ public class ClientIpArgumentResolver implements HandlerMethodArgumentResolver {
             WebDataBinderFactory binderFactory
     ) {
         HttpServletRequest request = (HttpServletRequest) webRequest.getNativeRequest();
-        return NetworkUtils.getClientIp(request);
+        return ClientIpUtils.getClientIp(request);
     }
 }
