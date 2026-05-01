@@ -19,6 +19,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
@@ -107,11 +109,16 @@ public class RunningArtService implements
 
         repositoryPort.deleteById(runningArtId);
 
-        runningArtRedisPort.removeLocation(runningArtId)
-                .subscribe(
-                        result -> log.info("Redis GEO 삭제 완료 (ArtId: {})", runningArtId),
-                        error -> log.error("Redis GEO 삭제 실패 (ArtId: {}): {}", runningArtId, error.getMessage())
-                );
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                runningArtRedisPort.removeLocation(runningArtId)
+                        .subscribe(
+                                result -> log.info("Redis GEO 삭제 완료 (ArtId: {})", runningArtId),
+                                error -> log.error("Redis GEO 삭제 실패 (ArtId: {}): {}", runningArtId, error.getMessage())
+                        );
+            }
+        });
     }
 
     /**
