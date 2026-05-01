@@ -37,7 +37,6 @@ public class RunningArtController {
     private final GetRunningArtUseCase getRunningArtUseCase;
     private final DeleteRunningArtUseCase deleteRunningArtUseCase;
     private final UpdateRunningArtUseCase updateRunningArtUseCase;
-    private final CreateRunningArtUseCase createRunningArtUseCase;
     private final GetNearbyRunningArtUseCase getNearbyRunningArtUseCase;
 
     @Operation(
@@ -166,37 +165,6 @@ public class RunningArtController {
     }
 
     @Operation(
-            summary = "새로운 런닝 아트 생성",
-            description = "사용자의 현재 위치와 원하는 모양, 숙련도를 바탕으로 AI가 런닝 경로를 생성합니다. " +
-                    "생성된 경로는 Google Encoded Polyline 형식으로 저장되며, " +
-                    "추후 반경 검색 최적화를 위해 시작점 좌표가 자동으로 추출되어 인덱싱됩니다.",
-            security = @SecurityRequirement(name = "jwtAuth"),
-            responses = {
-                    @ApiResponse(
-                            responseCode = "201",
-                            description = "런닝 아트 생성 성공",
-                            content = @Content(schema = @Schema(implementation = RunningArtResponse.class))
-                    ),
-                    @ApiResponse(responseCode = "400", description = "잘못된 요청 데이터"),
-                    @ApiResponse(responseCode = "401", description = "인증 실패"),
-                    @ApiResponse(responseCode = "500", description = "AI 서버 통신 및 서버 내부 오류")
-            }
-    )
-    @PostMapping
-    public Mono<ResponseEntity<RestApiResponse<RunningArtResponse>>> create(@Parameter(hidden = true) @AuthenticationPrincipal Long userId) {
-        CreateRunningArtRequest request = CreateRunningArtRequest.builder()
-                .startPosition("서울특별시 강남구 테헤란로 427")
-                .proficiency(Proficiency.EXPERT)
-                .shape("강아지")
-                .build();
-
-        return createRunningArtUseCase
-                .createRunningArt(userId, request.startPosition(), request.shape(), request.proficiency())
-                .map(result -> ResponseEntity.status(HttpStatus.CREATED)
-                        .body(RestApiResponse.created(RunningArtResponse.toResponse(result))));
-    }
-
-    @Operation(
             summary = "주변 런닝 아트 반경 검색",
             description = "주어진 중심점 좌표(위도, 경도)를 기준으로 지정된 반경(km) 내에 있는 런닝 아트 목록을 조회합니다. 내부적으로 Redis 공간 인덱스(GEO)를 활용하여 대용량 데이터 환경에서도 고속으로 필터링됩니다.",
             security = @SecurityRequirement(name = "jwtAuth"),
@@ -229,7 +197,6 @@ public class RunningArtController {
         return getNearbyRunningArtUseCase.getNearbyArts(lat, lon, radius)
                 .map(RunningArtResponse::toResponse)
                 .collectList()
-                .subscribeOn(Schedulers.boundedElastic())
                 .map(list -> ResponseEntity.ok(RestApiResponse.success(list)));
     }
 }

@@ -22,8 +22,6 @@ import org.springframework.transaction.annotation.Transactional;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
-
-import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -41,14 +39,11 @@ public class RunningArtService implements
         GetRunningArtUseCase,
         DeleteRunningArtUseCase,
         UpdateRunningArtUseCase,
-        CreateRunningArtUseCase,
         GetNearbyRunningArtUseCase,
         RegisterCompletedArtUseCase
 {
 
     private final RunningArtRepositoryPort repositoryPort;
-    private final RunningArtAIPort runningArtAIPort;
-    private final GeocodePort geocodePort;
     private final RunningArtRedisPort runningArtRedisPort;
 
     /**
@@ -169,58 +164,6 @@ public class RunningArtService implements
             );
         }
         return runningArt;
-    }
-
-    /**
-     * @param userId        생성 요청자의 고유 식별자
-     * @param startPosition 런닝 아트를 시작할 위치의 주소 또는 명칭 (예: "용인 아르피아 체육공원")
-     * @param shape         생성하고자 하는 런닝 아트의 모양 (예: "강아지")
-     * @param proficiency   권장 런닝 난이도 및 숙련도
-     * @return 생성된 런닝 아트의 상세 정보를 담은 {@link Mono<RunningArtResult>}
-     * @requirement UC-ART-01: 새로운 런닝 아트 생성 및 경로 추출 요청
-     * @responsibility 사용자가 입력한 시작 위치와 모양을 바탕으로 AI를 통해 런닝 코스를 생성하고, 결과를 DB와 공간 인덱스(Redis)에 동기화하여 저장합니다.
-     * @implSpec 1. {@link GeocodePort}를 통해 입력된 텍스트 주소를 위경도 좌표로 변환합니다.<br>
-     * 2. {@link RunningArtAIPort}를 호출하여 AI가 생성한 경로(GPX/Polyline) 데이터를 획득합니다.<br>
-     * 3. {@link PolylineUtils#extractMetadata(String gpx 문자열)} (double, double, double, double)} (String)} 알고리즘을 사용해 인코딩된 경로에서 시작점 좌표를 고속으로 추출합니다.<br>
-     * 4. 영속성 계층(DB) 저장을 위해 {@link Schedulers#boundedElastic()} 스레드 풀로 전환하여 Event Loop의 블로킹 오버헤드를 방지합니다.<br>
-     * 5. DB 저장이 성공하면 {@link RunningArtRedisPort}를 호출하여 Redis GEO에 비동기(Non-blocking) 방식으로 위치 데이터를 등록합니다.
-     * @implNote 외부 API 통신, 블로킹 DB I/O, 논블로킹 Redis I/O가 혼합된 복합 스트림입니다. 스레드 스위칭(`publishOn`)의 위치가 파이프라인의 성능을 결정하는 중요한 요소입니다.
-     */
-    @Override
-    public Mono<RunningArtResult> createRunningArt(Long userId, String startPosition, String shape, Proficiency proficiency) {
-        return geocodePort.geocode(startPosition)
-                .flatMap(geocodeResult -> runningArtAIPort.createRunningArtGPX(
-                        geocodeResult.latitude(),
-                        geocodeResult.longitude(),
-                        shape,
-                        proficiency))
-                .publishOn(Schedulers.boundedElastic())
-                .map(runningArtAiResponse -> {
-                    PolylineUtils.PolylineMetadata polylineMetadata = PolylineUtils.extractMetadata(runningArtAiResponse.gpx());
-
-                    RunningArt runningArt = RunningArt.builder()
-                            .userId(userId)
-                            .title(startPosition + ":" + LocalDate.now())
-                            .gpx(runningArtAiResponse.gpx())
-                            .content("None")
-                            .shape(shape)
-                            .proficiency(proficiency)
-                            .distance(polylineMetadata.totalDistanceMeters())
-                            .startLat(polylineMetadata.startLat())
-                            .startLon(polylineMetadata.startLon())
-                            .build();
-
-                    // 1. DB에 저장 (Blocking)
-                    return repositoryPort.save(runningArt);
-                })
-                .flatMap(savedArt ->
-                        runningArtRedisPort.saveLocation(savedArt.id(), savedArt.startLat(), savedArt.startLon())
-                                .doOnSuccess(result -> log.info("Redis GEO 동기화 완료: {}", result))
-                                .doOnError(error -> log.error("Redis GEO 동기화 실패 (ArtId={}): 나중에 배치로 복구해야 합니다.", savedArt.id(), error))
-                                .onErrorResume(e -> Mono.empty())
-                                .thenReturn(savedArt)
-                )
-                .map(RunningArtResult::toResult);
     }
 
     /**

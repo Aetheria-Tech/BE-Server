@@ -63,7 +63,7 @@ public class AiGenerationService implements InitiateAiGenerationUseCase, GetTask
             String shape,
             Proficiency proficiency
     ) {
-        // 1. [가이드 30번 준수] JPA DB 저장(Blocking)을 boundedElastic 스레드풀로 격리
+        // 1. JPA DB 저장(Blocking)을 boundedElastic 스레드풀로 격리
         return Mono.fromCallable(() -> taskUpdatePort.save(AiTask.createPending(userId, shape, proficiency)))
                 .subscribeOn(Schedulers.boundedElastic())
                 .flatMap(aiTask ->

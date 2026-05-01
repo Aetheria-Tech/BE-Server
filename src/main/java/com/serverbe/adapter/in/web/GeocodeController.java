@@ -49,7 +49,6 @@ public class GeocodeController {
         // 비동기 체인 유지 + ResponseEntity로 200 OK 헤더 명시
         return geocodePort.geocode(address)
                 .map(GeocodeResponse::toResponse)
-                .subscribeOn(Schedulers.boundedElastic())
                 .map(response -> ResponseEntity.ok(RestApiResponse.success(response)));
     }
 }
