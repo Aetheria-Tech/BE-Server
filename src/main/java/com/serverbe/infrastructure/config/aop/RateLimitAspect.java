@@ -34,7 +34,7 @@ public class RateLimitAspect {
     private final TokenExtractor tokenExtractor;
     private final TokenResolver tokenResolver;
 
-    // ✨ 포인트컷: 단일 어노테이션이든, 다중(Repeatable) 어노테이션이든 모두 캐치하도록 수정
+    // 포인트컷: 단일 어노테이션이든, 다중(Repeatable) 어노테이션이든 모두 캐치하도록 수정
     @Around("@annotation(com.serverbe.application.annotation.RateLimit) || @annotation(com.serverbe.application.annotation.RateLimits)")
     public Object checkRateLimit(ProceedingJoinPoint joinPoint) throws Throwable {
 
@@ -57,14 +57,12 @@ public class RateLimitAspect {
                 isAllowed = rateLimiterService.isAllowedForIp(ip, endpoint, rateLimit.capacity(), rateLimit.refillRate());
 
             } else if (rateLimit.target() == RateLimit.TargetType.USER) {
-                String accessToken = tokenExtractor.extractAccessToken(request);
-
-                if (!StringUtils.hasText(accessToken) || !tokenResolver.validateAccessToken(accessToken)) {
-                    log.warn("[AOP Rate Limit] 유효하지 않은 토큰입니다.");
-                    throw new AuthException(AuthErrorCode.JWT_TOKEN_IS_EMPTY);
+                org.springframework.security.core.Authentication authentication = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+                if (authentication == null || !authentication.isAuthenticated()) {
+                    log.warn("[AOP Rate Limit] 인증 정보가 없습니다.");
+                    throw new AuthException(AuthErrorCode.UNAUTHORIZED);
                 }
-
-                Long userId = tokenResolver.getIdFromToken(accessToken);
+                Long userId = (Long) authentication.getPrincipal();
                 isAllowed = rateLimiterService.isAllowedForUser(userId, endpoint, rateLimit.capacity(), rateLimit.refillRate());
             }
 

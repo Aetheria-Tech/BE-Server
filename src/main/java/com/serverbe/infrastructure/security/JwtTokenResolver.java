@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.serverbe.application.port.out.crypto.EncryptPort;
 import com.serverbe.application.port.out.security.TokenResolver;
+import com.serverbe.application.port.out.security.dto.JwtPayloadDto;
 import com.serverbe.domain.exception.auth.AuthErrorCode;
 import com.serverbe.domain.exception.auth.AuthException;
 import com.serverbe.domain.model.user.vo.Role;
@@ -67,37 +68,13 @@ public class JwtTokenResolver implements TokenResolver {
      */
     @Override
     public Authentication getAuthentication(String accessToken) {
-        // 1. 복호화된 Map 데이터 획득
-        Map<String, Object> claimsMap = getDecryptedPayload(accessToken);
-
-        // 2. 데이터 추출
-        long userId = extractId(claimsMap);
-        Role role = extractRole(claimsMap);
-
-        // 3. 인증 객체 생성
+        JwtPayloadDto payload = getJwtPayload(accessToken);
+        
         List<SimpleGrantedAuthority> authorities = List.of(
-                new SimpleGrantedAuthority(role.name())
+                new SimpleGrantedAuthority(payload.role().name())
         );
 
-        return new UsernamePasswordAuthenticationToken(userId, null, authorities);
-    }
-
-    private long extractId(Map<String, Object> claimsMap) {
-        try {
-            // objectMapper가 숫자를 Integer로 변환할 수 있으므로 String.valueOf()를 사용하는 것이 안전합니다.
-            return Long.parseLong(String.valueOf(claimsMap.get(idKey)));
-        } catch (NumberFormatException e) {
-            throw new AuthException(AuthErrorCode.JWT_TOKEN_IS_INVALID, "ID 형식이 올바르지 않습니다.");
-        }
-    }
-
-    private Role extractRole(Map<String, Object> claimsMap) {
-        try {
-            String roleStr = String.valueOf(claimsMap.get(roleKey));
-            return Role.valueOf(roleStr);
-        } catch (IllegalArgumentException e) {
-            throw new AuthException(AuthErrorCode.JWT_TOKEN_IS_INVALID, "유효하지 않은 Role 값입니다.");
-        }
+        return new UsernamePasswordAuthenticationToken(payload.userId(), null, authorities);
     }
 
     /**
@@ -138,9 +115,8 @@ public class JwtTokenResolver implements TokenResolver {
      */
     @Override
     public Long getIdFromToken(String accessToken) {
-        Map<String, Object> claimsMap = getDecryptedPayload(accessToken);
         try {
-            return Long.valueOf(String.valueOf(claimsMap.get(idKey)));
+            return getJwtPayload(accessToken).userId();
         } catch (NumberFormatException e) {
             throw new AuthException(AuthErrorCode.JWT_TOKEN_IS_INVALID, "ID 형식이 올바르지 않습니다.");
         }
@@ -152,10 +128,8 @@ public class JwtTokenResolver implements TokenResolver {
      */
     @Override
     public Role getRoleFromToken(String accessToken) {
-        Map<String, Object> claimsMap = getDecryptedPayload(accessToken);
-        String roleStr = String.valueOf(claimsMap.get(roleKey));
         try {
-            return Role.valueOf(roleStr);
+            return getJwtPayload(accessToken).role();
         } catch (IllegalArgumentException e) {
             throw new AuthException(AuthErrorCode.JWT_TOKEN_IS_INVALID, "유효하지 않은 Role 값입니다.");
         }
@@ -229,6 +203,40 @@ public class JwtTokenResolver implements TokenResolver {
         } catch (Exception e) {
             log.error("Token Decryption Failed", e);
             throw new AuthException(AuthErrorCode.JWT_TOKEN_IS_INVALID, "토큰 복호화에 실패했습니다.");
+        }
+    }
+
+    /**
+     * @param token 복호화할 JWT 액세스/리프레시 토큰
+     * @return 사용자 ID와 권한 정보를 담은 {@link JwtPayloadDto}
+     * @responsibility <b>[최적화 핵심]</b> 고비용 연산인 JWS 서명 검증, AES-GCM 복호화, JSON 파싱을 단 1회만 수행하여 필요한 데이터를 모두 추출합니다.
+     */
+    public JwtPayloadDto getJwtPayload(String token) {
+        // 1. 여기서 무거운 파싱 및 복호화 연산이 딱 한 번 수행됨
+        Map<String, Object> claimsMap = getDecryptedPayload(token);
+
+        // 2. 이미 파싱된 Map 데이터를 재사용하여 ID와 Role을 추출
+        return new JwtPayloadDto(
+                extractId(claimsMap),
+                extractRole(claimsMap)
+        );
+    }
+
+    private long extractId(Map<String, Object> claimsMap) {
+        try {
+            // objectMapper가 숫자를 Integer로 변환할 수 있으므로 String.valueOf()를 사용하는 것이 안전합니다.
+            return Long.parseLong(String.valueOf(claimsMap.get(idKey)));
+        } catch (NumberFormatException e) {
+            throw new AuthException(AuthErrorCode.JWT_TOKEN_IS_INVALID, "ID 형식이 올바르지 않습니다.");
+        }
+    }
+
+    private Role extractRole(Map<String, Object> claimsMap) {
+        try {
+            String roleStr = String.valueOf(claimsMap.get(roleKey));
+            return Role.valueOf(roleStr);
+        } catch (IllegalArgumentException e) {
+            throw new AuthException(AuthErrorCode.JWT_TOKEN_IS_INVALID, "유효하지 않은 Role 값입니다.");
         }
     }
 }

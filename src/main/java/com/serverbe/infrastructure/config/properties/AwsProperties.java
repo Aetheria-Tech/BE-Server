@@ -8,8 +8,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  */
 @ConfigurationProperties(prefix = "aws")
 public record AwsProperties(
-        S3 s3,              // AWS S3 관련 설정 그룹
-        SageMaker sagemaker // AWS SageMaker 관련 설정 그룹
+        S3 s3,                  // AWS S3 관련 설정 그룹
+        SageMaker sagemaker,    // AWS SageMaker 관련 설정 그룹
+        Sqs sqs
 ) {
     /**
      * S3 스토리지 관련 설정
