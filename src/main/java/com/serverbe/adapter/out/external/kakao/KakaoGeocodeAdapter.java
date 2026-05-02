@@ -3,6 +3,7 @@ package com.serverbe.adapter.out.external.kakao;
 import com.serverbe.adapter.out.external.kakao.dto.KakaoGeocodeResponse;
 import com.serverbe.application.port.out.dto.geocoding.GeocodeResult;
 import com.serverbe.application.port.out.geocode.GeocodePort;
+import com.serverbe.domain.exception.external.ExternalApiClientException;
 import com.serverbe.domain.exception.external.ExternalApiErrorCode;
 import com.serverbe.domain.exception.external.ExternalApiException;
 import com.serverbe.infrastructure.config.properties.KakaoProperties;
@@ -70,13 +71,18 @@ public class KakaoGeocodeAdapter implements GeocodePort {
                 .header("Authorization", "KakaoAK " + clientId)
                 .retrieve()
                 .onStatus(
-                        HttpStatusCode::isError,
+                        HttpStatusCode::is4xxClientError,
                         response -> response.bodyToMono(String.class)
                                 .flatMap(errorBody -> {
-                                    log.error("Kakao Geocoding API error: status={}, body={}", response.statusCode(), errorBody);
-                                    if (response.statusCode().is4xxClientError()) {
-                                        return Mono.error(new ExternalApiException(ExternalApiErrorCode.INVALID_ADDRESS, "잘못된 주소로 요청했습니다."));
-                                    }
+                                    log.warn("Kakao Geocoding API Client error (4xx): status={}, body={}", response.statusCode(), errorBody);
+                                    return Mono.error(new ExternalApiClientException(ExternalApiErrorCode.INVALID_ADDRESS, "잘못된 주소로 요청했습니다."));
+                                })
+                )
+                .onStatus(
+                        HttpStatusCode::is5xxServerError,
+                        response -> response.bodyToMono(String.class)
+                                .flatMap(errorBody -> {
+                                    log.error("Kakao Geocoding API Server error (5xx): status={}, body={}", response.statusCode(), errorBody);
                                     return Mono.error(new ExternalApiException(ExternalApiErrorCode.FAILED_GEOCODING_API));
                                 })
                 )
@@ -96,7 +102,7 @@ public class KakaoGeocodeAdapter implements GeocodePort {
      */
     private Mono<KakaoGeocodeResponse.Document> extractFirstDocument(KakaoGeocodeResponse response) {
         if (response.documents() == null || response.documents().isEmpty()) {
-            return Mono.error(new ExternalApiException(ExternalApiErrorCode.INVALID_ADDRESS, "해당 주소에 대한 검색 결과가 없습니다."));
+            return Mono.error(new ExternalApiClientException(ExternalApiErrorCode.INVALID_ADDRESS, "해당 주소에 대한 검색 결과가 없습니다."));
         }
         return Mono.just(response.documents().get(0));
     }

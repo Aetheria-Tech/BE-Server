@@ -5,6 +5,7 @@ import com.serverbe.adapter.out.external.kakao.dto.KakaoUserInfoResponse;
 import com.serverbe.application.port.out.dto.oauth.OAuthUserInfoResult;
 import com.serverbe.application.port.out.dto.oauth.SocialTokenRefreshResult;
 import com.serverbe.application.port.out.oauth.OAuthClientPort;
+import com.serverbe.domain.exception.external.ExternalApiClientException;
 import com.serverbe.domain.exception.external.ExternalApiErrorCode;
 import com.serverbe.domain.exception.external.ExternalApiException;
 import com.serverbe.domain.exception.server.ServerErrorCode;
@@ -98,9 +99,16 @@ public class KakaoOAuthAdapter implements OAuthClientPort {
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .body(BodyInserters.fromFormData(formData))
                 .retrieve()
-                .onStatus(status -> status.is4xxClientError() || status.is5xxServerError(),
-                        clientResponse -> clientResponse.bodyToMono(String.class)
-                                .map(body -> new ExternalApiException(ExternalApiErrorCode.FAILED_SOCIAL_API, body)))
+                .onStatus(HttpStatusCode::is4xxClientError, res -> res.bodyToMono(String.class)
+                        .flatMap(body -> {
+                            log.warn("Kakao Token API Client Error (4xx): status={}, body={}", res.statusCode(), body);
+                            return Mono.error(new ExternalApiClientException(ExternalApiErrorCode.FAILED_SOCIAL_API, "잘못된 카카오 인증 요청입니다.: " + body));
+                        }))
+                .onStatus(HttpStatusCode::is5xxServerError, res -> res.bodyToMono(String.class)
+                        .flatMap(body -> {
+                            log.error("Kakao Token API Server Error (5xx): status={}, body={}", res.statusCode(), body);
+                            return Mono.error(new ExternalApiException(ExternalApiErrorCode.FAILED_SOCIAL_API, "Kakao 서버 에러: " + body));
+                        }))
                 .bodyToMono(KakaoTokenResponse.class)
                 .timeout(Duration.ofSeconds(2))
                 .transformDeferred(CircuitBreakerOperator.of(kakaoTokenCircuitBreaker));
@@ -111,9 +119,16 @@ public class KakaoOAuthAdapter implements OAuthClientPort {
                 .uri(kapiUrl + "/v2/user/me")
                 .header("Authorization", "Bearer " + accessToken)
                 .retrieve()
-                .onStatus(status -> status.is4xxClientError() || status.is5xxServerError(),
-                        clientResponse -> clientResponse.bodyToMono(String.class)
-                                .map(body -> new ExternalApiException(ExternalApiErrorCode.FAILED_SOCIAL_API, body)))
+                .onStatus(HttpStatusCode::is4xxClientError, res -> res.bodyToMono(String.class)
+                        .flatMap(body -> {
+                            log.warn("Kakao UserInfo API Client Error (4xx): status={}, body={}", res.statusCode(), body);
+                            return Mono.error(new ExternalApiClientException(ExternalApiErrorCode.FAILED_SOCIAL_API, "잘못된 사용자 정보 요청입니다.: " + body));
+                        }))
+                .onStatus(HttpStatusCode::is5xxServerError, res -> res.bodyToMono(String.class)
+                        .flatMap(body -> {
+                            log.error("Kakao UserInfo API Server Error (5xx): status={}, body={}", res.statusCode(), body);
+                            return Mono.error(new ExternalApiException(ExternalApiErrorCode.FAILED_SOCIAL_API, "Kakao 서버 에러: " + body));
+                        }))
                 .bodyToMono(KakaoUserInfoResponse.class)
                 .map(response -> new OAuthUserInfoResult(
                         String.valueOf(response.id()),
@@ -135,8 +150,16 @@ public class KakaoOAuthAdapter implements OAuthClientPort {
                 .body(BodyInserters.fromFormData("target_id_type", "user_id")
                         .with("target_id", oauthId))
                 .retrieve()
-                .onStatus(HttpStatusCode::isError, res -> res.bodyToMono(String.class)
-                        .map(body -> new ExternalApiException(ExternalApiErrorCode.FAILED_SOCIAL_API, "Kakao Unlink Failed: " + body)))
+                .onStatus(HttpStatusCode::is4xxClientError, res -> res.bodyToMono(String.class)
+                        .flatMap(body -> {
+                            log.warn("Kakao Unlink API Client Error (4xx): status={}, body={}", res.statusCode(), body);
+                            return Mono.error(new ExternalApiClientException(ExternalApiErrorCode.FAILED_SOCIAL_API, "잘못된 연동 해제 요청입니다.: " + body));
+                        }))
+                .onStatus(HttpStatusCode::is5xxServerError, res -> res.bodyToMono(String.class)
+                        .flatMap(body -> {
+                            log.error("Kakao Unlink API Server Error (5xx): status={}, body={}", res.statusCode(), body);
+                            return Mono.error(new ExternalApiException(ExternalApiErrorCode.FAILED_SOCIAL_API, "Kakao 서버 에러: " + body));
+                        }))
                 .toBodilessEntity()
                 .map(response -> true)
                 .defaultIfEmpty(false)
@@ -157,8 +180,16 @@ public class KakaoOAuthAdapter implements OAuthClientPort {
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .body(BodyInserters.fromFormData(formData))
                 .retrieve()
-                .onStatus(HttpStatusCode::isError, res -> res.bodyToMono(String.class)
-                        .map(body -> new ExternalApiException(ExternalApiErrorCode.FAILED_SOCIAL_API, "Kakao Refresh Error: " + body)))
+                .onStatus(HttpStatusCode::is4xxClientError, res -> res.bodyToMono(String.class)
+                        .flatMap(body -> {
+                            log.warn("Kakao Token Refresh API Client Error (4xx): status={}, body={}", res.statusCode(), body);
+                            return Mono.error(new ExternalApiClientException(ExternalApiErrorCode.FAILED_SOCIAL_API, "잘못된 토큰 갱신 요청입니다.: " + body));
+                        }))
+                .onStatus(HttpStatusCode::is5xxServerError, res -> res.bodyToMono(String.class)
+                        .flatMap(body -> {
+                            log.error("Kakao Token Refresh API Server Error (5xx): status={}, body={}", res.statusCode(), body);
+                            return Mono.error(new ExternalApiException(ExternalApiErrorCode.FAILED_SOCIAL_API, "Kakao 서버 에러: " + body));
+                        }))
                 .bodyToMono(SocialTokenRefreshResult.class)
                 .timeout(Duration.ofSeconds(2))
                 .transformDeferred(CircuitBreakerOperator.of(kakaoTokenCircuitBreaker))

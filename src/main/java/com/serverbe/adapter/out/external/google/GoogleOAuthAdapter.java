@@ -5,6 +5,7 @@ import com.serverbe.adapter.out.external.google.dto.GoogleUserInfoResponse;
 import com.serverbe.application.port.out.dto.oauth.OAuthUserInfoResult;
 import com.serverbe.application.port.out.dto.oauth.SocialTokenRefreshResult;
 import com.serverbe.application.port.out.oauth.OAuthClientPort;
+import com.serverbe.domain.exception.external.ExternalApiClientException;
 import com.serverbe.domain.exception.external.ExternalApiErrorCode;
 import com.serverbe.domain.exception.external.ExternalApiException;
 import com.serverbe.domain.model.user.vo.OAuthProvider;
@@ -95,8 +96,16 @@ public class GoogleOAuthAdapter implements OAuthClientPort {
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .body(BodyInserters.fromFormData(formData))
                 .retrieve()
-                .onStatus(HttpStatusCode::isError, res -> res.bodyToMono(String.class)
-                        .map(body -> new ExternalApiException(ExternalApiErrorCode.FAILED_SOCIAL_API, "Google Token Error: " + body)))
+                .onStatus(HttpStatusCode::is4xxClientError, res -> res.bodyToMono(String.class)
+                        .flatMap(body -> {
+                            log.warn("Google Token API Client Error (4xx): status={}, body={}", res.statusCode(), body);
+                            return Mono.error(new ExternalApiClientException(ExternalApiErrorCode.FAILED_SOCIAL_API, "잘못된 구글 인증 요청입니다.: " + body));
+                        }))
+                .onStatus(HttpStatusCode::is5xxServerError, res -> res.bodyToMono(String.class)
+                        .flatMap(body -> {
+                            log.error("Google Token API Server Error (5xx): status={}, body={}", res.statusCode(), body);
+                            return Mono.error(new ExternalApiException(ExternalApiErrorCode.FAILED_SOCIAL_API, "Google 서버 에러: " + body));
+                        }))
                 .bodyToMono(GoogleTokenResponse.class)
                 .timeout(Duration.ofSeconds(2))
                 .transformDeferred(CircuitBreakerOperator.of(googleTokenCircuitBreaker));
@@ -107,8 +116,16 @@ public class GoogleOAuthAdapter implements OAuthClientPort {
                 .uri(apiUrl + "/oauth2/v3/userinfo")
                 .header("Authorization", "Bearer " + accessToken)
                 .retrieve()
-                .onStatus(HttpStatusCode::isError, res -> res.bodyToMono(String.class)
-                        .map(body -> new ExternalApiException(ExternalApiErrorCode.FAILED_SOCIAL_API, "Google UserInfo Error: " + body)))
+                .onStatus(HttpStatusCode::is4xxClientError, res -> res.bodyToMono(String.class)
+                        .flatMap(body -> {
+                            log.warn("Google UserInfo API Client Error (4xx): status={}, body={}", res.statusCode(), body);
+                            return Mono.error(new ExternalApiClientException(ExternalApiErrorCode.FAILED_SOCIAL_API, "잘못된 사용자 정보 요청입니다.: " + body));
+                        }))
+                .onStatus(HttpStatusCode::is5xxServerError, res -> res.bodyToMono(String.class)
+                        .flatMap(body -> {
+                            log.error("Google UserInfo API Server Error (5xx): status={}, body={}", res.statusCode(), body);
+                            return Mono.error(new ExternalApiException(ExternalApiErrorCode.FAILED_SOCIAL_API, "Google 서버 에러: " + body));
+                        }))
                 .bodyToMono(GoogleUserInfoResponse.class)
                 .timeout(Duration.ofSeconds(2))
                 .transformDeferred(CircuitBreakerOperator.of(googleApiCircuitBreaker));
@@ -125,8 +142,16 @@ public class GoogleOAuthAdapter implements OAuthClientPort {
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .body(BodyInserters.fromFormData("token", oauthRefreshToken)) // 리프레시 토큰 전송
                 .retrieve()
-                .onStatus(HttpStatusCode::isError, response -> response.bodyToMono(String.class)
-                        .flatMap(error -> Mono.error(new ExternalApiException(ExternalApiErrorCode.FAILED_SOCIAL_API, error))))
+                .onStatus(HttpStatusCode::is4xxClientError, res -> res.bodyToMono(String.class)
+                        .flatMap(body -> {
+                            log.warn("Google Unlink API Client Error (4xx): status={}, body={}", res.statusCode(), body);
+                            return Mono.error(new ExternalApiClientException(ExternalApiErrorCode.FAILED_SOCIAL_API, "잘못된 연동 해제 요청입니다.: " + body));
+                        }))
+                .onStatus(HttpStatusCode::is5xxServerError, res -> res.bodyToMono(String.class)
+                        .flatMap(body -> {
+                            log.error("Google Unlink API Server Error (5xx): status={}, body={}", res.statusCode(), body);
+                            return Mono.error(new ExternalApiException(ExternalApiErrorCode.FAILED_SOCIAL_API, "Google 서버 에러: " + body));
+                        }))
                 .toBodilessEntity()
                 .map(response -> true)
                 .defaultIfEmpty(false)
@@ -148,8 +173,16 @@ public class GoogleOAuthAdapter implements OAuthClientPort {
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .body(BodyInserters.fromFormData(formData))
                 .retrieve()
-                .onStatus(HttpStatusCode::isError, res -> res.bodyToMono(String.class)
-                        .map(body -> new ExternalApiException(ExternalApiErrorCode.FAILED_SOCIAL_API, "Google Refresh Error: " + body)))
+                .onStatus(HttpStatusCode::is4xxClientError, res -> res.bodyToMono(String.class)
+                        .flatMap(body -> {
+                            log.warn("Google Token Refresh API Client Error (4xx): status={}, body={}", res.statusCode(), body);
+                            return Mono.error(new ExternalApiClientException(ExternalApiErrorCode.FAILED_SOCIAL_API, "잘못된 토큰 갱신 요청입니다.: " + body));
+                        }))
+                .onStatus(HttpStatusCode::is5xxServerError, res -> res.bodyToMono(String.class)
+                        .flatMap(body -> {
+                            log.error("Google Token Refresh API Server Error (5xx): status={}, body={}", res.statusCode(), body);
+                            return Mono.error(new ExternalApiException(ExternalApiErrorCode.FAILED_SOCIAL_API, "Google 서버 에러: " + body));
+                        }))
                 .bodyToMono(SocialTokenRefreshResult.class)
                 .timeout(Duration.ofSeconds(2))
                 .transformDeferred(CircuitBreakerOperator.of(googleTokenCircuitBreaker))

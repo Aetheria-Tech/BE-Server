@@ -58,21 +58,37 @@ public class S3AiOutputAdapter implements S3AiOutputPort {
                     .key(bucketAndKey.key())
                     .build();
 
-            // S3에서 데이터를 Stream 형태로 가져옵니다.
             ResponseInputStream<GetObjectResponse> s3ObjectStream = s3Client.getObject(request);
-
-            // Stream을 String 등으로 변환하여 메모리에 올리지 않고, 바로 JSON DTO로 변환하여 성능을 최적화합니다.
             AiGenerationResultDto resultDto = objectMapper.readValue(s3ObjectStream, AiGenerationResultDto.class);
 
             return Optional.of(resultDto);
 
+            // 1. 정상적인 비즈니스 흐름: 아직 AI 작업이 안 끝남 (파일 없음)
         } catch (NoSuchKeyException e) {
-            // 해당 키(파일)가 없다는 것은 아직 AI 작업이 끝나지 않았다는 의미이므로, 빈 Optional을 반환합니다.
             return Optional.empty();
+
+            // 2. AWS S3 서버 측 에러 (권한 부족 403, 서버 오류 500 등)
+        } catch (software.amazon.awssdk.services.s3.model.S3Exception e) {
+            log.error("[S3 Download Error] S3 서버 거절/오류 - URI: {}, 상태코드: {}, 원인: {}",
+                    s3Uri, e.statusCode(), e.awsErrorDetails().errorMessage());
+            throw new S3Exception(S3ErrorCode.S3_DOWNLOAD_ERROR, "S3 서버 에러: " + e.awsErrorDetails().errorMessage());
+
+            // 3. 네트워크 단절, 타임아웃 등 클라이언트 측 에러
+        } catch (software.amazon.awssdk.core.exception.SdkClientException e) {
+            log.error("[S3 Download Error] S3 네트워크 타임아웃 및 통신 실패 - URI: {}, 원인: {}",
+                    s3Uri, e.getMessage());
+            throw new S3Exception(S3ErrorCode.S3_DOWNLOAD_ERROR, "S3 네트워크 에러: " + e.getMessage());
+
+            // 4. JSON 파싱 에러 (AI가 내려준 결과물이 규격에 맞지 않거나 깨진 경우)
+        } catch (java.io.IOException e) {
+            log.error("[S3 Download Error] 결과 JSON 읽기/파싱 실패 (데이터 포맷 오류) - URI: {}, 원인: {}",
+                    s3Uri, e.getMessage());
+            throw new S3Exception(S3ErrorCode.S3_DOWNLOAD_ERROR, "JSON 파싱 에러: " + e.getMessage());
+
+            // 5. 기타 런타임 에러
         } catch (Exception e) {
-            // 그 외 통신 에러나 JSON 파싱 에러(MismatchedInputException 등)는 시스템 예외로 처리합니다.
-            log.error("[S3 Download Error] 결과 JSON 읽기/파싱 실패: {}", s3Uri, e);
-            throw new S3Exception(S3ErrorCode.S3_DOWNLOAD_ERROR, e.getMessage());
+            log.error("[S3 Download Error] 알 수 없는 시스템 오류 - URI: {}, 원인: {}", s3Uri, e.getMessage());
+            throw new S3Exception(S3ErrorCode.S3_DOWNLOAD_ERROR, "알 수 없는 S3 다운로드 오류");
         }
     }
 
@@ -100,9 +116,13 @@ public class S3AiOutputAdapter implements S3AiOutputPort {
             s3Client.deleteObject(deleteRequest);
             log.info("[S3 Delete] 비용 최적화 - S3 객체 삭제 완료: {}", s3Uri);
 
+            // 삭제 작업은 예외를 던지지 않고 격리(Fault Isolation)하되, 로그는 원인별로 명확하게 남깁니다.
+        } catch (software.amazon.awssdk.services.s3.model.S3Exception e) {
+            log.error("[S3 Delete Error] S3 서버 권한/오류로 삭제 실패 (Lifecycle 정책 대기) - URI: {}, 상태코드: {}", s3Uri, e.statusCode());
+        } catch (software.amazon.awssdk.core.exception.SdkClientException e) {
+            log.error("[S3 Delete Error] S3 네트워크 오류로 삭제 실패 (Lifecycle 정책 대기) - URI: {}, 원인: {}", s3Uri, e.getMessage());
         } catch (Exception e) {
-            // 데이터 등록이라는 메인 비즈니스는 이미 성공했으므로, 부가적인 삭제 작업의 실패는 로그만 남기고 무시합니다.
-            log.error("[S3 Delete Error] S3 객체 삭제 실패 (Lifecycle 정책에 의해 1일 후 자동 삭제됨): {}", s3Uri, e);
+            log.error("[S3 Delete Error] 알 수 없는 오류로 삭제 실패 (Lifecycle 정책 대기) - URI: {}, 원인: {}", s3Uri, e.getMessage());
         }
     }
 

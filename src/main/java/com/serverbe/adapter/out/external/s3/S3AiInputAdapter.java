@@ -75,9 +75,17 @@ public class S3AiInputAdapter implements S3AiInputPort {
             log.info("[S3 Upload] AI 비동기 입력 데이터 업로드 완료: {}", s3Uri);
             return s3Uri;
 
+        } catch (software.amazon.awssdk.services.s3.model.S3Exception e) {
+            log.error("[S3 Upload Error] S3 서버 거절/오류 - TaskID: {}, 상태코드: {}, 원인: {}",
+                    taskId, e.statusCode(), e.awsErrorDetails().errorMessage());
+            throw new S3Exception(S3ErrorCode.S3_UPLOAD_ERROR, "S3 서버 에러: " + e.awsErrorDetails().errorMessage());
+        } catch (software.amazon.awssdk.core.exception.SdkClientException e) {
+            log.error("[S3 Upload Error] S3 네트워크 타임아웃 및 통신 실패 - TaskID: {}, 원인: {}",
+                    taskId, e.getMessage());
+            throw new S3Exception(S3ErrorCode.S3_UPLOAD_ERROR, "S3 네트워크 에러: " + e.getMessage());
         } catch (Exception e) {
-            log.error("[S3 Upload Error] 입력 데이터 업로드 실패 - TaskID: {}, 원인: {}", taskId, e.getMessage());
-            throw new S3Exception(S3ErrorCode.S3_UPLOAD_ERROR, e.getMessage());
+            log.error("[S3 Upload Error] 알 수 없는 시스템 오류 - TaskID: {}, 원인: {}", taskId, e.getMessage());
+            throw new S3Exception(S3ErrorCode.S3_UPLOAD_ERROR, "알 수 없는 S3 업로드 오류");
         }
     }
 }

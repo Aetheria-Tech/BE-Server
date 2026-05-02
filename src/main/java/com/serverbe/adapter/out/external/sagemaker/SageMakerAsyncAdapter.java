@@ -41,15 +41,28 @@ public class SageMakerAsyncAdapter implements SageMakerAsyncPort {
 
         try {
             InvokeEndpointAsyncResponse response = sageMakerClient.invokeEndpointAsync(request);
-            
+
             // SageMaker 비동기 엔드포인트는 호출 직후 결과물이 저장될 예정인 S3 URI를 미리 알려줍니다.
             String outputLocation = response.outputLocation();
             log.info("[SageMaker Invoke] 비동기 추론 요청 성공 - 예상 Output 위치: {}", outputLocation);
             return outputLocation;
 
+            // 1. SageMaker 서버/서비스 측 에러 (예: 엔드포인트 없음, 권한 부족, 모델 컨테이너 에러 등)
+        } catch (software.amazon.awssdk.services.sagemakerruntime.model.SageMakerRuntimeException e) {
+            log.error("[SageMaker Invoke Error] SageMaker 서버 거절/오류 - Input: {}, 상태코드: {}, 원인: {}",
+                    inputS3Uri, e.statusCode(), e.awsErrorDetails().errorMessage());
+            throw new SageMakerException(SageMakerErrorCode.SAGE_MAKER_ERROR_CODE, "SageMaker 서버 에러: " + e.awsErrorDetails().errorMessage());
+
+            // 2. 네트워크 단절, 타임아웃 등 클라이언트 측 에러
+        } catch (software.amazon.awssdk.core.exception.SdkClientException e) {
+            log.error("[SageMaker Invoke Error] 네트워크 타임아웃 및 통신 실패 - Input: {}, 원인: {}",
+                    inputS3Uri, e.getMessage());
+            throw new SageMakerException(SageMakerErrorCode.SAGE_MAKER_ERROR_CODE, "SageMaker 네트워크 에러: " + e.getMessage());
+
+            // 3. 기타 런타임 에러
         } catch (Exception e) {
-            log.error("[SageMaker Error] 엔드포인트 호출 실패 - Input: {}, 원인: {}", inputS3Uri, e.getMessage());
-            throw new SageMakerException(SageMakerErrorCode.SAGE_MAKER_ERROR_CODE, e.getMessage());
+            log.error("[SageMaker Invoke Error] 알 수 없는 시스템 오류 - Input: {}, 원인: {}", inputS3Uri, e.getMessage());
+            throw new SageMakerException(SageMakerErrorCode.SAGE_MAKER_ERROR_CODE, "알 수 없는 SageMaker 호출 오류");
         }
     }
 }
