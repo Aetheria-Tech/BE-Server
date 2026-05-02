@@ -59,43 +59,53 @@ public class AiGenerationService implements InitiateAiGenerationUseCase, GetTask
     @Override
     public Mono<String> initiateGeneration(
             Long userId,
-            String startPosition, //TODO 시작 위치를 지오코딩으로 위도와 경도로 변환할 필요가 있음.
+            String startPosition,
             String shape,
             Proficiency proficiency
     ) {
-        // 1. JPA DB 저장(Blocking)을 boundedElastic 스레드풀로 격리
-        return Mono.fromCallable(() -> taskUpdatePort.save(AiTask.createPending(userId, shape, proficiency)))
-                .subscribeOn(Schedulers.boundedElastic())
-                .flatMap(aiTask ->
-                        // 2. [가이드 8번 준수] 외부 I/O (S3, SageMaker) 작업 격리
-                        Mono.fromCallable(() -> {
-                                    String promptJson = buildPromptJson(startPosition, shape, proficiency);
-                                    String inputS3Uri = s3AiInputPort.uploadInputJson(aiTask.id(), promptJson);
-                                    String outputS3Uri = sageMakerAdapter.invokeAsync(inputS3Uri);
-                                    return aiTask.markAsProcessing(inputS3Uri, outputS3Uri);
-                                })
-                                .subscribeOn(Schedulers.boundedElastic())
-                                .flatMap(processingTask ->
-                                        // 3. 상태 업데이트를 위한 DB 저장 (다시 격리)
-                                        Mono.fromCallable(() -> {
-                                            taskUpdatePort.save(processingTask);
-                                            return aiTask.id();
-                                        }).subscribeOn(Schedulers.boundedElastic())
-                                )
-                                // 4. 에러 발생 시 실패 상태 저장 및 예외 전파
-                                .onErrorResume(e -> {
-                                    log.error("[AI Pipeline Error] 요청 처리 중 오류 발생 - TaskID: {}", aiTask.id(), e);
+        // 메인 파이프라인이 마치 하나의 문장처럼 깔끔하게 읽힙니다.
+        return savePendingTask(userId, shape, proficiency)
+                .flatMap(pendingTask -> processExternalAiServices(pendingTask, startPosition, shape, proficiency))
+                .flatMap(this::saveProcessingTask)
+                .map(AiTask::id);
+    }
 
-                                    return Mono.fromCallable(() -> {
-                                                AiTask failedTask = aiTask.markAsFailed(e.getMessage());
-                                                taskUpdatePort.save(failedTask);
-                                                return failedTask; // 반환값은 무시되지만 Callable 구색 맞추기
-                                            })
-                                            .subscribeOn(Schedulers.boundedElastic())
-                                            // DB 저장 성공 여부와 상관없이 최종적으로 비즈니스 예외를 던짐
-                                            .then(Mono.error(new AiException(AiErrorCode.AI_PIPELINE_ERROR)));
-                                })
-                );
+    private Mono<AiTask> savePendingTask(Long userId, String shape, Proficiency proficiency) {
+        return Mono.fromCallable(() -> taskUpdatePort.save(AiTask.createPending(userId, shape, proficiency)))
+                .subscribeOn(Schedulers.boundedElastic());
+    }
+
+    private Mono<AiTask> processExternalAiServices(
+            AiTask pendingTask,
+            String startPosition,
+            String shape,
+            Proficiency proficiency
+    ) {
+        return Mono.fromCallable(() -> {
+                    String promptJson = buildPromptJson(startPosition, shape, proficiency);
+                    String inputS3Uri = s3AiInputPort.uploadInputJson(pendingTask.id(), promptJson);
+                    String outputS3Uri = sageMakerAdapter.invokeAsync(inputS3Uri);
+                    return pendingTask.markAsProcessing(inputS3Uri, outputS3Uri);
+                })
+                .subscribeOn(Schedulers.boundedElastic())
+                // 이 단계에서 에러가 발생하면 handlePipelineError로 처리를 위임합니다.
+                .onErrorResume(e -> handlePipelineError(pendingTask, e));
+    }
+
+    private Mono<AiTask> saveProcessingTask(AiTask processingTask) {
+        return Mono.fromCallable(() -> taskUpdatePort.save(processingTask))
+                .subscribeOn(Schedulers.boundedElastic());
+    }
+
+    private Mono<AiTask> handlePipelineError(AiTask aiTask, Throwable e) {
+        log.error("[AI Pipeline Error] 요청 처리 중 오류 발생 - TaskID: {}", aiTask.id(), e);
+
+        return Mono.fromCallable(() -> {
+                    AiTask failedTask = aiTask.markAsFailed(e.getMessage());
+                    return taskUpdatePort.save(failedTask);
+                })
+                .subscribeOn(Schedulers.boundedElastic())
+                .then(Mono.error(new AiException(AiErrorCode.AI_PIPELINE_ERROR)));
     }
 
     /**

@@ -8,8 +8,10 @@ import com.serverbe.infrastructure.config.properties.RedisProperties;
 import jakarta.persistence.QueryTimeoutException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DigestUtils;
 import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Component;
 
@@ -232,13 +234,16 @@ public class TokenPersistenceAdapter implements TokenPersistencePort {
     public boolean isAccessTokenBlacklisted(String accessToken) {
         try {
             return Boolean.TRUE.equals(redisTemplate.hasKey(createAccessTokenBlacklistKey(accessToken)));
+
         } catch (RedisConnectionFailureException | QueryTimeoutException e) {
-            // INFO나 ERROR 대신 WARN으로 처리하고, 보안 감사(Audit)를 위해 토큰의 일부(또는 해시)를 남김
+            // 1. 보안 감사 로그: hashCode() 대신 SHA-256 단방향 해시 사용
             log.warn("[SECURITY AUDIT] Redis 장애로 블랙리스트 검증 우회. Token Hash: {}, Reason: {}",
-                    accessToken.hashCode(), e.getMessage());
+                    DigestUtils.sha1DigestAsHex(accessToken), e.getMessage());
             return false;
-        } catch (Exception e) {
-            log.error("예상치 못한 Redis 오류: {}", e.getMessage());
+
+        } catch (DataAccessException e) {
+            // 2. 구체적인 예외 처리: Exception 대신 Spring Data(Redis) 관련 최상위 예외만 캐치
+            log.error("Redis 데이터 접근 오류: {}", e.getMessage());
             return false;
         }
     }
