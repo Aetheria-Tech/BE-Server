@@ -34,17 +34,9 @@ public record RunningArt(
      * @return 정보가 수정된 새로운 {@link RunningArt} 객체
      */
     public RunningArt updateMetadata(String title, String content) {
-        return new RunningArt(
-                this.id,
-                title,
-                content,
-                this.shape,
-                this.distance,
-                this.proficiency,
-                this.gpx,
-                this.userId,
-                this.startLat,
-                this.startLon
-        );
+        return this.toBuilder()
+                .title(title)
+                .content(content)
+                .build();
     }
 }

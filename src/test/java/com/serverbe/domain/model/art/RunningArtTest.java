@@ -18,7 +18,7 @@ class RunningArtTest {
                 .title("기존 제목")
                 .content("기존 내용")
                 .shape("강아지")
-                .proficiency(Proficiency.MASTER)
+                .proficiency(Proficiency.EXPERT)
                 .gpx("q`jdFub_fW@B?BAD")
                 .startLat(37.323)
                 .startLon(127.106)

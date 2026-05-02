@@ -13,7 +13,7 @@ import java.util.regex.Pattern;
  */
 public record Address(String value) {
 
-    private static final Pattern ADDRESS_PATTERN = Pattern.compile("^[a-zA-Z0-9가-힣\\s\\-\\(\\)]+$");
+    private static final Pattern ADDRESS_PATTERN = Pattern.compile("^[a-zA-Z0-9가-힣\\s\\-\\(\\),.#~]+$");
     private static final int MIN_LENGTH = 3;
     private static final int MAX_LENGTH = 100;
 
