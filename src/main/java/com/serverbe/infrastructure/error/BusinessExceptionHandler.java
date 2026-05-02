@@ -9,6 +9,7 @@ import com.serverbe.infrastructure.common.response.RestApiResponse;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.catalina.connector.ClientAbortException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -188,5 +189,11 @@ public class BusinessExceptionHandler {
         return ResponseEntity.status(errorCode.getStatus())
                 .header("Retry-After", String.valueOf(e.getRetryAfterSeconds()))
                 .body(RestApiResponse.fail(errorCode, errorCode.getMessage()));
+    }
+
+    @ExceptionHandler(ClientAbortException.class)
+    public void handleClientAbortException(ClientAbortException e) {
+        log.warn("클라이언트 연결 중단: {}", e.getMessage());
+        // 별도의 응답 객체를 반환하지 않음
     }
 }

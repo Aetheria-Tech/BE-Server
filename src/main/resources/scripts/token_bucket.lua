@@ -28,8 +28,7 @@ if filled_tokens >= requested then
   filled_tokens = filled_tokens - requested
 end
 
--- [수정] HSET -> HMSET (여러 필드를 한 번에 저장하기 위해 변경)
-redis.call("HMSET", key, "tokens", filled_tokens, "last_refilled", now)
+redis.call("HSET", key, "tokens", filled_tokens, "last_refilled", now)
 
 redis.call("EXPIRE", key, 3600)
 

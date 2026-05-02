@@ -2,13 +2,11 @@ package com.serverbe.infrastructure.config.aop;
 
 // ... 기존 import 문 ...
 import com.serverbe.application.annotation.RateLimit;
-import com.serverbe.application.port.out.security.TokenResolver;
 import com.serverbe.application.service.RateLimiterService;
 import com.serverbe.domain.exception.auth.AuthErrorCode;
 import com.serverbe.domain.exception.auth.AuthException;
 import com.serverbe.domain.exception.server.RateLimitExceededException;
 import com.serverbe.domain.exception.server.ServerErrorCode;
-import com.serverbe.infrastructure.security.TokenExtractor;
 import com.serverbe.infrastructure.util.ClientIpUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -16,9 +14,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
-import org.aspectj.lang.reflect.MethodSignature; // ✨ 추가
+import org.aspectj.lang.reflect.MethodSignature;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
-import org.springframework.util.StringUtils;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
@@ -31,11 +30,11 @@ import java.lang.reflect.Method;
 public class RateLimitAspect {
 
     private final RateLimiterService rateLimiterService;
-    private final TokenExtractor tokenExtractor;
-    private final TokenResolver tokenResolver;
 
-    // 포인트컷: 단일 어노테이션이든, 다중(Repeatable) 어노테이션이든 모두 캐치하도록 수정
-    @Around("@annotation(com.serverbe.application.annotation.RateLimit) || @annotation(com.serverbe.application.annotation.RateLimits)")
+    /**
+     * 특정 애노테이션이 있는 곳이 아니라, @RestController가 붙은 클래스의 모든 메서드를 가로챕니다.
+     */
+    @Around("@within(org.springframework.web.bind.annotation.RestController)")
     public Object checkRateLimit(ProceedingJoinPoint joinPoint) throws Throwable {
 
         HttpServletRequest request = ((ServletRequestAttributes) RequestContextHolder.currentRequestAttributes()).getRequest();
@@ -57,7 +56,7 @@ public class RateLimitAspect {
                 isAllowed = rateLimiterService.isAllowedForIp(ip, endpoint, rateLimit.capacity(), rateLimit.refillRate());
 
             } else if (rateLimit.target() == RateLimit.TargetType.USER) {
-                org.springframework.security.core.Authentication authentication = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+                Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
                 if (authentication == null || !authentication.isAuthenticated()) {
                     log.warn("[AOP Rate Limit] 인증 정보가 없습니다.");
                     throw new AuthException(AuthErrorCode.UNAUTHORIZED);

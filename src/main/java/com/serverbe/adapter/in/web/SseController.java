@@ -1,5 +1,7 @@
 package com.serverbe.adapter.in.web;
 
+import com.serverbe.application.annotation.RateLimit;
+import com.serverbe.application.annotation.RateLimits;
 import com.serverbe.application.port.in.notification.SseSubscribeUseCase;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -28,6 +30,9 @@ public class SseController {
             summary = "AI 작업 상태 SSE 구독",
             description = "특정 Task ID에 대한 AI 작업 상태(성공, 실패 등)를 실시간으로 구독합니다. (text/event-stream 방식)",
             security = @SecurityRequirement(name = "jwtAuth")
+    )
+    @RateLimits(
+            @RateLimit(target = RateLimit.TargetType.IP, capacity = 1, refillRate = 1)
     )
     @GetMapping(value = "/{taskId}/subscribe", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public ResponseEntity<SseEmitter> subscribe(

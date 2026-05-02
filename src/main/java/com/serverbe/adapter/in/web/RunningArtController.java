@@ -5,7 +5,6 @@ import com.serverbe.adapter.in.web.dto.art.RunningArtResponse;
 import com.serverbe.application.annotation.RateLimit;
 import com.serverbe.application.port.in.art.*;
 import com.serverbe.adapter.in.web.dto.art.UpdateRunningArtRequest;
-import com.serverbe.domain.model.art.vo.Proficiency;
 import com.serverbe.infrastructure.common.response.RestApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -24,7 +23,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Schedulers;
 
 import java.util.List;
 

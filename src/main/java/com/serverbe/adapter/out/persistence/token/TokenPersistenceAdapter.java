@@ -230,19 +230,18 @@ public class TokenPersistenceAdapter implements TokenPersistencePort {
      */
     @Override
     public boolean isAccessTokenBlacklisted(String accessToken) {
-
         try {
             return Boolean.TRUE.equals(redisTemplate.hasKey(createAccessTokenBlacklistKey(accessToken)));
         } catch (RedisConnectionFailureException | QueryTimeoutException e) {
-            // Redis 장애 시 로그만 남기고 무조건 통과 (Fail-Open 전략)
-            log.error("Redis 장애로 인해 JWT 블랙리스트 검증을 건너뜁니다. 임시 허용 (Fail-Open)");
+            // INFO나 ERROR 대신 WARN으로 처리하고, 보안 감사(Audit)를 위해 토큰의 일부(또는 해시)를 남김
+            log.warn("[SECURITY AUDIT] Redis 장애로 블랙리스트 검증 우회. Token Hash: {}, Reason: {}",
+                    accessToken.hashCode(), e.getMessage());
             return false;
         } catch (Exception e) {
             log.error("예상치 못한 Redis 오류: {}", e.getMessage());
             return false;
         }
     }
-
     /**
      * 리프레시 토큰이 블랙리스트에 등록되어있는지 확인합니다.
      *

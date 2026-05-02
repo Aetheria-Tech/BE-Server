@@ -2,6 +2,8 @@ package com.serverbe.adapter.in.web;
 
 import com.serverbe.adapter.in.web.dto.me.UserProfileResponse;
 import com.serverbe.adapter.in.web.dto.me.UserUpdateRequest;
+import com.serverbe.application.annotation.RateLimit;
+import com.serverbe.application.annotation.RateLimits;
 import com.serverbe.application.port.in.me.UpdateUserUseCase;
 import com.serverbe.application.port.in.me.GetUserUseCase;
 import com.serverbe.infrastructure.common.response.RestApiResponse;
@@ -39,6 +41,9 @@ public class UserController {
                     @ApiResponse(responseCode = "404", description = "사용자 정보를 찾을 수 없음")
             }
     )
+    @RateLimits(
+            @RateLimit(target = RateLimit.TargetType.IP, capacity = 3, refillRate = 1)
+    )
     @GetMapping("/me")
     public ResponseEntity<RestApiResponse<UserProfileResponse>> getMyProfile(@Parameter(hidden = true) @AuthenticationPrincipal Long userId) {
         return ResponseEntity.ok(RestApiResponse.success(
@@ -60,6 +65,9 @@ public class UserController {
                     @ApiResponse(responseCode = "401", description = "인증 실패"),
                     @ApiResponse(responseCode = "404", description = "사용자를 찾을 수 없음")
             }
+    )
+    @RateLimits(
+            @RateLimit(target = RateLimit.TargetType.IP, capacity = 1, refillRate = 1)
     )
     @PatchMapping("/me")
     public ResponseEntity<RestApiResponse<UserProfileResponse>> updateMyProfile(
