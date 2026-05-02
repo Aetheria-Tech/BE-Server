@@ -90,7 +90,6 @@ public class AuthController {
             @PathVariable(value = "provider") OAuthProvider provider
     ) {
         return Mono.fromCallable(() -> loginUseCase.getSocialLoginUrl(provider))
-                .subscribeOn(Schedulers.boundedElastic())
                 .map(url -> ResponseEntity.status(HttpStatus.FOUND)
                         .location(URI.create(url))
                         .build());

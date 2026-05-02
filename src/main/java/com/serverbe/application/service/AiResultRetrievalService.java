@@ -96,6 +96,7 @@ public class AiResultRetrievalService implements RetrieveAiResultUseCase {
     }
 
     private void deleteDataFromS3(AiTask aiTask) {
+        s3AiOutputPort.deleteOutput(aiTask.inputS3Uri());
         s3AiOutputPort.deleteOutput(aiTask.outputS3Uri());
     }
 
