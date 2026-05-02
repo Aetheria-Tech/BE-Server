@@ -10,6 +10,7 @@ import com.serverbe.domain.exception.art.ArtException;
 import com.serverbe.domain.model.art.RunningArt;
 import com.serverbe.domain.exception.BusinessException;
 import com.serverbe.domain.model.art.vo.Proficiency;
+import com.serverbe.infrastructure.config.properties.ArtProperties;
 import com.serverbe.infrastructure.util.PolylineUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -34,7 +35,6 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class RunningArtService implements
         GetRunningArtUseCase,
         DeleteRunningArtUseCase,
@@ -45,6 +45,15 @@ public class RunningArtService implements
 
     private final RunningArtRepositoryPort repositoryPort;
     private final RunningArtRedisPort runningArtRedisPort;
+    private final double maxRadius;
+    private final int maxResultLimit;
+
+    public RunningArtService(RunningArtRepositoryPort repositoryPort, RunningArtRedisPort runningArtRedisPort, ArtProperties artProperties) {
+        this.repositoryPort = repositoryPort;
+        this.runningArtRedisPort = runningArtRedisPort;
+        this.maxRadius = artProperties.maxRadius();
+        this.maxResultLimit = artProperties.maxResultLimit();
+    }
 
     /**
      * @param userId   런닝 아트를 조회할 사용자의 고유 식별자
@@ -184,32 +193,33 @@ public class RunningArtService implements
      */
     @Override
     public Flux<RunningArtResult> getNearbyArts(Double lat, Double lon, Double radius) {
+        // 1. 반경 최대값 검증 (방어적 프로그래밍)
+        if (radius > maxRadius) {
+            return Flux.error(new ArtException(ArtErrorCode.INVALID_RADIUS));
+        }
+
         return runningArtRedisPort.findNearbyIds(lat, lon, radius)
+                .take(maxResultLimit)
                 .collectList()
-                // 1. Reactive 방식의 빈 리스트 방어 (imperative if문 제거)
                 .filter(ids -> !ids.isEmpty())
                 .flatMapMany(ids ->
                         Mono.fromCallable(() -> {
-                                    // 2. DB에서 엔티티 일괄 조회 (순서 보장 안 됨)
                                     List<RunningArt> arts = repositoryPort.findAllByIdIn(ids);
 
-                                    // 3. 탐색 성능 최적화: List -> Map 변환 (O(N^2) -> O(N)으로 개선)
                                     Map<Long, RunningArt> artMap = arts.stream()
                                             .collect(Collectors.toMap(
                                                     RunningArt::id,
                                                     Function.identity(),
-                                                    (existing, replacement) -> existing // 중복 ID 방어 로직
+                                                    (existing, replacement) -> existing
                                             ));
 
-                                    // 4. Redis 원본 ID 배열(거리 오름차순)을 순회하며 O(1)로 꺼내오기
                                     return ids.stream()
                                             .map(artMap::get)
-                                            .filter(Objects::nonNull) // DB에 없는 유령 데이터 필터링
+                                            .filter(Objects::nonNull)
                                             .map(RunningArtResult::toResult)
                                             .toList();
                                 })
                                 .subscribeOn(Schedulers.boundedElastic())
-                                // 5. 완성된 List를 바로 Flux로 평탄화하여 방출
                                 .flatMapIterable(Function.identity())
                 );
     }
