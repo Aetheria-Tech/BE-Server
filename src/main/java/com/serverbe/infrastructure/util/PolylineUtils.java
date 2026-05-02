@@ -20,7 +20,7 @@ public final class PolylineUtils {
     private static final double EARTH_RADIUS_METERS = 6371000.0;
 
     private PolylineUtils() {
-        throw new UnsupportedOperationException("Utility class cannot be instantiated");
+        throw new ServerException(ServerErrorCode.UTILITY_CLASS, "Utility class cannot be instantiated");
     }
 
     /**
@@ -47,7 +47,7 @@ public final class PolylineUtils {
      */
     public static PolylineMetadata extractMetadata(String encoded) {
         if (encoded == null || encoded.isEmpty()) {
-            throw new IllegalArgumentException("Encoded polyline string cannot be null or empty");
+            throw new ServerException(ServerErrorCode.POLYLINE_PARSE_ERROR);
         }
 
         int len = encoded.length();
