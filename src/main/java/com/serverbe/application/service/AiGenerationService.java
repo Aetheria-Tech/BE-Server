@@ -44,9 +44,9 @@ public class AiGenerationService implements InitiateAiGenerationUseCase, GetTask
      * AI 생성 작업을 비동기 리액티브(Reactive) 파이프라인으로 시작합니다.
      * <p>
      * <b>파이프라인 실행 흐름:</b><br>
-     * 1. <b>DB 저장 (PENDING):</b> 작업 초기 상태를 DB에 저장합니다. (boundedElastic 격리)<br>
-     * 2. <b>외부 연동 (S3 & SageMaker):</b> JSON 프롬프트를 생성하여 S3에 업로드하고, SageMaker 비동기 추론을 호출합니다. (boundedElastic 격리)<br>
-     * 3. <b>DB 업데이트 (PROCESSING):</b> 외부 호출이 성공하면 작업 상태를 처리 중으로 변경합니다. (boundedElastic 격리)<br>
+     * 1. <b>DB 저장 (PENDING):</b> 작업 초기 상태를 DB에 저장합니다.<br>
+     * 2. <b>외부 연동 (S3 & SageMaker):</b> JSON 프롬프트를 생성하여 S3에 업로드하고, SageMaker 비동기 추론을 호출합니다.<br>
+     * 3. <b>DB 업데이트 (PROCESSING):</b> 외부 호출이 성공하면 작업 상태를 처리 중으로 변경합니다.<br>
      * 4. <b>에러 핸들링 (FAILED):</b> 파이프라인 중 예외 발생 시, 작업 상태를 실패로 기록하고 에러를 전파합니다.
      * </p>
      *
@@ -70,11 +70,35 @@ public class AiGenerationService implements InitiateAiGenerationUseCase, GetTask
                 .map(AiTask::id);
     }
 
+    /**
+     * AI 작업의 초기 상태(PENDING)를 데이터베이스에 저장합니다.
+     * <p>
+     * JPA의 블로킹 I/O 작업이므로 {@link Schedulers#boundedElastic()} 스레드 풀로 격리하여 실행합니다.
+     * </p>
+     *
+     * @param userId 요청한 사용자의 ID
+     * @param shape 생성할 런닝 아트의 모양
+     * @param proficiency 사용자의 러닝 숙련도
+     * @return PENDING 상태로 저장된 {@link AiTask} 엔티티를 방출하는 Mono
+     */
     private Mono<AiTask> savePendingTask(Long userId, String shape, Proficiency proficiency) {
         return Mono.fromCallable(() -> taskUpdatePort.save(AiTask.createPending(userId, shape, proficiency)))
                 .subscribeOn(Schedulers.boundedElastic());
     }
 
+    /**
+     * 외부 서비스(S3 및 SageMaker)와 연동하여 AI 생성을 요청하고, 엔티티를 처리 중(PROCESSING) 상태로 변경합니다.
+     * <p>
+     * S3 업로드 및 SageMaker API 호출과 같은 외부 네트워크 블로킹 작업을 수행하며,
+     * 작업 중 예외가 발생하면 {@link #handlePipelineError}로 처리를 위임합니다.
+     * </p>
+     *
+     * @param pendingTask 이전에 PENDING 상태로 저장된 AI 작업 엔티티
+     * @param startPosition 런닝 시작 위치
+     * @param shape 목표 아트 모양
+     * @param proficiency 러닝 숙련도
+     * @return PROCESSING 상태 및 관련 URI가 업데이트된 {@link AiTask} 객체를 방출하는 Mono
+     */
     private Mono<AiTask> processExternalAiServices(
             AiTask pendingTask,
             String startPosition,
@@ -92,11 +116,31 @@ public class AiGenerationService implements InitiateAiGenerationUseCase, GetTask
                 .onErrorResume(e -> handlePipelineError(pendingTask, e));
     }
 
+    /**
+     * 처리 중(PROCESSING) 상태로 상태가 변경된 AI 작업 정보를 데이터베이스에 반영합니다.
+     * <p>
+     * JPA 블로킹 I/O 작업이므로 {@link Schedulers#boundedElastic()} 스레드 풀에서 실행됩니다.
+     * </p>
+     *
+     * @param processingTask S3 URI 및 SageMaker 반환값이 포함된 AI 작업 엔티티
+     * @return 데이터베이스에 반영된 {@link AiTask} 엔티티를 방출하는 Mono
+     */
     private Mono<AiTask> saveProcessingTask(AiTask processingTask) {
         return Mono.fromCallable(() -> taskUpdatePort.save(processingTask))
                 .subscribeOn(Schedulers.boundedElastic());
     }
 
+    /**
+     * AI 파이프라인 처리 중 발생한 예외를 처리하고 작업 상태를 실패(FAILED)로 기록합니다.
+     * <p>
+     * 에러 로그를 남기고 DB에 실패 상태 및 사유를 반영한 뒤, 클라이언트에게 반환할
+     * 최종 비즈니스 예외({@link AiException})를 발생시킵니다.
+     * </p>
+     *
+     * @param aiTask 예외가 발생한 시점의 AI 작업 엔티티
+     * @param e 파이프라인에서 발생한 원본 예외
+     * @return 에러 파이프라인으로 전환되어 최종적으로 {@link AiException}을 방출하는 Mono
+     */
     private Mono<AiTask> handlePipelineError(AiTask aiTask, Throwable e) {
         log.error("[AI Pipeline Error] 요청 처리 중 오류 발생 - TaskID: {}", aiTask.id(), e);
 

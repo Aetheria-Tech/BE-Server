@@ -115,7 +115,6 @@ public class AiNotificationSqsListener {
         String fileName = s3Uri.substring(s3Uri.lastIndexOf("/") + 1);
 
         // 2. 첫 번째 점(.)이 등장하는 위치 앞까지만 잘라냅니다.
-        // UUID에는 점이 없으므로 안전하게 순수 Task ID만 추출됩니다.
-        return fileName.contains(".") ? fileName.substring(0, fileName.indexOf(".")) : fileName;
+        return fileName.contains(".") ? fileName.substring(0, fileName.lastIndexOf(".")) : fileName;
     }
 }
