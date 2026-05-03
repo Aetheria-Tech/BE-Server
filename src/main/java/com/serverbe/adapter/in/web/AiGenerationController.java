@@ -4,6 +4,7 @@ import com.serverbe.adapter.in.web.dto.art.CreateRunningArtRequest;
 import com.serverbe.adapter.in.web.dto.task.TaskStatusResponse;
 import com.serverbe.application.port.in.art.InitiateAiGenerationUseCase;
 import com.serverbe.application.port.in.task.GetTaskStatusUseCase;
+import com.serverbe.domain.model.address.Address;
 import com.serverbe.infrastructure.common.response.RestApiResponse;
 import io.swagger.v3.oas.annotations.Parameter;
 import jakarta.validation.Valid;
@@ -47,7 +48,8 @@ public class AiGenerationController {
             @Valid @RequestBody CreateRunningArtRequest request,
             @Parameter(hidden = true) @AuthenticationPrincipal Long userId
     ) {
-        // 1. 서비스가 Mono<String>을 반환
+        new Address(request.startPosition()); // 유효성 검증
+
         return initiateAiGenerationUseCase.initiateGeneration(
                         userId,
                         request.startPosition(),

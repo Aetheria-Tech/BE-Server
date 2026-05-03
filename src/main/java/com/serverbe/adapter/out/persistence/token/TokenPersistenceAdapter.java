@@ -12,6 +12,7 @@ import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
 import java.time.Duration;
 import java.util.Collections;
@@ -228,6 +229,8 @@ public class TokenPersistenceAdapter implements TokenPersistencePort {
      */
     @Override
     public boolean isAccessTokenBlacklisted(String accessToken) {
+        if (!StringUtils.hasText(accessToken)) return false;
+
         try {
             return Boolean.TRUE.equals(redisTemplate.hasKey(createAccessTokenBlacklistKey(accessToken)));
 

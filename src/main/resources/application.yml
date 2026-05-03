@@ -205,9 +205,10 @@ aws:
     ai-notification-queue-name: "ai-generation-notification-queue" # 나중에 CDK로 만들 큐 이름
 
 
-app:
-  sse:
-    timeout: 600000 # 10분 (10 * 60 * 1000 ms)
+
+sse:
+  timeout: 600000 # 10분 (10 * 60 * 1000 ms)
+  channel: "sse-notifications"
 
 # 알림 설정
 notification:

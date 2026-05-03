@@ -6,7 +6,6 @@ import com.serverbe.adapter.out.notification.dto.SsePubSubMessage;
 import com.serverbe.application.port.out.notification.TaskNotificationPort;
 import com.serverbe.application.port.out.task.TaskQueryPort;
 import com.serverbe.infrastructure.config.properties.SseProperties;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
@@ -29,7 +28,6 @@ import java.util.concurrent.CopyOnWriteArraySet;
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class SseNotificationAdapter implements TaskNotificationPort {
 
     /**
@@ -39,14 +37,26 @@ public class SseNotificationAdapter implements TaskNotificationPort {
      * </p>
      */
     private final Map<String, Set<SseEmitter>> emitters = new ConcurrentHashMap<>();
-    private final SseProperties sseProperties;
+
+    public SseNotificationAdapter(
+            StringRedisTemplate redisTemplate,
+            ObjectMapper objectMapper,
+            TaskQueryPort taskQueryPort,
+            SseProperties sseProperties
+    ) {
+        this.redisTemplate = redisTemplate;
+        this.objectMapper = objectMapper;
+        this.taskQueryPort = taskQueryPort;
+        this.timeout = sseProperties.timeout();
+        this.sseChannel = sseProperties.channel();
+    }
 
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
     private final TaskQueryPort taskQueryPort;
 
-    /** 다중 서버 간 SSE 이벤트를 브로드캐스팅하기 위한 Redis Pub/Sub 채널명 */
-    private static final String SSE_CHANNEL = "sse-notifications";
+    private final String sseChannel;
+    private final Long timeout;
 
     /**
      * 클라이언트의 SSE 구독 요청을 처리하고 새로운 연결({@link SseEmitter})을 반환합니다.
@@ -62,7 +72,7 @@ public class SseNotificationAdapter implements TaskNotificationPort {
      */
     @Override
     public SseEmitter subscribe(String taskId) {
-        SseEmitter emitter = new SseEmitter(sseProperties.timeout());
+        SseEmitter emitter = new SseEmitter(timeout);
 
         emitters.computeIfAbsent(taskId, k -> new CopyOnWriteArraySet<>()).add(emitter);
 
@@ -143,7 +153,7 @@ public class SseNotificationAdapter implements TaskNotificationPort {
             SsePubSubMessage message = new SsePubSubMessage(taskId, eventName, data);
             String jsonMessage = objectMapper.writeValueAsString(message);
 
-            redisTemplate.convertAndSend(SSE_CHANNEL, jsonMessage);
+            redisTemplate.convertAndSend(sseChannel, jsonMessage);
             log.info("[Redis Pub] SSE 알림 발행 완료 - Task ID: {}, Event: {}", taskId, eventName);
         } catch (Exception e) {
             log.error("[Redis Pub] 알림 발행 실패 - Task ID: {}", taskId, e);

@@ -151,7 +151,7 @@ public class RunningArtService implements
             @Override
             public void afterCommit() {
                 Flux.fromIterable(artIdsToDelete)
-                        .flatMap(runningArtRedisPort::removeLocation)
+                        .flatMap(runningArtRedisPort::removeLocation, 10)
                         .subscribe(
                                 null, // 결과 로그는 생략 가능
                                 error -> log.error("Redis 일괄 삭제 중 오류 발생 (UserId: {}): {}", userId, error.getMessage()),
