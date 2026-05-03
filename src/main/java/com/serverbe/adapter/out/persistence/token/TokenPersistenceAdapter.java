@@ -1,27 +1,23 @@
 package com.serverbe.adapter.out.persistence.token;
 
 import com.serverbe.application.port.out.token.TokenPersistencePort;
-import com.serverbe.domain.exception.auth.AuthErrorCode;
-import com.serverbe.domain.exception.auth.AuthException;
 import com.serverbe.infrastructure.config.properties.JwtProperties;
 import com.serverbe.infrastructure.config.properties.RedisProperties;
 import jakarta.persistence.QueryTimeoutException;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.codec.digest.DigestUtils;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.core.script.DigestUtils;
 import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Component;
 
-import java.security.MessageDigest;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 /**
  * @author Duskafka
@@ -238,7 +234,7 @@ public class TokenPersistenceAdapter implements TokenPersistencePort {
         } catch (RedisConnectionFailureException | QueryTimeoutException e) {
             // 1. 보안 감사 로그: hashCode() 대신 SHA-256 단방향 해시 사용
             log.warn("[SECURITY AUDIT] Redis 장애로 블랙리스트 검증 우회. Token Hash: {}, Reason: {}",
-                    DigestUtils.sha1DigestAsHex(accessToken), e.getMessage());
+                    DigestUtils.sha256Hex(accessToken), e.getMessage());
             return false;
 
         } catch (DataAccessException e) {
@@ -247,6 +243,8 @@ public class TokenPersistenceAdapter implements TokenPersistencePort {
             return false;
         }
     }
+
+
     /**
      * 리프레시 토큰이 블랙리스트에 등록되어있는지 확인합니다.
      *
@@ -324,28 +322,29 @@ public class TokenPersistenceAdapter implements TokenPersistencePort {
     /**
      * AT 블랙리스트 키
      *
-     * @implNote BL:AT:{token}
+     * @responsibility 보안을 위한 AT 해싱 키 생성
+     * @implNote Redis 내에 액세스 토큰 원문 노출을 방지하기 위해 SHA-256 해싱을 적용합니다. (BL:AT:{hashed_token})
      */
     private String createAccessTokenBlacklistKey(String accessToken) {
-        return String.format("%s:%s", atBlacklistPrefix, accessToken);
+        return String.format(
+                "%s:%s",
+                atBlacklistPrefix,
+                DigestUtils.sha256Hex(accessToken)
+        );
     }
 
     /**
      * RT 블랙리스트 키 생성 (해싱)
      *
      * @responsibility 보안을 위한 RT 해싱 키 생성
-     * @implNote Redis 내에 리프레시 토큰 원문 노출을 방지하기 위해 SHA-256 해싱을 적용합니다.
-     * @implSpec 해싱 알고리즘 부재 시 {@link AuthException}을 발생시킵니다.
+     * @implNote Redis 내에 리프레시 토큰 원문 노출을 방지하기 위해 SHA-256 해싱을 적용합니다. (BL:RT:{hashed_token})
      */
     private String createRefreshTokenBlacklistKey(String refreshToken) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(refreshToken.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-            String hexHash = java.util.HexFormat.of().formatHex(hash);
-            return String.format("%s:%s", rtBlacklistPrefix, hexHash);
-        } catch (java.security.NoSuchAlgorithmException e) {
-            throw new AuthException(AuthErrorCode.FAILED_HASH_REFRESH_TOKEN, e.getMessage());
-        }
+        return String.format(
+                "%s:%s",
+                rtBlacklistPrefix,
+                DigestUtils.sha256Hex(refreshToken)
+        );
     }
 
     /**
@@ -354,6 +353,11 @@ public class TokenPersistenceAdapter implements TokenPersistencePort {
      * 결과 예시: "user:{userId}:rt:" (마지막 콜론 포함)
      */
     private String getTokenKeyPrefix(Long userId) {
-        return String.format("%s:%d:%s:", authPrefix, userId, authSuffix);
+        return String.format(
+                "%s:%d:%s:",
+                authPrefix,
+                userId,
+                authSuffix
+        );
     }
 }

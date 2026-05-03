@@ -71,6 +71,8 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-security'
     // OAuth2 Client: 구글, 카카오 등 외부 소셜 로그인 연동 지원
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
+    // SHA256을 사용하기 위한 의존성
+    implementation 'commons-codec:commons-codec'
 
     // JWT (Java JWT): JWT 토큰의 생성, 파싱, 검증을 위한 라이브러리
     implementation 'io.jsonwebtoken:jjwt-api:0.11.5'          // JWT 인터페이스 및 정의
