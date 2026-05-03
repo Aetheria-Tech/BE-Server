@@ -13,6 +13,8 @@ import com.serverbe.application.port.out.task.TaskQueryPort;
 import com.serverbe.application.port.out.task.TaskUpdatePort;
 import com.serverbe.domain.exception.ai.AiErrorCode;
 import com.serverbe.domain.exception.ai.AiException;
+import com.serverbe.domain.exception.external.ExternalApiClientException;
+import com.serverbe.domain.exception.external.ExternalApiErrorCode;
 import com.serverbe.domain.model.art.vo.Proficiency;
 import com.serverbe.domain.model.task.AiTask;
 import lombok.RequiredArgsConstructor;
@@ -62,6 +64,7 @@ public class AiGenerationService implements InitiateAiGenerationUseCase, GetTask
             Proficiency proficiency
     ) {
         return geocodePort.geocode(startPosition)
+                .switchIfEmpty(Mono.error(new ExternalApiClientException(ExternalApiErrorCode.INVALID_ADDRESS, "해당 주소에 대한 검색 결과가 없습니다.")))
                 .zipWhen(geocodeResult -> savePendingTask(userId, shape, proficiency))
                 .flatMap(tuple -> {
                     GeocodeResult geocodeResult = tuple.getT1();
@@ -199,7 +202,7 @@ public class AiGenerationService implements InitiateAiGenerationUseCase, GetTask
                 "latitude", geocodeResult.latitude(),
                 "longitude", geocodeResult.longitude(),
                 "shape", shape != null ? shape : "",
-                "proficiency", proficiency.name()
+                "proficiency", proficiency != null ? proficiency.name() : Proficiency.BEGINNER.getProficiency()
         );
         return objectMapper.writeValueAsString(promptData);
     }
