@@ -38,8 +38,8 @@ public class JwtTokenProvider implements TokenProvider {
     private final ObjectMapper objectMapper;
 
     private final SecretKey key;
-    private final Duration accessTokenValidityInMinute;
-    private final Duration refreshTokenValidateDay;
+    private final Duration accessTokenDuration;
+    private final Duration refreshTokenDuration;
     private final int refreshTokenLength;
     private final String roleKey;
     private final String idKey;
@@ -60,8 +60,8 @@ public class JwtTokenProvider implements TokenProvider {
         this.secureRandom = secureRandom;
         this.encryptPort = encryptPort;
         this.objectMapper = objectMapper;
-        this.accessTokenValidityInMinute = jwtProperties.accessToken().validityInMinute();
-        this.refreshTokenValidateDay = jwtProperties.refreshToken().expirationDays();
+        this.accessTokenDuration = jwtProperties.accessToken().validityInMinute();
+        this.refreshTokenDuration = jwtProperties.refreshToken().expirationDays();
         this.refreshTokenLength = jwtProperties.refreshToken().byteLength();
         this.roleKey = jwtProperties.roleKey();
         this.idKey = jwtProperties.idKey();
@@ -79,7 +79,7 @@ public class JwtTokenProvider implements TokenProvider {
     @Override
     public AccessTokenResult generateAccessToken(Long id, Role role) {
         Date now = new Date();
-        Date validity = new Date(now.getTime() + accessTokenValidityInMinute.toMillis());
+        Date validity = new Date(now.getTime() + accessTokenDuration.toMillis());
 
         // 1. 민감 정보(Payload)를 Map으로 묶음
         Map<String, Object> payloadMap = Map.of(idKey, id, roleKey, role.name());
@@ -119,7 +119,7 @@ public class JwtTokenProvider implements TokenProvider {
     @Override
     public RefreshTokenResult generateRefreshToken(Long id, Role role) {
         String opaqueToken = generateOpaqueToken();
-        Instant expire = Instant.now().plus(refreshTokenValidateDay);
+        Instant expire = Instant.now().plus(refreshTokenDuration);
 
         return RefreshTokenResult.of(opaqueToken, String.valueOf(id), expire);
     }
