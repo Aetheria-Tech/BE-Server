@@ -61,20 +61,16 @@ public class AiGenerationService implements InitiateAiGenerationUseCase, GetTask
             String shape,
             Proficiency proficiency
     ) {
-        // 1. 값 검증을 겸하여 지오코딩을 가장 먼저 수행 (Fail-Fast)
         return geocodePort.geocode(startPosition)
-                .flatMap(geocodeResult ->
-                        // 2. 정상 주소로 확인되어 좌표가 확보되면 DB에 PENDING 상태로 저장
-                        savePendingTask(userId, shape, proficiency)
-                                .flatMap(pendingTask ->
-                                        // 3. S3 및 SageMaker 외부 호출 수행
-                                        processExternalAiServices(pendingTask, geocodeResult, shape, proficiency)
-                                                // 4. 성공 시 PROCESSING 업데이트
-                                                .flatMap(this::saveProcessingTask)
-                                                // DB 저장 이후 외부 연동 과정에서 에러가 발생하면 상태를 FAILED로 변경
-                                                .onErrorResume(e -> handlePipelineError(pendingTask, e))
-                                )
-                )
+                .zipWhen(geocodeResult -> savePendingTask(userId, shape, proficiency))
+                .flatMap(tuple -> {
+                    GeocodeResult geocodeResult = tuple.getT1();
+                    AiTask pendingTask = tuple.getT2();
+
+                    return processExternalAiServices(pendingTask, geocodeResult, shape, proficiency)
+                            .flatMap(this::saveProcessingTask)
+                            .onErrorResume(e -> handlePipelineError(pendingTask, e));
+                })
                 .map(AiTask::id);
     }
 
@@ -155,6 +151,11 @@ public class AiGenerationService implements InitiateAiGenerationUseCase, GetTask
                     return taskUpdatePort.save(failedTask);
                 })
                 .subscribeOn(Schedulers.boundedElastic())
+                // DB 기록마저 실패할 경우 예외를 먹어치우고(Log만 남김) 원래의 비즈니스 예외만 던지도록 처리
+                .onErrorResume(dbError -> {
+                    log.error("[AI Pipeline Error] 실패 상태 기록 중 DB 2차 오류 발생 - TaskID: {}", aiTask.id(), dbError);
+                    return Mono.empty();
+                })
                 .then(Mono.error(new AiException(AiErrorCode.AI_PIPELINE_ERROR)));
     }
 
@@ -197,7 +198,7 @@ public class AiGenerationService implements InitiateAiGenerationUseCase, GetTask
         Map<String, Object> promptData = Map.of(
                 "latitude", geocodeResult.latitude(),
                 "longitude", geocodeResult.longitude(),
-                "shape", shape,
+                "shape", shape != null ? shape : "",
                 "proficiency", proficiency.name()
         );
         return objectMapper.writeValueAsString(promptData);
