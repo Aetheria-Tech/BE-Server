@@ -108,6 +108,7 @@ public class RunningArtService implements
      * @requirement UC-ART-05 런닝 아트 삭제 요청
      * @responsibility 특정 런닝 아트를 영구 삭제합니다.
      * @implSpec {@link #findAndVerifyOwner(Long, Long)}를 통해 본인의 기록임이 확인된 경우에만 삭제 명령을 수행합니다.
+     * @implSpec {@link TransactionSynchronizationManager}를 사용하여 커밋이 성공한 후에만 Redis에서 GEO 데이터가 등록되도록
      */
     @Override
     @Transactional
@@ -132,6 +133,7 @@ public class RunningArtService implements
      * @param userId 모든 데이터를 삭제할 사용자의 고유 식별자
      * @requirement UC-ART-06: 사용자 전체 런닝 아트 삭제 요청
      * @responsibility 특정 사용자와 연관된 모든 런닝 아트 데이터를 삭제합니다. 주로 회원 탈퇴 시 호출됩니다.
+     * @implSpec {@link TransactionSynchronizationManager}를 사용하여 커밋이 성공한 후에만 Redis에서 GEO 데이터가 삭제되도록 함.
      */
     @Override
     @Transactional
@@ -144,14 +146,19 @@ public class RunningArtService implements
         // 2. DB에서 전체 삭제 (Blocking)
         repositoryPort.deleteByUserId(userId);
 
-        // 3. Redis에서 루프 돌며 삭제 (비동기)
-        Flux.fromIterable(artIdsToDelete)
-                .flatMap(runningArtRedisPort::removeLocation)
-                .subscribe(
-                        null, // 결과 로그는 생략 가능
-                        error -> log.error("Redis 일괄 삭제 중 오류 발생 (UserId: {}): {}", userId, error.getMessage()),
-                        () -> log.info("유저(ID: {})의 모든 Redis GEO 데이터 삭제 완료", userId)
-                );
+        // 3. 트랜잭션 커밋 후 Redis에서 비동기 삭제
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                Flux.fromIterable(artIdsToDelete)
+                        .flatMap(runningArtRedisPort::removeLocation)
+                        .subscribe(
+                                null, // 결과 로그는 생략 가능
+                                error -> log.error("Redis 일괄 삭제 중 오류 발생 (UserId: {}): {}", userId, error.getMessage()),
+                                () -> log.info("유저(ID: {})의 모든 Redis GEO 데이터 삭제 완료", userId)
+                        );
+            }
+        });
     }
 
     /**
