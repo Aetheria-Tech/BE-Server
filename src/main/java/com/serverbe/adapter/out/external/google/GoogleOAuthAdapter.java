@@ -5,10 +5,14 @@ import com.serverbe.adapter.out.external.google.dto.GoogleUserInfoResponse;
 import com.serverbe.application.port.out.dto.oauth.OAuthUserInfoResult;
 import com.serverbe.application.port.out.dto.oauth.SocialTokenRefreshResult;
 import com.serverbe.application.port.out.oauth.OAuthClientPort;
+import com.serverbe.domain.exception.external.ExternalApiClientException;
+import com.serverbe.domain.exception.external.ExternalApiErrorCode;
+import com.serverbe.domain.exception.external.ExternalApiException;
 import com.serverbe.domain.model.user.vo.OAuthProvider;
 import com.serverbe.infrastructure.config.properties.GoogleProperties;
-import com.serverbe.infrastructure.error.BusinessException;
-import com.serverbe.infrastructure.error.ErrorMessage;
+import io.github.resilience4j.circuitbreaker.CircuitBreaker;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
+import io.github.resilience4j.reactor.circuitbreaker.operator.CircuitBreakerOperator;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
@@ -21,30 +25,51 @@ import org.springframework.web.util.UriComponentsBuilder;
 import reactor.core.publisher.Mono;
 
 import java.net.URI;
+import java.time.Duration;
 
+/**
+ * @author Duskafka
+ * @responsibility 구글 OAuth 서버와 협력하여 사용자 인증 관리를 하는 책임.
+ * @see OAuthClientPort
+ */
 @Slf4j
 @Component
 public class GoogleOAuthAdapter implements OAuthClientPort {
 
-    private final GoogleProperties googleProperties;
+    private final GoogleOAuthFallbackHandler fallbackHandler;
+
+    private final CircuitBreaker googleTokenCircuitBreaker;
+    private final CircuitBreaker googleApiCircuitBreaker;
 
     private final String oauthUrl;
     private final String apiUrl;
-
+    private final String clientId;
+    private final String clientSecret;
+    private final String redirectUri;
 
     private final WebClient webClient;
 
-    public GoogleOAuthAdapter(GoogleProperties googleProperties, WebClient.Builder webClientBuilder) {
+    public GoogleOAuthAdapter(
+            GoogleOAuthFallbackHandler fallbackHandler,
+            GoogleProperties googleProperties,
+            WebClient.Builder webClientBuilder,
+            CircuitBreakerRegistry circuitBreakerRegistry
+    ) {
+        this.fallbackHandler = fallbackHandler;
+        this.webClient = webClientBuilder.clone().build();
+
+        this.googleTokenCircuitBreaker = circuitBreakerRegistry.circuitBreaker("googleTokenApi");
+        this.googleApiCircuitBreaker = circuitBreakerRegistry.circuitBreaker("googleUserInfoApi");
+
         this.oauthUrl = googleProperties.auth().oauthApi();
         this.apiUrl = googleProperties.auth().api();
-        this.googleProperties = googleProperties;
-        this.webClient = webClientBuilder
-                .build();
+        this.clientId = googleProperties.auth().clientId();
+        this.clientSecret = googleProperties.auth().clientSecret();
+        this.redirectUri = googleProperties.auth().redirectUri();
     }
 
     @Override
     public Mono<OAuthUserInfoResult> getUserInfo(String code, OAuthProvider provider) {
-        // 1. 토큰 교환 (액세스 토큰과 리프레시 토큰을 모두 받아옴)
         return getGoogleTokenResponse(code)
                 .flatMap(response -> this.fetchUserInfo(response.accessToken())
                         .map(userInfo -> new OAuthUserInfoResult(
@@ -53,30 +78,37 @@ public class GoogleOAuthAdapter implements OAuthClientPort {
                                 userInfo.email(),
                                 userInfo.name(),
                                 response.refreshToken() // 여기서 매번 받은 리프레시 토큰을 넘깁니다.
-                        )));
+                        )))
+                // 두 구간 중 어디서든 에러가 발생하면 Fallback 처리
+                .onErrorResume(throwable -> fallbackHandler.fallbackGetUserInfo(code, provider, throwable));
     }
 
     private Mono<GoogleTokenResponse> getGoogleTokenResponse(String code) {
         MultiValueMap<String, String> formData = new LinkedMultiValueMap<>();
         formData.add("code", code);
-        formData.add("client_id", googleProperties.auth().clientId());
-        formData.add("client_secret", googleProperties.auth().clientSecret());
-        formData.add("redirect_uri", googleProperties.auth().redirectUri());
+        formData.add("client_id", clientId);
+        formData.add("client_secret", clientSecret);
+        formData.add("redirect_uri", redirectUri);
         formData.add("grant_type", "authorization_code");
-
-        // 주의: 구글 리프레시 토큰을 매번 받으려면,
-        // 이 '인가 코드'를 생성한 최초의 Redirect URL에 아래 파라미터가 포함되어 있어야 합니다:
-        // access_type=offline
-        // prompt=consent
 
         return webClient.post()
                 .uri(oauthUrl + "/token")
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .body(BodyInserters.fromFormData(formData))
                 .retrieve()
-                .onStatus(HttpStatusCode::isError, res -> res.bodyToMono(String.class)
-                        .map(body -> new BusinessException(ErrorMessage.FAILED_GOOGLE_API, "Google Token Error: " + body)))
-                .bodyToMono(GoogleTokenResponse.class);
+                .onStatus(HttpStatusCode::is4xxClientError, res -> res.bodyToMono(String.class)
+                        .flatMap(body -> {
+                            log.warn("Google Token API Client Error (4xx): status={}, body={}", res.statusCode(), body);
+                            return Mono.error(new ExternalApiClientException(ExternalApiErrorCode.FAILED_SOCIAL_API, "잘못된 구글 인증 요청입니다.: " + body));
+                        }))
+                .onStatus(HttpStatusCode::is5xxServerError, res -> res.bodyToMono(String.class)
+                        .flatMap(body -> {
+                            log.error("Google Token API Server Error (5xx): status={}, body={}", res.statusCode(), body);
+                            return Mono.error(new ExternalApiException(ExternalApiErrorCode.FAILED_SOCIAL_API, "Google 서버 에러: " + body));
+                        }))
+                .bodyToMono(GoogleTokenResponse.class)
+                .timeout(Duration.ofSeconds(2))
+                .transformDeferred(CircuitBreakerOperator.of(googleTokenCircuitBreaker));
     }
 
     private Mono<GoogleUserInfoResponse> fetchUserInfo(String accessToken) {
@@ -84,35 +116,56 @@ public class GoogleOAuthAdapter implements OAuthClientPort {
                 .uri(apiUrl + "/oauth2/v3/userinfo")
                 .header("Authorization", "Bearer " + accessToken)
                 .retrieve()
-                .bodyToMono(GoogleUserInfoResponse.class);
+                .onStatus(HttpStatusCode::is4xxClientError, res -> res.bodyToMono(String.class)
+                        .flatMap(body -> {
+                            log.warn("Google UserInfo API Client Error (4xx): status={}, body={}", res.statusCode(), body);
+                            return Mono.error(new ExternalApiClientException(ExternalApiErrorCode.FAILED_SOCIAL_API, "잘못된 사용자 정보 요청입니다.: " + body));
+                        }))
+                .onStatus(HttpStatusCode::is5xxServerError, res -> res.bodyToMono(String.class)
+                        .flatMap(body -> {
+                            log.error("Google UserInfo API Server Error (5xx): status={}, body={}", res.statusCode(), body);
+                            return Mono.error(new ExternalApiException(ExternalApiErrorCode.FAILED_SOCIAL_API, "Google 서버 에러: " + body));
+                        }))
+                .bodyToMono(GoogleUserInfoResponse.class)
+                .timeout(Duration.ofSeconds(2))
+                .transformDeferred(CircuitBreakerOperator.of(googleApiCircuitBreaker));
     }
 
     @Override
     public Mono<Boolean> unlink(OAuthProvider provider, String oauthId, String oauthRefreshToken) {
         if (oauthRefreshToken == null || oauthRefreshToken.isBlank()) {
-            throw new BusinessException(ErrorMessage.INVALID_REFRESH_TOKEN, "구글 리프레시 토큰이 없어 연동 해제가 불가능합니다.");
+            throw new ExternalApiException(ExternalApiErrorCode.INVALID_REFRESH_TOKEN, "구글 리프레시 토큰이 없어 연동 해제가 불가능합니다.");
         }
 
         return webClient.post()
-                .uri(URI.create(apiUrl + "/revoke"))
+                .uri(URI.create(oauthUrl + "/revoke"))
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .body(BodyInserters.fromFormData("token", oauthRefreshToken)) // 리프레시 토큰 전송
                 .retrieve()
-                .onStatus(HttpStatusCode::isError, response -> response.bodyToMono(String.class)
-                        .flatMap(error -> Mono.error(new BusinessException(ErrorMessage.FAILED_GOOGLE_API, error))))
+                .onStatus(HttpStatusCode::is4xxClientError, res -> res.bodyToMono(String.class)
+                        .flatMap(body -> {
+                            log.warn("Google Unlink API Client Error (4xx): status={}, body={}", res.statusCode(), body);
+                            return Mono.error(new ExternalApiClientException(ExternalApiErrorCode.FAILED_SOCIAL_API, "잘못된 연동 해제 요청입니다.: " + body));
+                        }))
+                .onStatus(HttpStatusCode::is5xxServerError, res -> res.bodyToMono(String.class)
+                        .flatMap(body -> {
+                            log.error("Google Unlink API Server Error (5xx): status={}, body={}", res.statusCode(), body);
+                            return Mono.error(new ExternalApiException(ExternalApiErrorCode.FAILED_SOCIAL_API, "Google 서버 에러: " + body));
+                        }))
                 .toBodilessEntity()
                 .map(response -> true)
-                // 에러 발생 시(BusinessException 포함) 흐름을 끊지 않고 false로 치환하고 싶다면 아래 주석 활용
-                // .onErrorReturn(false)
-                .defaultIfEmpty(false);
+                .defaultIfEmpty(false)
+                .timeout(Duration.ofSeconds(2))
+                .transformDeferred(CircuitBreakerOperator.of(googleTokenCircuitBreaker))
+                .onErrorResume(throwable -> fallbackHandler.fallbackUnlink(provider, oauthId, oauthRefreshToken, throwable));
     }
 
     @Override
     public Mono<SocialTokenRefreshResult> refreshSocialToken(OAuthProvider provider, String refreshToken) {
         MultiValueMap<String, String> formData = new LinkedMultiValueMap<>();
         formData.add("grant_type", "refresh_token");
-        formData.add("client_id", googleProperties.auth().clientId());
-        formData.add("client_secret", googleProperties.auth().clientSecret());
+        formData.add("client_id", clientId);
+        formData.add("client_secret", clientSecret);
         formData.add("refresh_token", refreshToken);
 
         return webClient.post()
@@ -120,9 +173,20 @@ public class GoogleOAuthAdapter implements OAuthClientPort {
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .body(BodyInserters.fromFormData(formData))
                 .retrieve()
-                .onStatus(HttpStatusCode::isError, res -> res.bodyToMono(String.class)
-                        .map(body -> new BusinessException(ErrorMessage.FAILED_GOOGLE_API, "Google Refresh Error: " + body)))
-                .bodyToMono(SocialTokenRefreshResult.class);
+                .onStatus(HttpStatusCode::is4xxClientError, res -> res.bodyToMono(String.class)
+                        .flatMap(body -> {
+                            log.warn("Google Token Refresh API Client Error (4xx): status={}, body={}", res.statusCode(), body);
+                            return Mono.error(new ExternalApiClientException(ExternalApiErrorCode.FAILED_SOCIAL_API, "잘못된 토큰 갱신 요청입니다.: " + body));
+                        }))
+                .onStatus(HttpStatusCode::is5xxServerError, res -> res.bodyToMono(String.class)
+                        .flatMap(body -> {
+                            log.error("Google Token Refresh API Server Error (5xx): status={}, body={}", res.statusCode(), body);
+                            return Mono.error(new ExternalApiException(ExternalApiErrorCode.FAILED_SOCIAL_API, "Google 서버 에러: " + body));
+                        }))
+                .bodyToMono(SocialTokenRefreshResult.class)
+                .timeout(Duration.ofSeconds(2))
+                .transformDeferred(CircuitBreakerOperator.of(googleTokenCircuitBreaker))
+                .onErrorResume(throwable -> fallbackHandler.fallbackRefreshSocialToken(provider, refreshToken, throwable));
     }
 
     @Override
@@ -133,12 +197,12 @@ public class GoogleOAuthAdapter implements OAuthClientPort {
     @Override
     public String getLoginUrl() {
         return UriComponentsBuilder.fromHttpUrl("https://accounts.google.com/o/oauth2/v2/auth")
-                .queryParam("client_id", googleProperties.auth().clientId())
-                .queryParam("redirect_uri", googleProperties.auth().redirectUri())
+                .queryParam("client_id", clientId)
+                .queryParam("redirect_uri", redirectUri)
                 .queryParam("response_type", "code")
                 .queryParam("scope", "email profile")
-                .queryParam("access_type", "offline") // 리프레시 토큰 발급을 위해 필수
-                .queryParam("prompt", "consent")      // 매번 동의창을 띄워 새 리프레시 토큰 강제
+                .queryParam("access_type", "offline")
+                .queryParam("prompt", "consent")
                 .build()
                 .toUriString();
     }

@@ -1,4 +1,23 @@
 spring:
+  profiles:
+    active: local
+
+  cloud:
+    aws:
+      region:
+        static: ap-northeast-2 # 서울 리전
+      credentials:
+
+
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
+      connect-timeout: ${REDIS_CONNECT_TIMEOUT}
+      lettuce:
+        pool:
+          max-active: ${REDIS_MAX_POOL}
+
   # 데이터베이스 연결 설정
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver       # 사용하는 데이터베이스 드라이버
@@ -19,6 +38,62 @@ spring:
     init:
       mode: always                                    # SQL 초기화 스크립트를 언제 실행할지 결정한다.
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, metrics
+  endpoint:
+    health:
+      show-details: always # 서킷 브레이커 상세 상태를 보기 위해 필수!
+  health:
+    circuitbreakers:
+      enabled: true
+
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        registerHealthIndicator: true
+        slidingWindowType: COUNT_BASED
+
+        # 1. 윈도우 사이즈와 최소 평가 횟수 스케일업 (민감도 낮추기)
+        slidingWindowSize: 100                  # 최근 100번의 호출을 기준으로 평가
+        minimumNumberOfCalls: 30                # 최소 30번은 호출되어야 실패율 계산 시작
+
+        # 2. 실패율 및 지연(Slow Call) 차단 기준
+        failureRateThreshold: 50                # 실패율 50% 이상 시 OPEN
+        slowCallDurationThreshold: 2500ms       # 2.5초 이상 걸리면 '느린 호출'로 간주
+        slowCallRateThreshold: 50               # 느린 호출이 50% 이상이어도 OPEN (스레드 고갈 방지)
+
+        # 3. 복구 대기 시간 조정
+        waitDurationInOpenState: 15s            # OPEN 후 15초 대기 (빠른 복구 시도)
+        permittedNumberOfCallsInHalfOpenState: 5 # HALF_OPEN 상태에서 5번 찔러보기
+
+        # 4. 예외 기록 및 무시 (중요!)
+        recordExceptions:
+          - java.util.concurrent.TimeoutException
+          - java.io.IOException
+          - org.springframework.web.reactive.function.client.WebClientRequestException
+          - com.serverbe.domain.exception.external.ExternalApiException # 5xx 에러
+        ignoreExceptions:
+          - com.serverbe.domain.exception.external.ExternalApiClientException # 4xx 에러는 실패율에 포함하지 않음
+
+    instances:
+      # 로그인과 지오코딩의 트래픽(TPS)이 다르다면 base-config를 분리하는 것도 좋습니다.
+      kakaoUserInfoApi:
+        base-config: default
+      kakaoTokenApi:
+        base-config: default
+      googleUserInfoApi:
+        base-config: default
+      googleTokenApi:
+        base-config: default
+      kakaoGeocodeApi:
+        base-config: default
+        # 지오코딩은 트래픽이 더 많을 수 있으므로 윈도우 사이즈를 늘리는 오버라이딩 가능
+        # slidingWindowSize: 200
+
 # Swagger 사용 설정
 springdoc:
   swagger-ui:
@@ -28,7 +103,7 @@ springdoc:
   show-actuator: true                           # Spring Actuator의 endpoint까지 보여줄 것인지?
   default-consumes-media-type: application/json # request media type 의 기본 값
   default-produces-media-type: application/json # response media type 의 기본 값
-  paths-to-match:                               # 해당 패턴에 매칭되는 controller만 swagger-ui에 노출한다.
+  paths-to-match: # 해당 패턴에 매칭되는 controller만 swagger-ui에 노출한다.
     - /api/v1/**
 
 # ===================================================================
@@ -44,22 +119,27 @@ jwt:
     validity-in-minute: 15m                # 액세스 토큰 유효기간 (시간)
   refresh-token:
     cookie: ${JWT_REFRESH_TOKEN_COOKIE}    # 리프레시 토큰 쿠키 키
-    expiration-days: 60d                    # 리프레시 토큰 유효기간 (일)
+    expiration-days: 60d                   # 리프레시 토큰 유효기간 (일)
     byte-length: 64
-  authority-key: roles                      # 액세스 토큰에서 권한을 가져올 키
   allowed-clock-skew-seconds: 30
+  id-key: id                               # 액세스 토큰에서 사용자 식별자를 가져올 키
+  role-key: roles                          # 액세스 토큰에서 권한을 가져올 키
 
 # Redis
 redis:
-  port: 6379
-  host: localhost
+  keys:
+    running-art-geo: running_art:locations
+  port: ${REDIS_PORT}
+  host: ${REDIS_HOST}
   auth:
     prefix: user                      # 레디스 저장에 필요한 키 값 중 접두어
     suffix: rt                        # 레디스 저장에 필요한 키 값 중 접미어
     max-token: 3                      # 최대로 발급 가능한 토큰의 수
+  session:
+    suffix: session
   blacklist:
-    prefix: bl
-    suffix: at
+    access-token-prefix: "BL:AT"
+    refresh-token-prefix: "BL:RT"
 
 kakao:
   admin-key: ${KAKAO_ADMIN_KEY}
@@ -83,7 +163,9 @@ google:
     oauth-api: https://oauth2.googleapis.com                         # 토큰 발급 및 인증 관련 API 주소
     api: https://www.googleapis.com                                 # 유저 정보 조회 관련 API 주소
 
-
+art:
+  max-radius: 5000.0
+  max-result-limit: 5
 
 # 암호화
 encryption:
@@ -102,3 +184,36 @@ cors:
     - ${FRONTEND_DOMAIN}          # 프론트엔드 로컬 개발 환경
     - ${DEVELOP_SERVER_DOMAIN}    # 개발 서버 도메인
     - ${PROD_SERVER_DOMAIN}   # 운영 서버 도메인
+
+rate-limit:
+  user:
+    capacity: ${RATE_LIMIT_USER_CAPACITY} # 사용자가 한 번에 모아둘 수 있는 최대 토큰 개수 - 사용자가 잠시 쉬었다가 요청을 보낼 때, 순간적으로(Burst) 최대 10개까지는 연속 허용
+    refill-rate: ${RATE_LIMIT_USER_REFILL_RATE} # 1초마다 채워지는 토큰의 속도입니다. - 장기적으로는 초당 평균 10회의 요청을 처리할 수 있다.
+  ip:
+    capacity: ${RATE_LIMIT_IP_CAPACITY}
+    refill-rate: ${RATE_LIMIT_IP_REFILL_RATE}
+  prefix:
+    user: "rate:user:"
+    ip: "rate:ip:"
+
+aws:
+  s3:
+    ai-input-bucket: "my-project-ai-inference-input-bucket" # 실제 생성된 버킷명
+  sagemaker:
+    endpoint-name: "my-project-async-inference-endpoint"    # 실제 생성된 엔드포인트명
+  sqs:
+    ai-notification-queue-name: "ai-generation-notification-queue" # 나중에 CDK로 만들 큐 이름
+
+
+
+sse:
+  timeout: 600000 # 10분 (10 * 60 * 1000 ms)
+  channel: "sse-notifications"
+
+# 알림 설정
+notification:
+  discord:
+    webhook-url: ${DISCORD_WEB_HOOK}
+
+task:
+  task-timeout-threshold-minutes: 10

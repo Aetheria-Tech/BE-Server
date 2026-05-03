@@ -24,6 +24,17 @@ repositories {
     mavenCentral()
 }
 
+// build.gradle (Groovy 기준)
+sourceSets {
+    main {
+        java {
+            // Q클래스가 생성되는 위치를 소스 디렉토리에 추가
+            srcDirs += 'build/generated/sources/annotationProcessor/java/main'
+        }
+    }
+}
+
+
 dependencies {
     /**
      * Web & UI Support
@@ -60,6 +71,8 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-security'
     // OAuth2 Client: 구글, 카카오 등 외부 소셜 로그인 연동 지원
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
+    // SHA256을 사용하기 위한 의존성
+    implementation 'commons-codec:commons-codec'
 
     // JWT (Java JWT): JWT 토큰의 생성, 파싱, 검증을 위한 라이브러리
     implementation 'io.jsonwebtoken:jjwt-api:0.11.5'          // JWT 인터페이스 및 정의
@@ -69,16 +82,27 @@ dependencies {
     // Redis (Lettuce 클라이언트 포함)
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
 
+    // #41 에서 서킷 브레이커 구현에 사용.
+    implementation 'io.github.resilience4j:resilience4j-spring-boot3:2.2.0'
+    implementation 'org.springframework.boot:spring-boot-starter-aop'
+    implementation 'com.github.ben-manes.caffeine:caffeine'
+    implementation 'io.github.resilience4j:resilience4j-reactor:2.2.0' // WebFlux(Mono) 지원용
+
+    // Spring Actuator
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+
     /**
      * Boilerplate Code Reduction (Lombok)
      */
     // Lombok: Getter, Setter, Constructor 등을 어노테이션으로 자동 생성
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
+    testImplementation 'org.projectlombok:lombok'
 
     /**
      * Testing Support
      */
+    testImplementation 'com.squareup.okhttp3:mockwebserver:4.12.0'
     // Spring Boot Test: 통합 테스트를 위한 기본 환경 및 라이브러리(JUnit5, AssertJ 등) 제공
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     // Reactor Test: WebFlux의 Mono, Flux 비동기 스트림 테스트 지원
@@ -87,6 +111,15 @@ dependencies {
     testImplementation 'org.springframework.security:spring-security-test'
     // JUnit Platform Launcher: 테스트 실행을 위한 JUnit 플랫폼 엔진
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+    /**
+     * AWS 인프라 연동
+     */
+    // AWS SDK BOM: AWS SDK 모듈 간의 버전 충돌을 방지하고 버전을 중앙 관리합니다.
+    implementation platform('software.amazon.awssdk:bom:2.24.0')
+    implementation 'software.amazon.awssdk:s3'
+    implementation 'software.amazon.awssdk:sagemakerruntime'
+    implementation 'io.awspring.cloud:spring-cloud-aws-starter-sqs:3.1.1'
 }
 
 tasks.named('test') {

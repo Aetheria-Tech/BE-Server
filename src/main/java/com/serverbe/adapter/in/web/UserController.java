@@ -2,6 +2,8 @@ package com.serverbe.adapter.in.web;
 
 import com.serverbe.adapter.in.web.dto.me.UserProfileResponse;
 import com.serverbe.adapter.in.web.dto.me.UserUpdateRequest;
+import com.serverbe.application.annotation.RateLimit;
+import com.serverbe.application.annotation.RateLimits;
 import com.serverbe.application.port.in.me.UpdateUserUseCase;
 import com.serverbe.application.port.in.me.GetUserUseCase;
 import com.serverbe.infrastructure.common.response.RestApiResponse;
@@ -12,6 +14,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -38,9 +41,14 @@ public class UserController {
                     @ApiResponse(responseCode = "404", description = "사용자 정보를 찾을 수 없음")
             }
     )
+    @RateLimits(
+            @RateLimit(target = RateLimit.TargetType.IP, capacity = 3, refillRate = 1)
+    )
     @GetMapping("/me")
-    public RestApiResponse<UserProfileResponse> getMyProfile(@Parameter(hidden = true) @AuthenticationPrincipal Long userId) {
-        return RestApiResponse.success(UserProfileResponse.toResponse(getUserUseCase.getMyProfile(userId)));
+    public ResponseEntity<RestApiResponse<UserProfileResponse>> getMyProfile(@Parameter(hidden = true) @AuthenticationPrincipal Long userId) {
+        return ResponseEntity.ok(RestApiResponse.success(
+                UserProfileResponse.toResponse(getUserUseCase.getMyProfile(userId))
+        ));
     }
 
     @Operation(
@@ -58,11 +66,16 @@ public class UserController {
                     @ApiResponse(responseCode = "404", description = "사용자를 찾을 수 없음")
             }
     )
+    @RateLimits(
+            @RateLimit(target = RateLimit.TargetType.IP, capacity = 1, refillRate = 1)
+    )
     @PatchMapping("/me")
-    public RestApiResponse<UserProfileResponse> updateMyProfile(
+    public ResponseEntity<RestApiResponse<UserProfileResponse>> updateMyProfile(
             @Parameter(hidden = true) @AuthenticationPrincipal Long userId,
             @RequestBody @Valid UserUpdateRequest request
     ) {
-        return RestApiResponse.success(UserProfileResponse.toResponse(updateUserUseCase.updateMyProfile(userId, request.toCommand())));
+        return ResponseEntity.ok(RestApiResponse.success(
+                UserProfileResponse.toResponse(updateUserUseCase.updateMyProfile(userId, request.toCommand()))
+        ));
     }
 }

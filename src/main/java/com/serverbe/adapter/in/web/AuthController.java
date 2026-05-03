@@ -1,28 +1,36 @@
 package com.serverbe.adapter.in.web;
 
+import com.serverbe.adapter.in.web.support.annotation.ExtractAccessToken;
+import com.serverbe.adapter.in.web.support.annotation.ExtractDeviceId;
 import com.serverbe.adapter.in.web.dto.auth.AccessTokenResponse;
+import com.serverbe.adapter.in.web.support.annotation.ExtractRefreshToken;
 import com.serverbe.application.port.in.oauth.LogoutUseCase;
 import com.serverbe.application.port.in.oauth.LoginUseCase;
 import com.serverbe.application.port.in.oauth.WithdrawUseCase;
 import com.serverbe.application.port.in.token.ReissueUseCase;
+import com.serverbe.domain.exception.auth.AuthErrorCode;
+import com.serverbe.domain.exception.auth.AuthException;
+import com.serverbe.domain.exception.external.ExternalApiErrorCode;
+import com.serverbe.domain.exception.server.ServerErrorCode;
+import com.serverbe.domain.exception.server.ServerException;
 import com.serverbe.domain.model.user.vo.OAuthProvider;
 import com.serverbe.infrastructure.common.response.RestApiResponse;
 import com.serverbe.infrastructure.config.properties.JwtProperties;
-import com.serverbe.infrastructure.error.BusinessException;
-import com.serverbe.infrastructure.error.ErrorMessage;
-import com.serverbe.infrastructure.util.TokenExtractionUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.headers.Header;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.constraints.NotBlank;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
@@ -30,11 +38,13 @@ import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
 import java.io.IOException;
+import java.net.URI;
 
 /**
  * 인증 및 권한 관련 HTTP 요청을 처리하는 웹 어댑터입니다.
  * 소셜 로그인 시작, 콜백 처리, 토큰 재발급, 로그아웃, 회원 탈퇴를 담당합니다.
  */
+@Slf4j
 @Tag(name = "Auth", description = "사용자 인증 관련 API")
 @RestController
 @RequestMapping("/api/v1/auth")
@@ -44,7 +54,6 @@ public class AuthController {
     private final WithdrawUseCase withdrawUseCase;
     private final LogoutUseCase logoutUseCase;
     private final ReissueUseCase reissueUseCase;
-    private final TokenExtractionUtils tokenExtractionUtils;
     private final String refreshTokenCookie;
     private final long refreshTokenCookieExpireSeconds;
 
@@ -53,14 +62,12 @@ public class AuthController {
             WithdrawUseCase withdrawUseCase,
             LogoutUseCase logoutUseCase,
             ReissueUseCase reissueUseCase,
-            TokenExtractionUtils tokenExtractionUtils,
             JwtProperties jwtProperties
     ) {
         this.loginUseCase = loginUseCase;
         this.withdrawUseCase = withdrawUseCase;
         this.logoutUseCase = logoutUseCase;
         this.reissueUseCase = reissueUseCase;
-        this.tokenExtractionUtils = tokenExtractionUtils;
         this.refreshTokenCookie = jwtProperties.refreshToken().cookie();
         this.refreshTokenCookieExpireSeconds = jwtProperties.refreshToken().expirationDays().toSeconds();
     }
@@ -78,22 +85,14 @@ public class AuthController {
             }
     )
     @GetMapping("/login/{provider}")
-    public Mono<Void> redirectToSocial(
+    public Mono<ResponseEntity<Void>> redirectToSocial(
             @Parameter(description = "소셜 로그인 제공자", example = "kakao")
-            @PathVariable(value = "provider") OAuthProvider provider,
-
-            @Parameter(hidden = true) HttpServletResponse response
+            @PathVariable(value = "provider") OAuthProvider provider
     ) {
         return Mono.fromCallable(() -> loginUseCase.getSocialLoginUrl(provider))
-                .subscribeOn(Schedulers.boundedElastic())
-                .flatMap(redirectUrl -> {
-                    try {
-                        response.sendRedirect(redirectUrl);
-                        return Mono.empty();
-                    } catch (IOException e) {
-                        return Mono.error(new BusinessException(ErrorMessage.INTERNAL_SERVER_ERROR, e.getMessage()));
-                    }
-                });
+                .map(url -> ResponseEntity.status(HttpStatus.FOUND)
+                        .location(URI.create(url))
+                        .build());
     }
 
     @Operation(
@@ -115,22 +114,23 @@ public class AuthController {
             }
     )
     @GetMapping("/callback/{provider}")
-    public Mono<RestApiResponse<AccessTokenResponse>> loginCallback(
+    public Mono<ResponseEntity<RestApiResponse<AccessTokenResponse>>> loginCallback(
             @Parameter(description = "소셜 로그인 제공자", example = "kakao")
             @PathVariable(value = "provider") OAuthProvider provider,
 
             @Parameter(description = "소셜 서버에서 발급한 일회성 인가 코드", required = true)
             @RequestParam("code") @NotBlank String code,
 
+            @ExtractDeviceId String deviceId,
             @Parameter(hidden = true) HttpServletResponse response
     ) {
         // 1. 인가 코드로 소셜 서버와 통신하여 유저 정보 획득
         // 2. 신규 유저면 가입, 기존 유저면 정보 업데이트(Upsert)
         // 3. 우리 서비스 전용 액세스/리프레시 토큰 발급 및 리프레시 토큰 Redis 저장
-        return loginUseCase.login(code, provider)
+        return loginUseCase.login(code, provider, deviceId)
                 .map(tokenResponse -> {
                     addCookieToResponse(response, tokenResponse.refreshTokenResult().opaqueToken(), refreshTokenCookieExpireSeconds);
-                    return RestApiResponse.success(AccessTokenResponse.toResponse(tokenResponse.accessTokenResult()));
+                    return ResponseEntity.ok(RestApiResponse.success(AccessTokenResponse.toResponse(tokenResponse.accessTokenResult())));
                 });
     }
 
@@ -145,11 +145,14 @@ public class AuthController {
             }
     )
     @DeleteMapping("/me")
-    public Mono<RestApiResponse<Void>> withdraw(@Parameter(hidden = true) @AuthenticationPrincipal Long userId) {
+    public Mono<ResponseEntity<RestApiResponse<Void>>> withdraw(@Parameter(hidden = true) @AuthenticationPrincipal Long userId) {
         // DB 삭제 + 소셜 연동 해제(Unlink) + Redis 세션 삭제를 수행
         return withdrawUseCase.withdraw(userId).map(success -> {
-            if (success) return RestApiResponse.noContent();
-            return RestApiResponse.fail(ErrorMessage.WITHDRAWAL_FAILED);
+            if (success) {
+                return ResponseEntity.status(HttpStatus.NO_CONTENT).body(RestApiResponse.noContent());
+            }
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(RestApiResponse.fail(ExternalApiErrorCode.FAILED_SOCIAL_API));
         });
     }
 
@@ -171,20 +174,15 @@ public class AuthController {
             }
     )
     @PostMapping("/logout")
-    public RestApiResponse<Void> logout(
-            @Parameter(hidden = true) HttpServletRequest request,
-            @Parameter(hidden = true) HttpServletResponse response
+    public ResponseEntity<RestApiResponse<Void>> logout(
+            @Parameter(hidden = true) HttpServletResponse response,
+            @ExtractAccessToken String accessToken,
+            @ExtractRefreshToken String refreshToken,
+            @ExtractDeviceId String deviceId
     ) {
-        // 1. 요청 헤더 및 쿠키에서 토큰 추출
-        String accessToken = tokenExtractionUtils.extractAccessToken(request);
-        String refreshToken = tokenExtractionUtils.extractRefreshToken(request);
-
-        // 2. 로그아웃 로직 수행 (Redis에서 리프레시 토큰 삭제 및 엑세스 토큰 블랙리스트 처리 등)
-        logoutUseCase.logout(accessToken, refreshToken);
-
-        // 3. 클라이언트 쿠키 삭제 (Max-Age를 0으로 설정하여 즉시 만료)
+        logoutUseCase.logout(accessToken, refreshToken, deviceId);
         addCookieToResponse(response, "", 0);
-        return RestApiResponse.noContent();
+        return ResponseEntity.status(HttpStatus.NO_CONTENT).body(RestApiResponse.noContent());
     }
 
     @Operation(
@@ -205,15 +203,13 @@ public class AuthController {
             }
     )
     @PostMapping("/logout/all")
-    public RestApiResponse<Void> globalLogout(
-            @Parameter(hidden = true) HttpServletRequest request,
+    public ResponseEntity<RestApiResponse<Void>> globalLogout(
+            @ExtractAccessToken String accessToken,
             @Parameter(hidden = true) HttpServletResponse response
     ) {
-
-        String accessToken = tokenExtractionUtils.extractAccessToken(request);
         logoutUseCase.globalLogout(accessToken);
         addCookieToResponse(response, "", 0);
-        return RestApiResponse.noContent();
+        return ResponseEntity.status(HttpStatus.NO_CONTENT).body(RestApiResponse.noContent());
     }
 
     @Operation(
@@ -221,6 +217,18 @@ public class AuthController {
             description = "만료된 Access Token과 유효한 Refresh Token을 사용하여 새로운 토큰 세트(Access/Refresh)를 발급받습니다. " +
                     "RTR 정책에 따라 기존 리프레시 토큰은 더 이상 사용할 수 없으며, 새 리프레시 토큰이 쿠키로 설정됩니다.",
             security = @SecurityRequirement(name = "jwtAuth"),
+            parameters = {
+                    @Parameter(
+                            name = "X-Device-Id",
+                            description = "기기 고유 식별자 (모바일 앱의 경우 UUID 등 고유값 권장). 이 값이 존재하면 최우선으로 기기 식별에 사용됩니다.",
+                            in = ParameterIn.HEADER
+                    ),
+                    @Parameter(
+                            name = "User-Agent",
+                            description = "클라이언트 브라우저/기기 정보. X-Device-Id가 없을 경우, 이 값을 해싱하여 기기 식별자로 사용합니다. (브라우저는 자동 전송)",
+                            in = ParameterIn.HEADER
+                    )
+            },
             responses = {
                     @ApiResponse(
                             responseCode = "200",
@@ -237,22 +245,21 @@ public class AuthController {
             }
     )
     @PostMapping("/reissue")
-    public Mono<RestApiResponse<AccessTokenResponse>> reissue(
-            @Parameter(hidden = true) HttpServletRequest request,
+    public Mono<ResponseEntity<RestApiResponse<AccessTokenResponse>>> reissue(
+            @ExtractDeviceId String deviceId,
+            @ExtractAccessToken String accessToken,
+            @ExtractRefreshToken String refreshToken,
             @Parameter(hidden = true) HttpServletResponse response
     ) {
-        String accessToken = tokenExtractionUtils.extractAccessToken(request);
-        String refreshToken = tokenExtractionUtils.extractRefreshToken(request);
-
         if (!StringUtils.hasText(refreshToken)) {
-            return Mono.error(new BusinessException(ErrorMessage.JWT_TOKEN_IS_EMPTY));
+            return Mono.error(new AuthException(AuthErrorCode.JWT_TOKEN_IS_EMPTY));
         }
 
-        return Mono.fromCallable(() -> reissueUseCase.reissue(accessToken, refreshToken))
+        return Mono.fromCallable(() -> reissueUseCase.reissue(accessToken, refreshToken, deviceId))
                 .subscribeOn(Schedulers.boundedElastic())
                 .map(tokenResponse -> {
                     addCookieToResponse(response, tokenResponse.refreshTokenResult().opaqueToken(), refreshTokenCookieExpireSeconds);
-                    return RestApiResponse.success(AccessTokenResponse.toResponse(tokenResponse.accessTokenResult()));
+                    return ResponseEntity.ok(RestApiResponse.success(AccessTokenResponse.toResponse(tokenResponse.accessTokenResult())));
                 });
     }
 

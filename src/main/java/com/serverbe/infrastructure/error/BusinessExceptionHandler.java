@@ -1,14 +1,21 @@
 package com.serverbe.infrastructure.error;
 
+import com.serverbe.domain.exception.BusinessException;
+import com.serverbe.domain.exception.auth.AuthErrorCode;
+import com.serverbe.domain.exception.server.DataIntegrityViolationException;
+import com.serverbe.domain.exception.server.RateLimitExceededException;
+import com.serverbe.domain.exception.server.ServerErrorCode;
 import com.serverbe.infrastructure.common.response.RestApiResponse;
+import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.catalina.connector.ClientAbortException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
-import org.springframework.security.access.AccessDeniedException; // 수정됨
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.InsufficientAuthenticationException;
-import org.springframework.security.core.AuthenticationException; // 수정됨
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -18,69 +25,65 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
- * 애플리케이션 전역에서 발생하는 예외를 처리하는 RestControllerAdvice 입니다.
+ * @author Duskafka
+ * @responsibility 애플리케이션 전역에서 발생하는 예외를 가로채어 공통 응답 규격({@link RestApiResponse})으로 변환하는 통합 에러 핸들러입니다.
+ * @implSpec 1. <b>Domain Decoupling</b>: 도메인 레이어에서 발생한 {@link BusinessException}을 HTTP 상태 코드와 매핑합니다.<br>
+ * 2. <b>Validation Translation</b>: 프레임워크 수준의 검증 오류(Binding, Constraint)를 클라이언트가 이해하기 쉬운 상세 메시지로 가공합니다.<br>
+ * 3. <b>Security Bridging</b>: Spring Security 내부 예외를 도메인 에러 코드 체계에 통합합니다.
  */
 @Slf4j
 @RestControllerAdvice
 public class BusinessExceptionHandler {
 
     /**
-     * 커스텀 비즈니스 예외 (BusinessException)
-     * - `ErrorMessage`를 포함하여, 예측 가능한 예외 상황을 처리합니다.
+     * @param e 도메인 비즈니스 로직 위반 예외
+     * @responsibility 정의된 비즈니스 규칙 위반 시 해당 에러 코드의 상태값과 메시지를 응답합니다.
      */
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<RestApiResponse<Void>> handleBusinessException(BusinessException e) {
-        var errorMessage = e.getErrorMessage();
+        var errorCode = e.getErrorCode();
+        log.warn("[BUSINESS EXCEPTION] 비즈니스 로직 위반 발생 -> {}", errorCode.getMessage());
 
-        // 4xx, 5xx 등 예측된 비즈니스 예외는 WARN 레벨로 기록합니다.
-        log.warn("[WARN] BusinessException -> {}", errorMessage.getMessage());
-
-        return ResponseEntity.status(errorMessage.getStatus())
-                .body(RestApiResponse.fail(errorMessage, errorMessage.getMessage()));
+        return ResponseEntity.status(errorCode.getStatus())
+                .body(RestApiResponse.fail(errorCode, errorCode.getMessage()));
     }
 
     /**
-     * {@code @Valid} 로 유효성 검사에 실패한 경우 (RequestBody DTO)
-     * - FieldErrors와 GlobalErrors를 모두 처리하여 상세한 메시지를 반환합니다.
+     * @param e DTO 필드 유효성 검증 실패 예외
+     * @responsibility <b>@Valid</b> 검증 실패 시 발생하며, 어떤 필드에서 어떤 사유로 실패했는지 상세 내용을 수집합니다.
      */
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<RestApiResponse<Void>> handleMethodArgumentNotValidException(MethodArgumentNotValidException e) {
-        // FieldErrors: "email: 이메일 형식이 아닙니다."
         String detailedErrorMessage = e.getBindingResult().getFieldErrors().stream()
                 .map(error -> String.format("[%s]: %s", error.getField(), error.getDefaultMessage()))
                 .collect(Collectors.joining(", "));
 
-        // GlobalErrors: "passwordConfirm: 비밀번호가 일치하지 않습니다."
         String globalErrorMessage = e.getBindingResult().getGlobalErrors().stream()
                 .map(error -> String.format("[%s]: %s", error.getObjectName(), error.getDefaultMessage()))
                 .collect(Collectors.joining(", "));
 
-        // 두 에러 메시지를 결합
         String combinedMessage = Stream.of(detailedErrorMessage, globalErrorMessage)
                 .filter(s -> !s.isEmpty())
                 .collect(Collectors.joining("; "));
 
         String finalMessage = combinedMessage.isEmpty()
-                ? ErrorMessage.INVALID_REQUEST_PARAMETER.getMessage()
+                ? ServerErrorCode.INVALID_REQUEST_PARAMETER.getMessage()
                 : combinedMessage;
 
-        // 400번대 클라이언트 오류는 WARN 레벨로 기록합니다.
-        log.warn("[WARN] MethodArgumentNotValidException -> {}", finalMessage);
+        log.warn("[VALIDATION ERROR] 요청 파라미터 유효성 검증 실패 -> {}", finalMessage);
 
-        return ResponseEntity.status(ErrorMessage.INVALID_REQUEST_PARAMETER.getStatus())
-                .body(RestApiResponse.fail(ErrorMessage.INVALID_REQUEST_PARAMETER, finalMessage));
+        return ResponseEntity.status(ServerErrorCode.INVALID_REQUEST_PARAMETER.getStatus())
+                .body(RestApiResponse.fail(ServerErrorCode.INVALID_REQUEST_PARAMETER, finalMessage));
     }
 
     /**
-     * {@code @Validated} 로 유효성 검사에 실패한 경우 (메서드 파라미터)
-     * (e.g., @RequestParam, @PathVariable)
+     * @param e 제약 조건 위반 예외 (주로 @Validated 파라미터)
+     * @responsibility 메서드 파라미터나 경로 변수(@PathVariable)의 유효성 검증 실패 시 상세 정보를 제공합니다.
      */
     @ExceptionHandler(ConstraintViolationException.class)
     public ResponseEntity<RestApiResponse<Void>> handleConstraintViolationException(ConstraintViolationException e) {
-
         String detailedErrorMessage = e.getConstraintViolations().stream()
                 .map(violation -> {
-                    // Path API를 사용하여 마지막 노드 추출
                     var pathIterator = violation.getPropertyPath().iterator();
                     String parameterName = "";
                     while (pathIterator.hasNext()) {
@@ -90,71 +93,107 @@ public class BusinessExceptionHandler {
                 })
                 .collect(Collectors.joining(", "));
 
-        log.warn("[WARN] ConstraintViolationException -> {}", detailedErrorMessage);
+        log.warn("[CONSTRAINT ERROR] 제약 조건 위반 발생 -> {}", detailedErrorMessage);
 
-        return ResponseEntity.status(ErrorMessage.INVALID_REQUEST_PARAMETER.getStatus())
-                .body(RestApiResponse.fail(ErrorMessage.INVALID_REQUEST_PARAMETER, detailedErrorMessage));
+        return ResponseEntity.status(ServerErrorCode.INVALID_REQUEST_PARAMETER.getStatus())
+                .body(RestApiResponse.fail(ServerErrorCode.INVALID_REQUEST_PARAMETER, detailedErrorMessage));
     }
 
     /**
-     * 필수 요청 파라미터(@RequestParam)가 누락된 경우
+     * @responsibility 필수 파라미터 누락 시 400 에러를 반환합니다.
      */
     @ExceptionHandler(MissingServletRequestParameterException.class)
     public ResponseEntity<RestApiResponse<Void>> handleMissingServletRequestParameterException(MissingServletRequestParameterException e) {
-
         String detailedErrorMessage = String.format("필수 파라미터 [%s](이)가 누락되었습니다.", e.getParameterName());
+        log.warn("[PARAMETER MISSING] 필수 요청 파라미터 누락 -> {}", detailedErrorMessage);
 
-        log.warn("[WARN] MissingServletRequestParameterException -> {}", detailedErrorMessage);
-
-        return ResponseEntity.status(ErrorMessage.INVALID_REQUEST_PARAMETER.getStatus())
-                .body(RestApiResponse.fail(ErrorMessage.INVALID_REQUEST_PARAMETER, detailedErrorMessage));
+        return ResponseEntity.status(ServerErrorCode.INVALID_REQUEST_PARAMETER.getStatus())
+                .body(RestApiResponse.fail(ServerErrorCode.INVALID_REQUEST_PARAMETER, detailedErrorMessage));
     }
 
     /**
-     * 잘못된 JSON 형식을 요청한 경우
+     * @responsibility JSON 역직렬화 실패(형식 오류) 시 400 에러를 반환합니다.
      */
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<RestApiResponse<Void>> handleHttpMessageNotReadableException(HttpMessageNotReadableException e) {
+        log.warn("[JSON PARSE ERROR] 잘못된 형식의 JSON 요청 수신 -> {}", e.getMostSpecificCause().getMessage());
 
-        // e.getMessage()는 너무 길고 복잡하며 내부 구현을 노출할 수 있으므로, ErrorMessage의 기본 메시지를 사용합니다.
-        log.warn("[WARN] HttpMessageNotReadableException -> {}", e.getMostSpecificCause().getMessage());
-
-        return ResponseEntity.status(ErrorMessage.MALFORMED_JSON_REQUEST.getStatus())
-                .body(RestApiResponse.fail(ErrorMessage.MALFORMED_JSON_REQUEST));
+        return ResponseEntity.status(ServerErrorCode.MALFORMED_JSON_REQUEST.getStatus())
+                .body(RestApiResponse.fail(ServerErrorCode.MALFORMED_JSON_REQUEST));
     }
 
     /**
-     * 그 외 모든 예외 (Catch-all 500)
+     * @responsibility 미처 파악하지 못한 시스템 전역 예외를 처리하는 최후의 보루입니다.
      */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<RestApiResponse<Void>> handleException(Exception e) {
-        // [중요] 처리되지 않은 500번대 서버 오류는 ERROR 레벨로 기록하고,
-        // 클라이언트에게는 상세한 예외 내용을 노출하지 않습니다.
-        log.error("[ERROR] Unhandled Exception", e); // 스택 트레이스 전체를 기록
+        log.error("[UNHANDLED INTERNAL ERROR] 처리되지 않은 시스템 예외 발생", e);
 
-        return ResponseEntity.status(ErrorMessage.INTERNAL_SERVER_ERROR.getStatus())
-                .body(RestApiResponse.fail(ErrorMessage.INTERNAL_SERVER_ERROR));
+        return ResponseEntity.status(ServerErrorCode.INTERNAL_SERVER_ERROR.getStatus())
+                .body(RestApiResponse.fail(ServerErrorCode.INTERNAL_SERVER_ERROR));
     }
 
     /**
-     * Spring Security 인증 실패 처리 (401 Unauthorized)
-     * JwtAuthenticationFilter에서 handlerExceptionResolver.resolveException()을 통해 전달된 예외도 여기서 처리됩니다.
+     * @responsibility 인증 실패(401)에 대한 보안 예외를 처리합니다.
      */
     @ExceptionHandler({AuthenticationException.class, InsufficientAuthenticationException.class})
     public ResponseEntity<RestApiResponse<Void>> handleAuthenticationException(Exception e) {
-        log.warn("[WARN] Unauthorized -> {}", e.getMessage());
+        log.warn("[SECURITY UNAUTHORIZED] 미인증 사용자의 접근 시도 -> {}", e.getMessage());
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(RestApiResponse.fail(ErrorMessage.UNAUTHORIZED));
+                .body(RestApiResponse.fail(AuthErrorCode.UNAUTHORIZED));
     }
 
     /**
-     * Spring Security 인가 실패 처리 (403 Forbidden)
-     * 권한이 없는 사용자가 특정 API에 접근할 때 발생합니다.
+     * @responsibility 권한 부족(403)에 대한 보안 예외를 처리합니다.
      */
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<RestApiResponse<Void>> handleAccessDeniedException(AccessDeniedException e) {
-        log.warn("[WARN] Access Denied -> {}", e.getMessage());
+        log.warn("[SECURITY ACCESS DENIED] 권한 없는 사용자의 자원 접근 시도 -> {}", e.getMessage());
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                .body(RestApiResponse.fail(ErrorMessage.ACCESS_DENIED));
+                .body(RestApiResponse.fail(AuthErrorCode.ACCESS_DENIED));
+    }
+
+    /**
+     * @param e JPA 영속성 컨텍스트 예외
+     * @responsibility 어댑터 계층(DB)에서 데이터 정합성이 깨지거나 동시성 문제가 발생했을 때 500 에러로 처리합니다.
+     * @implNote 도메인 계층의 404(Not Found) 에러와 달리, 이 예외는 서버 내부의 인프라적 장애를 의미합니다.
+     */
+    @ExceptionHandler(EntityNotFoundException.class)
+    public ResponseEntity<RestApiResponse<Void>> handleEntityNotFoundException(EntityNotFoundException e) {
+        // 일반적인 조회 실패는 서버 에러가 아니므로 warn 로그로 남깁니다.
+        log.warn("[CLIENT ERROR] 요청한 리소스를 찾을 수 없습니다 -> {}", e.getMessage());
+
+        // 404 상태 코드와 그에 맞는 에러 코드를 반환하도록 수정
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(RestApiResponse.fail(ServerErrorCode.RESOURCE_NOT_FOUND));
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<RestApiResponse<Void>> handleDataIntegrityViolationException(DataIntegrityViolationException e) {
+        log.error("[INFRA EXCEPTION] DB 데이터 정합성 오류 (동시성/삭제 문제 예상) -> {}", e.getMessage());
+
+        return ResponseEntity.status(ServerErrorCode.INTERNAL_SERVER_ERROR.getStatus())
+                .body(RestApiResponse.fail(ServerErrorCode.INTERNAL_SERVER_ERROR));
+    }
+
+    /**
+     * @param e 처리율 제한 초과 예외
+     * @responsibility 429 에러 응답 시, HTTP 표준인 'Retry-After' 헤더에 재시도 가능 시간을 명시합니다.
+     */
+    @ExceptionHandler(RateLimitExceededException.class)
+    public ResponseEntity<RestApiResponse<Void>> handleRateLimitExceededException(RateLimitExceededException e) {
+        var errorCode = e.getErrorCode();
+        log.warn("[RATE LIMIT EXCEPTION] 요청 한도 초과 -> {} (Retry-After: {}초)",
+                errorCode.getMessage(), e.getRetryAfterSeconds());
+
+        return ResponseEntity.status(errorCode.getStatus())
+                .header("Retry-After", String.valueOf(e.getRetryAfterSeconds()))
+                .body(RestApiResponse.fail(errorCode, errorCode.getMessage()));
+    }
+
+    @ExceptionHandler(ClientAbortException.class)
+    public void handleClientAbortException(ClientAbortException e) {
+        log.warn("클라이언트 연결 중단: {}", e.getMessage());
+        // 별도의 응답 객체를 반환하지 않음
     }
 }
