@@ -5,12 +5,16 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.serverbe.adapter.in.web.dto.task.TaskStatusResponse;
 import com.serverbe.application.port.in.art.InitiateAiGenerationUseCase;
 import com.serverbe.application.port.in.task.GetTaskStatusUseCase;
+import com.serverbe.application.port.out.dto.geocoding.GeocodeResult;
+import com.serverbe.application.port.out.geocode.GeocodePort;
 import com.serverbe.application.port.out.sagemaker.SageMakerAsyncPort;
 import com.serverbe.application.port.out.s3.S3AiInputPort;
 import com.serverbe.application.port.out.task.TaskQueryPort;
 import com.serverbe.application.port.out.task.TaskUpdatePort;
 import com.serverbe.domain.exception.ai.AiErrorCode;
 import com.serverbe.domain.exception.ai.AiException;
+import com.serverbe.domain.exception.external.ExternalApiClientException;
+import com.serverbe.domain.exception.external.ExternalApiErrorCode;
 import com.serverbe.domain.model.art.vo.Proficiency;
 import com.serverbe.domain.model.task.AiTask;
 import lombok.RequiredArgsConstructor;
@@ -35,6 +39,7 @@ import java.util.Map;
 public class AiGenerationService implements InitiateAiGenerationUseCase, GetTaskStatusUseCase {
     private final TaskQueryPort taskQueryPort;
     private final TaskUpdatePort taskUpdatePort;
+    private final GeocodePort geocodePort;
 
     private final S3AiInputPort s3AiInputPort;
     private final SageMakerAsyncPort sageMakerAdapter;
@@ -44,17 +49,12 @@ public class AiGenerationService implements InitiateAiGenerationUseCase, GetTask
      * AI 생성 작업을 비동기 리액티브(Reactive) 파이프라인으로 시작합니다.
      * <p>
      * <b>파이프라인 실행 흐름:</b><br>
-     * 1. <b>DB 저장 (PENDING):</b> 작업 초기 상태를 DB에 저장합니다.<br>
-     * 2. <b>외부 연동 (S3 & SageMaker):</b> JSON 프롬프트를 생성하여 S3에 업로드하고, SageMaker 비동기 추론을 호출합니다.<br>
-     * 3. <b>DB 업데이트 (PROCESSING):</b> 외부 호출이 성공하면 작업 상태를 처리 중으로 변경합니다.<br>
-     * 4. <b>에러 핸들링 (FAILED):</b> 파이프라인 중 예외 발생 시, 작업 상태를 실패로 기록하고 에러를 전파합니다.
+     * 1. <b>입력값 검증 (Geocoding):</b> 주소를 위경도로 변환하며 유효성을 가장 먼저 검증합니다. (Fail-Fast)<br>
+     * 2. <b>DB 저장 (PENDING):</b> 검증을 통과하면 작업 초기 상태를 DB에 저장합니다.<br>
+     * 3. <b>외부 연동 (S3 & SageMaker):</b> JSON 프롬프트를 생성하여 S3에 업로드하고, SageMaker 비동기 추론을 호출합니다.<br>
+     * 4. <b>DB 업데이트 (PROCESSING):</b> 외부 호출이 성공하면 작업 상태를 처리 중으로 변경합니다.<br>
+     * 5. <b>에러 핸들링 (FAILED):</b> 외부 연동 중 예외 발생 시, 작업 상태를 실패로 기록합니다.
      * </p>
-     *
-     * @param userId 요청한 사용자의 ID
-     * @param startPosition 런닝 시작 위치 (예: 위도/경도 또는 주소)
-     * @param shape 생성할 런닝 아트의 모양 (예: "하트", "별")
-     * @param proficiency 사용자의 러닝 숙련도 (거리 및 난이도 조절용)
-     * @return 파이프라인 처리가 성공적으로 접수되면 발급된 Task ID를 방출하는 {@link Mono}
      */
     @Override
     public Mono<String> initiateGeneration(
@@ -63,10 +63,17 @@ public class AiGenerationService implements InitiateAiGenerationUseCase, GetTask
             String shape,
             Proficiency proficiency
     ) {
-        // 메인 파이프라인이 마치 하나의 문장처럼 깔끔하게 읽힙니다.
-        return savePendingTask(userId, shape, proficiency)
-                .flatMap(pendingTask -> processExternalAiServices(pendingTask, startPosition, shape, proficiency))
-                .flatMap(this::saveProcessingTask)
+        return geocodePort.geocode(startPosition)
+                .switchIfEmpty(Mono.error(new ExternalApiClientException(ExternalApiErrorCode.INVALID_ADDRESS, "해당 주소에 대한 검색 결과가 없습니다.")))
+                .zipWhen(geocodeResult -> savePendingTask(userId, shape, proficiency))
+                .flatMap(tuple -> {
+                    GeocodeResult geocodeResult = tuple.getT1();
+                    AiTask pendingTask = tuple.getT2();
+
+                    return processExternalAiServices(pendingTask, geocodeResult, shape, proficiency)
+                            .flatMap(this::saveProcessingTask)
+                            .onErrorResume(e -> handlePipelineError(pendingTask, e));
+                })
                 .map(AiTask::id);
     }
 
@@ -76,8 +83,8 @@ public class AiGenerationService implements InitiateAiGenerationUseCase, GetTask
      * JPA의 블로킹 I/O 작업이므로 {@link Schedulers#boundedElastic()} 스레드 풀로 격리하여 실행합니다.
      * </p>
      *
-     * @param userId 요청한 사용자의 ID
-     * @param shape 생성할 런닝 아트의 모양
+     * @param userId      요청한 사용자의 ID
+     * @param shape       생성할 런닝 아트의 모양
      * @param proficiency 사용자의 러닝 숙련도
      * @return PENDING 상태로 저장된 {@link AiTask} 엔티티를 방출하는 Mono
      */
@@ -93,27 +100,25 @@ public class AiGenerationService implements InitiateAiGenerationUseCase, GetTask
      * 작업 중 예외가 발생하면 {@link #handlePipelineError}로 처리를 위임합니다.
      * </p>
      *
-     * @param pendingTask 이전에 PENDING 상태로 저장된 AI 작업 엔티티
-     * @param startPosition 런닝 시작 위치
-     * @param shape 목표 아트 모양
-     * @param proficiency 러닝 숙련도
+     * @param pendingTask   이전에 PENDING 상태로 저장된 AI 작업 엔티티
+     * @param geocodeResult 런닝 시작 위치
+     * @param shape         목표 아트 모양
+     * @param proficiency   러닝 숙련도
      * @return PROCESSING 상태 및 관련 URI가 업데이트된 {@link AiTask} 객체를 방출하는 Mono
      */
     private Mono<AiTask> processExternalAiServices(
             AiTask pendingTask,
-            String startPosition,
+            GeocodeResult geocodeResult,
             String shape,
             Proficiency proficiency
     ) {
         return Mono.fromCallable(() -> {
-                    String promptJson = buildPromptJson(startPosition, shape, proficiency);
+                    String promptJson = buildPromptJson(geocodeResult, shape, proficiency);
                     String inputS3Uri = s3AiInputPort.uploadInputJson(pendingTask.id(), promptJson);
                     String outputS3Uri = sageMakerAdapter.invokeAsync(inputS3Uri);
                     return pendingTask.markAsProcessing(inputS3Uri, outputS3Uri);
                 })
-                .subscribeOn(Schedulers.boundedElastic())
-                // 이 단계에서 에러가 발생하면 handlePipelineError로 처리를 위임합니다.
-                .onErrorResume(e -> handlePipelineError(pendingTask, e));
+                .subscribeOn(Schedulers.boundedElastic());
     }
 
     /**
@@ -138,7 +143,7 @@ public class AiGenerationService implements InitiateAiGenerationUseCase, GetTask
      * </p>
      *
      * @param aiTask 예외가 발생한 시점의 AI 작업 엔티티
-     * @param e 파이프라인에서 발생한 원본 예외
+     * @param e      파이프라인에서 발생한 원본 예외
      * @return 에러 파이프라인으로 전환되어 최종적으로 {@link AiException}을 방출하는 Mono
      */
     private Mono<AiTask> handlePipelineError(AiTask aiTask, Throwable e) {
@@ -149,6 +154,11 @@ public class AiGenerationService implements InitiateAiGenerationUseCase, GetTask
                     return taskUpdatePort.save(failedTask);
                 })
                 .subscribeOn(Schedulers.boundedElastic())
+                // DB 기록마저 실패할 경우 예외를 먹어치우고(Log만 남김) 원래의 비즈니스 예외만 던지도록 처리
+                .onErrorResume(dbError -> {
+                    log.error("[AI Pipeline Error] 실패 상태 기록 중 DB 2차 오류 발생 - TaskID: {}", aiTask.id(), dbError);
+                    return Mono.empty();
+                })
                 .then(Mono.error(new AiException(AiErrorCode.AI_PIPELINE_ERROR)));
     }
 
@@ -177,21 +187,22 @@ public class AiGenerationService implements InitiateAiGenerationUseCase, GetTask
     /**
      * AI 모델(SageMaker)에게 전달할 요청 파라미터를 JSON 문자열로 직렬화합니다.
      *
-     * @param startPosition 런닝 시작 위치
-     * @param shape 목표 아트 모양
-     * @param proficiency 러닝 숙련도
+     * @param geocodeResult 런닝 시작 위치
+     * @param shape         목표 아트 모양
+     * @param proficiency   러닝 숙련도
      * @return 직렬화된 JSON 문자열
      * @throws JsonProcessingException 객체를 JSON으로 변환하는 과정에서 오류가 발생할 경우
      */
     private String buildPromptJson(
-            String startPosition,
+            GeocodeResult geocodeResult,
             String shape,
             Proficiency proficiency
     ) throws JsonProcessingException {
         Map<String, Object> promptData = Map.of(
-                "start_position", startPosition,
-                "shape", shape,
-                "proficiency", proficiency.name()
+                "latitude", geocodeResult.latitude(),
+                "longitude", geocodeResult.longitude(),
+                "shape", shape != null ? shape : "",
+                "proficiency", proficiency != null ? proficiency.name() : Proficiency.BEGINNER.name()
         );
         return objectMapper.writeValueAsString(promptData);
     }
