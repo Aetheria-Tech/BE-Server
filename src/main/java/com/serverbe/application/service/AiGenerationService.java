@@ -202,7 +202,7 @@ public class AiGenerationService implements InitiateAiGenerationUseCase, GetTask
                 "latitude", geocodeResult.latitude(),
                 "longitude", geocodeResult.longitude(),
                 "shape", shape != null ? shape : "",
-                "proficiency", proficiency != null ? proficiency.name() : Proficiency.BEGINNER.getProficiency()
+                "proficiency", proficiency != null ? proficiency.name() : Proficiency.BEGINNER.name()
         );
         return objectMapper.writeValueAsString(promptData);
     }
