@@ -16,7 +16,8 @@ public record RedisProperties(
         int port,
         Auth auth,
         Session session,
-        Blacklist blacklist
+        Blacklist blacklist,
+        Shedlock shedlock
 ) {
     /**
      * @param prefix   키 생성 시 식별을 위해 앞에 붙이는 접두사 (예: <b>RT:</b>)
@@ -48,4 +49,8 @@ public record RedisProperties(
             String refreshTokenPrefix
     ) {
     }
+
+    public record Shedlock(
+            String prefix
+    ){}
 }
