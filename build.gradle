@@ -115,11 +115,15 @@ dependencies {
     /**
      * AWS 인프라 연동
      */
-    // AWS SDK BOM: AWS SDK 모듈 간의 버전 충돌을 방지하고 버전을 중앙 관리합니다.
+    // AWS SDK BOM: AWS SDK 모듈 간의 버전 충돌을 방지하고 버전을 중앙 관리
     implementation platform('software.amazon.awssdk:bom:2.24.0')
     implementation 'software.amazon.awssdk:s3'
     implementation 'software.amazon.awssdk:sagemakerruntime'
     implementation 'io.awspring.cloud:spring-cloud-aws-starter-sqs:3.1.1'
+
+    // ShedLock (Spring Boot & Redis Provider)
+    implementation 'net.javacrumbs.shedlock:shedlock-spring:5.13.0'
+    implementation 'net.javacrumbs.shedlock:shedlock-provider-redis-spring:5.13.0'
 }
 
 tasks.named('test') {

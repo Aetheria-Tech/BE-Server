@@ -140,6 +140,8 @@ redis:
   blacklist:
     access-token-prefix: "BL:AT"
     refresh-token-prefix: "BL:RT"
+  shedlock:
+    prefix: "Aetheria-Shedlock"
 
 kakao:
   admin-key: ${KAKAO_ADMIN_KEY}
