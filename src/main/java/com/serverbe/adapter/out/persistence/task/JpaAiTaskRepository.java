@@ -31,4 +31,6 @@ public interface JpaAiTaskRepository extends JpaRepository<AiTaskEntity, String>
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT t FROM AiTaskEntity t WHERE t.id = :id")
     Optional<AiTaskEntity> findByIdForUpdate(@Param("id") String id);
+
+    boolean existsByUserIdAndStatusIn(Long userId, List<TaskStatus> statuses);
 }

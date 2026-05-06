@@ -13,6 +13,7 @@ import io.awspring.cloud.sqs.annotation.SqsListener;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * AWS SQS 큐를 구독하여 비동기 AI 워커(SageMaker)의 작업 완료 및 실패 이벤트를 수신하는 인바운드 어댑터(이벤트 리스너).
@@ -53,32 +54,37 @@ public class AiNotificationSqsListener {
                 String outputS3Uri = message.responseParameters().outputLocation();
                 String taskId = extractTaskIdFromUri(outputS3Uri);
 
-                // 1. 락을 걸고 조회 (서버 A가 선점하면, 서버 B는 여기서 잠시 대기 상태가 됨)
-                AiTask task = taskQueryPort.findByIdForUpdate(taskId)
-                        .orElseThrow(() -> new DataIntegrityViolationException(
-                                ServerErrorCode.RESOURCE_NOT_FOUND,
-                                String.format("SQS 이벤트 수신 심각한 오류: DB에서 Task ID [%s]를 찾을 수 없습니다. (원인 예상: 트랜잭션 롤백, 백그라운드 스케줄러에 의한 삭제, 또는 동시성 문제)", taskId)
-                        ));
+                // 1. 헬퍼 메서드를 통해 락 걸고 조회
+                AiTask task = getTaskWithLockOrThrow(taskId);
 
-                // 2.️ 멱등성 검증 (대기하다가 깨어난 서버 B는 상태가 이미 COMPLETED로 바뀐 것을 보고 튕겨나감)
+                // 2. 멱등성 검증
                 if (task.status() != TaskStatus.PROCESSING) {
                     log.info("[SQS Listener] Task {} 는 이미 완료/실패 상태입니다. 중복 메시지 무시.", taskId);
                     return;
                 }
 
-                // 3. 도메인 객체를 그대로 UseCase로 전달 (질문자님이 설계하신 완벽한 흐름!)
+                // 3. 도메인 객체 전달
                 retrieveAiResultUseCase.processTaskResult(task);
 
             } else {
-                // 실패 로직도 동일하게 락 기반으로 보호
-                String taskId = extractTaskIdFromUri(message.responseParameters().outputLocation());
-                AiTask task = taskQueryPort.findByIdForUpdate(taskId).orElseThrow(...);
+                // 실패 로직
+                String failedS3Uri = message.responseParameters().outputLocation();
+                String taskId = extractTaskIdFromUri(failedS3Uri);
 
-                if (task.status() != TaskStatus.PROCESSING) return;
+                // 1. 🔒 실패 로직에서도 동일한 헬퍼 메서드 사용 (락 유지)
+                AiTask task = getTaskWithLockOrThrow(taskId);
 
-                AiTask failedTask = task.markAsFailed("SageMaker 추론 실패: " + message.failureReason());
+                // 2. 🛡️ 멱등성 검증
+                if (task.status() != TaskStatus.PROCESSING) {
+                    log.info("[SQS Listener] Task {} 는 이미 완료/실패 상태입니다. 중복 메시지 무시.", taskId);
+                    return;
+                }
+
+                // 3. 후속 실패 처리
+                String reason = message.failureReason();
+                AiTask failedTask = task.markAsFailed("SageMaker 추론 실패: " + reason);
                 taskUpdatePort.save(failedTask);
-                taskNotificationPort.notifyTaskFailed(taskId, message.failureReason());
+                taskNotificationPort.notifyTaskFailed(taskId, reason);
             }
         } catch (Exception e) {
             log.error("[SQS Listener] SQS 메시지 처리 중 오류", e);
@@ -93,11 +99,11 @@ public class AiNotificationSqsListener {
      * @return 조회된 {@link AiTask} 도메인 객체
      * @throws DataIntegrityViolationException SQS 이벤트는 도착했으나 DB에 해당 Task 기록이 없는 심각한 비동기 정합성 오류 발생 시
      */
-    private AiTask getTaskOrThrow(String taskId) {
-        return taskQueryPort.findById(taskId)
-                .orElseThrow(() -> new DataIntegrityViolationException(ServerErrorCode.RESOURCE_NOT_FOUND,
-                        "SQS 완료/실패 이벤트 수신 중 심각한 오류: DB에 Task(" + taskId + ")가 존재하지 않습니다! " +
-                                "(원인 예상: 동시성 문제, 백그라운드 삭제, 또는 트랜잭션 롤백)"
+    private AiTask getTaskWithLockOrThrow(String taskId) {
+        return taskQueryPort.findByIdForUpdate(taskId) // 🔥 핵심: 일반 findById가 아니라 ForUpdate 호출!
+                .orElseThrow(() -> new DataIntegrityViolationException(
+                        ServerErrorCode.RESOURCE_NOT_FOUND,
+                        String.format("SQS 이벤트 수신 심각한 오류: DB에서 Task ID [%s]를 찾을 수 없습니다. (원인 예상: 트랜잭션 롤백, 백그라운드 스케줄러에 의한 삭제, 또는 동시성 문제)", taskId)
                 ));
     }
 

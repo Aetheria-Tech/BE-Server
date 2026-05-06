@@ -75,4 +75,12 @@ public class AiTaskPersistenceAdapter implements TaskQueryPort, TaskUpdatePort {
     public Optional<AiTask> findByIdForUpdate(String taskId) {
         return jpaRepository.findByIdForUpdate(taskId).map(aiTaskMapper::toDomain);
     }
+
+    @Override
+    public boolean existsActiveTaskByUserId(Long userId) {
+        return jpaRepository.existsByUserIdAndStatusIn(
+                userId,
+                List.of(TaskStatus.PENDING, TaskStatus.PROCESSING)
+        );
+    }
 }
