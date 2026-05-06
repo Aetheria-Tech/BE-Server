@@ -129,17 +129,18 @@ public class AiGenerationService implements InitiateAiGenerationUseCase, GetTask
     }
 
     /**
-     * 외부 서비스(S3 및 SageMaker)와 연동하여 AI 생성을 요청하고, 엔티티를 처리 중(PROCESSING) 상태로 변경합니다.
+     * 외부 서비스(S3 및 SageMaker) 연동을 처리하는 리액티브 서브 파이프라인.
      * <p>
-     * S3 업로드 및 SageMaker API 호출과 같은 외부 네트워크 블로킹 작업을 수행하며,
-     * 작업 중 예외가 발생하면 {@link #handlePipelineError}로 처리를 위임합니다.
+     * <b>Saga Pattern 적용:</b><br>
+     * 분산 환경에서의 데이터 정합성을 유지하기 위해 S3 업로드(Step 1)와 SageMaker 호출(Step 2)을 분리합니다.
+     * SageMaker 호출 단계에서 장애가 발생할 경우, `.onErrorResume`을 통해 즉각적으로
+     * S3 파일 삭제를 지시하는 보상 트랜잭션({@link #compensateS3Upload})을 트리거합니다.
      * </p>
-     *
-     * @param pendingTask   이전에 PENDING 상태로 저장된 AI 작업 엔티티
-     * @param geocodeResult 런닝 시작 위치
-     * @param shape         목표 아트 모양
-     * @param proficiency   러닝 숙련도
-     * @return PROCESSING 상태 및 관련 URI가 업데이트된 {@link AiTask} 객체를 방출하는 Mono
+     * * @param pendingTask   이전에 PENDING 상태로 DB에 저장된 작업 엔티티
+     * @param geocodeResult 위치 검증이 완료된 위/경도 객체
+     * @param shape         생성할 런닝 아트 모양
+     * @param proficiency   사용자 숙련도
+     * @return 처리가 정상 완료되어 PROCESSING 상태로 변경된 {@link AiTask} Mono 반환
      */
     private Mono<AiTask> processExternalAiServices(
             AiTask pendingTask,
@@ -147,13 +148,44 @@ public class AiGenerationService implements InitiateAiGenerationUseCase, GetTask
             String shape,
             Proficiency proficiency
     ) {
-        return Mono.fromCallable(() -> {
-                    String promptJson = buildPromptJson(geocodeResult, shape, proficiency);
-                    String inputS3Uri = s3AiInputPort.uploadInputJson(pendingTask.id(), promptJson);
-                    String outputS3Uri = sageMakerAdapter.invokeAsync(inputS3Uri);
-                    return pendingTask.markAsProcessing(inputS3Uri, outputS3Uri);
+        return Mono.fromCallable(() -> buildPromptJson(geocodeResult, shape, proficiency))
+
+                // Step 1: S3 업로드
+                .flatMap(promptJson -> Mono.fromCallable(() -> s3AiInputPort.uploadInputJson(pendingTask.id(), promptJson))
+                        .subscribeOn(Schedulers.boundedElastic()))
+
+                // Step 2: SageMaker 호출 및 보상 트랜잭션 연동
+                .flatMap(inputS3Uri -> Mono.fromCallable(() -> sageMakerAdapter.invokeAsync(inputS3Uri))
+                        .subscribeOn(Schedulers.boundedElastic())
+                        .map(outputS3Uri -> pendingTask.markAsProcessing(inputS3Uri, outputS3Uri))
+                        // 🛡️ [보상 로직] SageMaker 호출에서 예외가 발생하면 S3 파일 삭제를 시도합니다.
+                        .onErrorResume(e -> compensateS3Upload(inputS3Uri, e))
+                );
+    }
+
+    /**
+     * SageMaker 호출 실패 시 S3에 선행 업로드된 고아(Orphan) 파일을 제거하는 보상 트랜잭션.
+     * <p>
+     * <b>에러 전파 정책:</b><br>
+     * 보상 로직(S3 삭제) 자체에 실패하더라도 메인 파이프라인의 에러 흐름을 방해하지 않도록,
+     * 삭제 에러는 삼키고(로그 기록) 최초 발생했던 SageMaker 원본 에러를 하위 스트림으로 다시 방출합니다.
+     * </p>
+     * * @param inputS3Uri    보상 로직에 의해 삭제되어야 할 S3 파일 경로
+     * @param originalError SageMaker 호출 중 발생하여 보상 로직을 트리거한 원본 예외 객체
+     * @return 원본 예외를 포함한 에러 스트림({@code Mono.error()})
+     */
+    private Mono<AiTask> compensateS3Upload(String inputS3Uri, Throwable originalError) {
+        log.warn("[Compensation] SageMaker 호출 실패. S3 찌꺼기 파일 삭제 시도: {}", inputS3Uri);
+
+        return Mono.fromRunnable(() -> s3AiInputPort.deleteInputFile(inputS3Uri))
+                .subscribeOn(Schedulers.boundedElastic())
+                .onErrorResume(deleteError -> {
+                    // 보상 로직(S3 삭제)마저 실패할 최악의 경우, 로그만 남기고 원본 에러를 우선시합니다.
+                    log.error("[Compensation Error] S3 파일 삭제 실패 (수동 정리 필요): {}", inputS3Uri, deleteError);
+                    return Mono.empty();
                 })
-                .subscribeOn(Schedulers.boundedElastic());
+                // 삭제가 성공하든 실패하든, 결국 작업은 실패한 것이므로 원래 발생했던 예외를 다시 던집니다.
+                .then(Mono.error(originalError));
     }
 
     /**
