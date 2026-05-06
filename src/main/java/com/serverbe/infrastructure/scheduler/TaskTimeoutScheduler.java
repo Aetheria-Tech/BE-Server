@@ -39,7 +39,7 @@ public class TaskTimeoutScheduler {
     @SchedulerLock(
             name = "scheduleCleanUp_lock", // Redis에 저장될 락의 고유 이름
             lockAtLeastFor = "4m",         // 락을 최소한 유지할 시간 (중복 실행 방지의 핵심 방어선)
-            lockAtMostFor = "5m"           // 락을 최대한 유지할 시간 (서버 다운 시 데드락 방지용)
+            lockAtMostFor = "10m"           // 락을 최대한 유지할 시간 (서버 다운 시 데드락 방지용)
     )
     /*
      * 💡 [ShedLock 속성 완벽 가이드]

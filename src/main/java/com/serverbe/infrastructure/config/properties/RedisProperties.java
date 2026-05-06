@@ -52,5 +52,6 @@ public record RedisProperties(
 
     public record Shedlock(
             String prefix
-    ){}
+    ) {
+    }
 }
