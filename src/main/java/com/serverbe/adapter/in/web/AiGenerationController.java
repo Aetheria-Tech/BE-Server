@@ -57,7 +57,6 @@ public class AiGenerationController {
                         request.proficiency()
                 )
                 .subscribeOn(Schedulers.boundedElastic())
-                // 2. HTTP Header(201 Created)와 Body(RestApiResponse)를 명시적으로 결합!
                 .map(taskId ->
                         ResponseEntity
                                 .status(HttpStatus.CREATED)

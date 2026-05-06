@@ -17,7 +17,6 @@ public enum ServerErrorCode implements ErrorCode {
     HASHING_ALGORITHM_NOT_FOUND(HttpStatus.INTERNAL_SERVER_ERROR, "COMMON_007", "해싱 알고리즘을 찾지 못했습니다."),
     RESOURCE_NOT_FOUND(HttpStatus.NOT_FOUND, "COMMON_008", "요청한 리소스를 찾을 수 없습니다."),
     POLYLINE_PARSE_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "COMMON_9","Encoded polyline string cannot be null or empty"),
-
     ;
 
     private final HttpStatus status;

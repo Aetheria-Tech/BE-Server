@@ -1,7 +1,9 @@
 package com.serverbe.adapter.out.persistence.task;
 
 import com.serverbe.domain.model.task.vo.TaskStatus;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -23,11 +25,10 @@ public interface JpaAiTaskRepository extends JpaRepository<AiTaskEntity, String>
     List<AiTaskEntity> findAllByStatus(TaskStatus status);
 
     /**
-     * 특정 상태에 머물러 있으면서 지정된 시간 이상 업데이트되지 않은 좀비 Task를 조회합니다.
+     * 동시성 제어를 위한 비관적 락(쓰기 락) 조회
+     * 다른 트랜잭션이 이 Row에 접근하지 못하고 대기하게 만듭니다.
      */
-    @Query("SELECT t FROM AiTaskEntity t WHERE t.status IN (:statuses) AND t.updatedAt < :threshold")
-    List<AiTaskEntity> findZombieTasks(
-            @Param("statuses") List<TaskStatus> statuses,
-            @Param("threshold") LocalDateTime threshold
-    );
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT t FROM AiTaskEntity t WHERE t.id = :id")
+    Optional<AiTaskEntity> findByIdForUpdate(@Param("id") String id);
 }

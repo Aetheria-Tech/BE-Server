@@ -8,6 +8,7 @@ import com.serverbe.application.port.out.task.TaskUpdatePort;
 import com.serverbe.domain.exception.server.DataIntegrityViolationException;
 import com.serverbe.domain.exception.server.ServerErrorCode;
 import com.serverbe.domain.model.task.AiTask;
+import com.serverbe.domain.model.task.vo.TaskStatus;
 import io.awspring.cloud.sqs.annotation.SqsListener;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -44,39 +45,44 @@ public class AiNotificationSqsListener {
      * @param message SQS로부터 수신하여 역직렬화된 SageMaker 알림 이벤트 DTO
      * @throws Exception DB 조회 실패 또는 비즈니스 로직 처리 중 에러 발생 시 (SQS 재시도 유발용)
      */
+    @Transactional // 🚨 락을 유지하기 위해 반드시 트랜잭션이 필요합니다!
     @SqsListener(QUEUE_NAME_PROPERTY)
     public void receiveAiTaskNotification(SageMakerNotificationDto message) {
-        log.info("[SQS Listener] SageMaker 이벤트 수신: {}", message.invocationStatus());
-
         try {
             if ("Completed".equalsIgnoreCase(message.invocationStatus())) {
                 String outputS3Uri = message.responseParameters().outputLocation();
                 String taskId = extractTaskIdFromUri(outputS3Uri);
 
-                // 1. DB에서 순수 Task 도메인 모델 조회
-                AiTask task = getTaskOrThrow(taskId);
+                // 1. 락을 걸고 조회 (서버 A가 선점하면, 서버 B는 여기서 잠시 대기 상태가 됨)
+                AiTask task = taskQueryPort.findByIdForUpdate(taskId)
+                        .orElseThrow(() -> new DataIntegrityViolationException(
+                                ServerErrorCode.RESOURCE_NOT_FOUND,
+                                String.format("SQS 이벤트 수신 심각한 오류: DB에서 Task ID [%s]를 찾을 수 없습니다. (원인 예상: 트랜잭션 롤백, 백그라운드 스케줄러에 의한 삭제, 또는 동시성 문제)", taskId)
+                        ));
 
-                // 2. AI 결과 처리 실행 (S3 다운로드 -> RunningArt 엔티티 저장 -> 완료 상태 업데이트)
+                // 2.️ 멱등성 검증 (대기하다가 깨어난 서버 B는 상태가 이미 COMPLETED로 바뀐 것을 보고 튕겨나감)
+                if (task.status() != TaskStatus.PROCESSING) {
+                    log.info("[SQS Listener] Task {} 는 이미 완료/실패 상태입니다. 중복 메시지 무시.", taskId);
+                    return;
+                }
+
+                // 3. 도메인 객체를 그대로 UseCase로 전달 (질문자님이 설계하신 완벽한 흐름!)
                 retrieveAiResultUseCase.processTaskResult(task);
 
             } else {
-                // 실패 처리
-                String failedS3Uri = message.responseParameters().outputLocation();
-                String taskId = extractTaskIdFromUri(failedS3Uri);
-                String reason = message.failureReason();
+                // 실패 로직도 동일하게 락 기반으로 보호
+                String taskId = extractTaskIdFromUri(message.responseParameters().outputLocation());
+                AiTask task = taskQueryPort.findByIdForUpdate(taskId).orElseThrow(...);
 
-                AiTask task = getTaskOrThrow(taskId);
-                AiTask failedTask = task.markAsFailed("SageMaker 추론 실패: " + reason);
+                if (task.status() != TaskStatus.PROCESSING) return;
+
+                AiTask failedTask = task.markAsFailed("SageMaker 추론 실패: " + message.failureReason());
                 taskUpdatePort.save(failedTask);
-
-                // SageMaker 실패 시 프론트엔드에 알림 발송!
-                taskNotificationPort.notifyTaskFailed(taskId, reason);
-
-                log.error("[SQS Listener] Task 실패 처리 완료 - TaskID: {}, 사유: {}", taskId, reason);
+                taskNotificationPort.notifyTaskFailed(taskId, message.failureReason());
             }
         } catch (Exception e) {
-            log.error("[SQS Listener] SQS 메시지 처리 중 오류 발생", e);
-            throw e; // 예외를 던져야 SQS 메시지가 보존/재시도(DLQ) 됩니다.
+            log.error("[SQS Listener] SQS 메시지 처리 중 오류", e);
+            throw e;
         }
     }
 

@@ -1,5 +1,6 @@
 package com.serverbe.adapter.out.persistence.task;
 
+import com.querydsl.jpa.impl.JPAQueryFactory;
 import com.serverbe.adapter.out.persistence.mapper.AiTaskMapper;
 import com.serverbe.application.port.out.task.TaskQueryPort;
 import com.serverbe.application.port.out.task.TaskUpdatePort;
@@ -13,12 +14,15 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
+import static com.serverbe.adapter.out.persistence.task.QAiTaskEntity.aiTaskEntity;
+
 @Component
 @RequiredArgsConstructor
 public class AiTaskPersistenceAdapter implements TaskQueryPort, TaskUpdatePort {
 
     private final JpaAiTaskRepository jpaRepository;
     private final AiTaskMapper aiTaskMapper;
+    private final JPAQueryFactory queryFactory;
 
     @Override
     public Optional<AiTask> findById(String taskId) {
@@ -27,7 +31,13 @@ public class AiTaskPersistenceAdapter implements TaskQueryPort, TaskUpdatePort {
 
     @Override
     public List<AiTask> findZombieTasks(List<TaskStatus> statuses, LocalDateTime threshold) {
-        List<AiTaskEntity> entities = jpaRepository.findZombieTasks(statuses, threshold);
+        List<AiTaskEntity> entities = queryFactory
+                .selectFrom(aiTaskEntity)
+                .where(
+                        aiTaskEntity.status.in(statuses),
+                        aiTaskEntity.updatedAt.lt(threshold)
+                )
+                .fetch();
 
         return entities.stream()
                 .map(aiTaskMapper::toDomain)
@@ -59,5 +69,10 @@ public class AiTaskPersistenceAdapter implements TaskQueryPort, TaskUpdatePort {
             aiTaskMapper.updateEntityFromDomain(aiTask, existingEntity);
             return aiTaskMapper.toDomain(jpaRepository.save(existingEntity));
         }
+    }
+
+    @Override
+    public Optional<AiTask> findByIdForUpdate(String taskId) {
+        return jpaRepository.findByIdForUpdate(taskId).map(aiTaskMapper::toDomain);
     }
 }
