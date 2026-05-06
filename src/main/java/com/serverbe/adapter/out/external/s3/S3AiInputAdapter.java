@@ -125,15 +125,14 @@ public class S3AiInputAdapter implements S3AiInputPort {
         } catch (software.amazon.awssdk.services.s3.model.S3Exception e) {
             log.error("[S3 Delete Error] S3 서버 거절/오류 - URI: {}, 상태코드: {}, 원인: {}",
                     s3Uri, e.statusCode(), e.awsErrorDetails().errorMessage());
-            // 필요에 따라 S3_DELETE_ERROR 같은 신규 에러 코드를 추가하여 사용할 수 있습니다.
-            throw new S3Exception(S3ErrorCode.S3_UPLOAD_ERROR, "S3 파일 삭제 서버 에러: " + e.awsErrorDetails().errorMessage());
+            throw new S3Exception(S3ErrorCode.S3_DELETE_ERROR, "S3 파일 삭제 서버 에러: " + e.awsErrorDetails().errorMessage());
         } catch (software.amazon.awssdk.core.exception.SdkClientException e) {
             log.error("[S3 Delete Error] S3 네트워크 타임아웃 및 통신 실패 - URI: {}, 원인: {}",
                     s3Uri, e.getMessage());
-            throw new S3Exception(S3ErrorCode.S3_UPLOAD_ERROR, "S3 파일 삭제 네트워크 에러: " + e.getMessage());
+            throw new S3Exception(S3ErrorCode.S3_DELETE_ERROR, "S3 파일 삭제 네트워크 에러: " + e.getMessage());
         } catch (Exception e) {
             log.error("[S3 Delete Error] 알 수 없는 시스템 오류 - URI: {}, 원인: {}", s3Uri, e.getMessage());
-            throw new S3Exception(S3ErrorCode.S3_UPLOAD_ERROR, "알 수 없는 S3 파일 삭제 오류");
+            throw new S3Exception(S3ErrorCode.S3_DELETE_ERROR, "알 수 없는 S3 파일 삭제 오류");
         }
     }
 }

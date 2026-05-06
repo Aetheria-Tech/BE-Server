@@ -136,7 +136,7 @@ public class AiGenerationService implements InitiateAiGenerationUseCase, GetTask
      * SageMaker 호출 단계에서 장애가 발생할 경우, `.onErrorResume`을 통해 즉각적으로
      * S3 파일 삭제를 지시하는 보상 트랜잭션({@link #compensateS3Upload})을 트리거합니다.
      * </p>
-     * * @param pendingTask   이전에 PENDING 상태로 DB에 저장된 작업 엔티티
+     * @param pendingTask   이전에 PENDING 상태로 DB에 저장된 작업 엔티티
      * @param geocodeResult 위치 검증이 완료된 위/경도 객체
      * @param shape         생성할 런닝 아트 모양
      * @param proficiency   사용자 숙련도
@@ -170,7 +170,7 @@ public class AiGenerationService implements InitiateAiGenerationUseCase, GetTask
      * 보상 로직(S3 삭제) 자체에 실패하더라도 메인 파이프라인의 에러 흐름을 방해하지 않도록,
      * 삭제 에러는 삼키고(로그 기록) 최초 발생했던 SageMaker 원본 에러를 하위 스트림으로 다시 방출합니다.
      * </p>
-     * * @param inputS3Uri    보상 로직에 의해 삭제되어야 할 S3 파일 경로
+     * @param inputS3Uri    보상 로직에 의해 삭제되어야 할 S3 파일 경로
      * @param originalError SageMaker 호출 중 발생하여 보상 로직을 트리거한 원본 예외 객체
      * @return 원본 예외를 포함한 에러 스트림({@code Mono.error()})
      */
