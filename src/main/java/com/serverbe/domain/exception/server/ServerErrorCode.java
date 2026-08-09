@@ -16,7 +16,8 @@ public enum ServerErrorCode implements ErrorCode {
     TOO_MANY_REQUESTS(HttpStatus.TOO_MANY_REQUESTS, "COMMON_006", "너무 많은 요청이 들어왔습니다. 잠시 후에 요청을 보내주세요."),
     HASHING_ALGORITHM_NOT_FOUND(HttpStatus.INTERNAL_SERVER_ERROR, "COMMON_007", "해싱 알고리즘을 찾지 못했습니다."),
     RESOURCE_NOT_FOUND(HttpStatus.NOT_FOUND, "COMMON_008", "요청한 리소스를 찾을 수 없습니다."),
-    POLYLINE_PARSE_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "COMMON_9","Encoded polyline string cannot be null or empty"),
+    POLYLINE_PARSE_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "COMMON_009","Encoded polyline string cannot be null or empty"),
+    ASYNC_RACE_CONDITION(HttpStatus.CONFLICT, "COMMON_010", "비동기 처리 중 경합 조건이 발생하여 재시도가 필요합니다."),
     ;
 
     private final HttpStatus status;
