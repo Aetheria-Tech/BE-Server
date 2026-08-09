@@ -10,6 +10,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.nio.charset.StandardCharsets;
+import java.security.SecureRandom;
 
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
@@ -20,6 +21,11 @@ import static org.mockito.Mockito.when;
 class AesGcmEncryptorTest {
     @Mock
     private EncryptionProperties properties;
+
+    // 실제 IV(초기화 벡터)를 생성하기 위해 필요합니다. 이 필드가 없으면 @InjectMocks가 null을 주입하여
+    // generateIv() 호출 시 NPE가 발생하고, encrypt()가 이를 삼켜 CryptoException으로 감춰버립니다.
+    @Mock
+    private SecureRandom secureRandom;
 
     @InjectMocks
     private AesGcmEncryptor encryptor;
