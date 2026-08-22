@@ -38,7 +38,7 @@ class S3LifecyclePolicyInitializerTest {
     @DisplayName("lifecycle.enabled 가 false면 S3 API를 전혀 호출하지 않는다")
     void doesNothingWhenDisabled() {
         // given
-        AwsProperties awsProperties = awsProperties(new AwsProperties.S3.Lifecycle(false, List.of("inputs/", "temp/"), 1));
+        AwsProperties awsProperties = awsProperties(new AwsProperties.S3.Lifecycle(false, List.of("inputs/", "temp/"), List.of(), 1));
         S3LifecyclePolicyInitializer initializer = new S3LifecyclePolicyInitializer(s3Client, awsProperties);
 
         // when
@@ -53,7 +53,7 @@ class S3LifecyclePolicyInitializerTest {
     @DisplayName("버킷에 기존 Lifecycle 설정이 없을 때(최초 상태), 임시 경로에 대한 만료 규칙을 새로 생성한다")
     void createsRulesWhenNoExistingConfiguration() {
         // given
-        AwsProperties awsProperties = awsProperties(new AwsProperties.S3.Lifecycle(true, List.of("inputs/", "temp/"), 1));
+        AwsProperties awsProperties = awsProperties(new AwsProperties.S3.Lifecycle(true, List.of("inputs/", "temp/"), List.of(), 1));
         S3LifecyclePolicyInitializer initializer = new S3LifecyclePolicyInitializer(s3Client, awsProperties);
 
         when(s3Client.getBucketLifecycleConfiguration(any(GetBucketLifecycleConfigurationRequest.class)))
@@ -84,7 +84,7 @@ class S3LifecyclePolicyInitializerTest {
     @DisplayName("버킷에 우리가 관리하지 않는 기존 규칙이 있으면 보존하고, 우리가 관리하는 규칙만 갱신한다")
     void preservesUnmanagedRulesAndUpdatesManagedOnes() {
         // given
-        AwsProperties awsProperties = awsProperties(new AwsProperties.S3.Lifecycle(true, List.of("inputs/"), 1));
+        AwsProperties awsProperties = awsProperties(new AwsProperties.S3.Lifecycle(true, List.of("inputs/"), List.of(), 1));
         S3LifecyclePolicyInitializer initializer = new S3LifecyclePolicyInitializer(s3Client, awsProperties);
 
         LifecycleRule unmanagedRule = LifecycleRule.builder()
@@ -124,7 +124,7 @@ class S3LifecyclePolicyInitializerTest {
 
     private AwsProperties awsProperties(AwsProperties.S3.Lifecycle lifecycle) {
         return new AwsProperties(
-                new AwsProperties.S3(BUCKET, lifecycle),
+                new AwsProperties.S3(BUCKET, null, lifecycle),
                 new AwsProperties.SageMaker("my-endpoint"),
                 new AwsProperties.Sqs("my-queue")
         );

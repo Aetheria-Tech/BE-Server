@@ -44,6 +44,10 @@ class AiResultRetrievalServiceTest {
     private RegisterCompletedArtUseCase registerCompletedArtUseCase;
     @Mock
     private TransactionTemplate transactionTemplate;
+    @Mock
+    private com.serverbe.application.service.helper.AiTaskResourceCleaner resourceCleaner;
+    @Mock
+    private org.springframework.transaction.PlatformTransactionManager transactionManager;
 
     private AiResultRetrievalService aiResultRetrievalService;
 
@@ -54,7 +58,8 @@ class AiResultRetrievalServiceTest {
     @BeforeEach
     void setUp() {
         aiResultRetrievalService = new AiResultRetrievalService(
-                taskUpdatePort, s3AiOutputPort, taskNotificationPort, registerCompletedArtUseCase, transactionTemplate
+                taskUpdatePort, s3AiOutputPort, taskNotificationPort, registerCompletedArtUseCase,
+                resourceCleaner, transactionTemplate, transactionManager
         );
     }
 
@@ -117,8 +122,11 @@ class AiResultRetrievalServiceTest {
         assertThat(captor.getValue().status()).isEqualTo(TaskStatus.COMPLETED);
         assertThat(captor.getValue().resultArtId()).isEqualTo(SAVED_ART_ID);
 
-        verify(s3AiOutputPort).deleteOutput(task.inputS3Uri());
-        verify(s3AiOutputPort).deleteOutput(task.outputS3Uri());
+        // S3 임시 자원 정리는 공용 헬퍼로 위임되었으므로, COMPLETED로 확정된 Task가 정리 대상으로 넘어갔는지 확인한다
+        ArgumentCaptor<AiTask> cleanedCaptor = ArgumentCaptor.forClass(AiTask.class);
+        verify(resourceCleaner).cleanUp(cleanedCaptor.capture());
+        assertThat(cleanedCaptor.getValue().status()).isEqualTo(TaskStatus.COMPLETED);
+
         verify(taskNotificationPort).notifyTaskCompleted(task.id(), String.valueOf(SAVED_ART_ID));
         verify(taskNotificationPort, never()).notifyTaskFailed(anyString(), anyString());
     }
@@ -145,8 +153,11 @@ class AiResultRetrievalServiceTest {
 
         verify(taskNotificationPort).notifyTaskFailed(task.id(), "런닝 아트 등록 중 오류가 발생했습니다.");
         verify(taskNotificationPort, never()).notifyTaskCompleted(anyString(), anyString());
-        // 등록 자체가 실패했으므로 S3 정리 로직까지는 도달하지 않아야 한다
-        verify(s3AiOutputPort, never()).deleteOutput(anyString());
+
+        // 등록에 실패했더라도 S3에 올라간 입력/결과물은 그대로 과금되므로 반드시 정리되어야 한다
+        ArgumentCaptor<AiTask> cleanedCaptor = ArgumentCaptor.forClass(AiTask.class);
+        verify(resourceCleaner).cleanUp(cleanedCaptor.capture());
+        assertThat(cleanedCaptor.getValue().status()).isEqualTo(TaskStatus.FAILED);
     }
 
     @Test
@@ -170,7 +181,6 @@ class AiResultRetrievalServiceTest {
         ArgumentCaptor<AiTask> captor = ArgumentCaptor.forClass(AiTask.class);
         verify(taskUpdatePort).save(captor.capture());
         assertThat(captor.getValue().status()).isEqualTo(TaskStatus.COMPLETED);
-        verify(s3AiOutputPort).deleteOutput(task.inputS3Uri());
-        verify(s3AiOutputPort).deleteOutput(task.outputS3Uri());
+        verify(resourceCleaner).cleanUp(any(AiTask.class));
     }
 }

@@ -60,6 +60,8 @@ class AiGenerationServiceTest {
     private S3AiInputPort s3AiInputPort;
     @Mock
     private SageMakerAsyncPort sageMakerAsyncPort;
+    @Mock
+    private com.serverbe.application.service.helper.AiTaskResourceCleaner resourceCleaner;
 
     private AiGenerationService aiGenerationService;
 
@@ -70,7 +72,8 @@ class AiGenerationServiceTest {
     void setUp() {
         // ObjectMapper는 순수 직렬화 유틸이므로 mocking 없이 실제 인스턴스를 사용합니다.
         aiGenerationService = new AiGenerationService(
-                taskQueryPort, taskUpdatePort, geocodePort, taskRateLimitPort, s3AiInputPort, sageMakerAsyncPort, new ObjectMapper()
+                taskQueryPort, taskUpdatePort, geocodePort, taskRateLimitPort, s3AiInputPort, sageMakerAsyncPort,
+                resourceCleaner, new ObjectMapper()
         );
     }
 
@@ -100,7 +103,7 @@ class AiGenerationServiceTest {
         given(geocodePort.geocode(anyString())).willReturn(Mono.just(new GeocodeResult(37.5, 127.0, "서울시 강남구")));
         stubSaveAssignsIdOnce();
         given(s3AiInputPort.uploadInputJson(anyString(), anyString())).willReturn("s3://bucket/inputs/" + GENERATED_TASK_ID + ".json");
-        given(sageMakerAsyncPort.invokeAsync(anyString())).willReturn("s3://bucket/outputs/" + GENERATED_TASK_ID + ".json.out");
+        given(sageMakerAsyncPort.invokeAsync(anyString(), anyString())).willReturn("s3://bucket/outputs/" + GENERATED_TASK_ID + ".json.out");
 
         // when
         Mono<String> resultMono = aiGenerationService.initiateGeneration(USER_ID, "서울시 강남구", "HEART", Proficiency.BEGINNER);
@@ -202,7 +205,7 @@ class AiGenerationServiceTest {
         given(geocodePort.geocode(anyString())).willReturn(Mono.just(new GeocodeResult(37.5, 127.0, "서울시 강남구")));
         stubSaveAssignsIdOnce();
         given(s3AiInputPort.uploadInputJson(anyString(), anyString())).willReturn(inputS3Uri);
-        given(sageMakerAsyncPort.invokeAsync(inputS3Uri))
+        given(sageMakerAsyncPort.invokeAsync(GENERATED_TASK_ID, inputS3Uri))
                 .willThrow(new RuntimeException("SageMaker 엔드포인트 응답 없음"));
 
         // when & then

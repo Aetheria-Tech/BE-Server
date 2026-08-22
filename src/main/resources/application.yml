@@ -201,11 +201,14 @@ rate-limit:
 aws:
   s3:
     ai-input-bucket: "my-project-ai-inference-input-bucket" # 실제 생성된 버킷명
+    ai-output-bucket: ${AWS_S3_AI_OUTPUT_BUCKET:} # SageMaker 결과물 버킷. 비워두면 Lifecycle 미적용
     lifecycle:
       enabled: ${AWS_S3_LIFECYCLE_ENABLED:false} # true로 켜면 기동 시 아래 정책을 버킷에 자동 적용
-      temp-prefixes: # 생성 1일 후 자동 만료(삭제)시킬 임시 경로들
+      temp-prefixes: # 입력 버킷에서 생성 1일 후 자동 만료(삭제)시킬 임시 경로들
         - "inputs/"
         - "temp/"
+      output-prefixes: # 출력 버킷에서 만료시킬 경로들 (삭제 실패분 및 고아 결과물의 최종 방어선)
+        - "outputs/"
       expiration-days: 1 # Standard 클래스 유지 (IA는 최소 보관 30일 페널티 있어 미사용)
   sagemaker:
     endpoint-name: "my-project-async-inference-endpoint"    # 실제 생성된 엔드포인트명

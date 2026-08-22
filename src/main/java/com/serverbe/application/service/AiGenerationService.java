@@ -12,6 +12,7 @@ import com.serverbe.application.port.out.s3.S3AiInputPort;
 import com.serverbe.application.port.out.task.TaskQueryPort;
 import com.serverbe.application.port.out.task.TaskRateLimitPort;
 import com.serverbe.application.port.out.task.TaskUpdatePort;
+import com.serverbe.application.service.helper.AiTaskResourceCleaner;
 import com.serverbe.domain.exception.ai.AiErrorCode;
 import com.serverbe.domain.exception.ai.AiException;
 import com.serverbe.domain.exception.external.ExternalApiClientException;
@@ -45,6 +46,7 @@ public class AiGenerationService implements InitiateAiGenerationUseCase, GetTask
     private final TaskRateLimitPort taskRateLimitPort;
     private final S3AiInputPort s3AiInputPort;
     private final SageMakerAsyncPort sageMakerAsyncPort;
+    private final AiTaskResourceCleaner resourceCleaner;
     private final ObjectMapper objectMapper;
 
     /**
@@ -75,7 +77,9 @@ public class AiGenerationService implements InitiateAiGenerationUseCase, GetTask
                     AiTask pendingTask = tuple.getT2();
 
                     return processExternalAiServices(pendingTask, geocodeResult, shape, proficiency)
-                            .flatMap(this::saveProcessingTask)
+                            // 외부 연동까지 성공한 뒤 DB 반영에 실패하면, 이미 만들어진 S3 자원이 고아로 남습니다.
+                            .flatMap(processingTask -> saveProcessingTask(processingTask)
+                                    .onErrorResume(e -> compensateAfterExternalSuccess(processingTask, e)))
                             .onErrorResume(e -> handlePipelineError(pendingTask, e));
                 })
                 .map(AiTask::id);
@@ -155,7 +159,7 @@ public class AiGenerationService implements InitiateAiGenerationUseCase, GetTask
                         .subscribeOn(Schedulers.boundedElastic()))
 
                 // Step 2: SageMaker 호출 및 보상 트랜잭션 연동
-                .flatMap(inputS3Uri -> Mono.fromCallable(() -> sageMakerAsyncPort.invokeAsync(inputS3Uri))
+                .flatMap(inputS3Uri -> Mono.fromCallable(() -> sageMakerAsyncPort.invokeAsync(pendingTask.id(), inputS3Uri))
                         .subscribeOn(Schedulers.boundedElastic())
                         .map(outputS3Uri -> pendingTask.markAsProcessing(inputS3Uri, outputS3Uri))
                         // 🛡️ [보상 로직] SageMaker 호출에서 예외가 발생하면 S3 파일 삭제를 시도합니다.
@@ -185,6 +189,30 @@ public class AiGenerationService implements InitiateAiGenerationUseCase, GetTask
                     return Mono.empty();
                 })
                 // 삭제가 성공하든 실패하든, 결국 작업은 실패한 것이므로 원래 발생했던 예외를 다시 던집니다.
+                .then(Mono.error(originalError));
+    }
+
+    /**
+     * S3 업로드와 SageMaker 호출까지 모두 성공한 뒤 DB 반영 단계에서 실패했을 때의 보상 트랜잭션.
+     * <p>
+     * 이 시점에는 입력 프롬프트가 S3에 올라가 있고 추론도 이미 시작된 상태입니다. 작업은 실패로 종결될 것이므로
+     * 입력 파일은 즉시 삭제합니다. 다만 추론 결과물은 <b>아직 생성되지 않았다가 우리가 지운 뒤에 기록될 수 있어</b>
+     * 여기서 완전히 정리되지 않습니다. 그 고아 결과물은 나중에 SQS 콜백이 도착했을 때
+     * 이미 종결된 작업임을 확인하는 경로에서 정리됩니다.
+     * </p>
+     * <p>
+     * 정리 성공 여부와 무관하게, 최초에 발생한 원본 예외를 그대로 다시 방출하여 상위 에러 처리로 넘깁니다.
+     * </p>
+     *
+     * @param processingTask S3/SageMaker URI가 채워진 작업 엔티티
+     * @param originalError  DB 반영 중 발생한 원본 예외
+     * @return 원본 예외를 포함한 에러 스트림
+     */
+    private Mono<AiTask> compensateAfterExternalSuccess(AiTask processingTask, Throwable originalError) {
+        log.warn("[Compensation] PROCESSING 상태 저장 실패. S3 임시 자원 정리 시도 - TaskID: {}", processingTask.id());
+
+        return Mono.fromRunnable(() -> resourceCleaner.cleanUp(processingTask))
+                .subscribeOn(Schedulers.boundedElastic())
                 .then(Mono.error(originalError));
     }
 

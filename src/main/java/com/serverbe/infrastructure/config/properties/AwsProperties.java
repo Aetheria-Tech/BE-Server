@@ -28,6 +28,14 @@ public record AwsProperties(
             String aiInputBucket,
 
             /*
+             * SageMaker 비동기 추론 결과물이 저장되는 S3 버킷의 이름입니다.
+             * 애플리케이션이 직접 업로드하지는 않지만, 삭제에 실패한 결과물이 방치되지 않도록
+             * Lifecycle 정책의 적용 대상으로 삼기 위해 필요합니다. 비워두면 정책을 적용하지 않습니다.
+             * YAML 프로퍼티: aws.s3.ai-output-bucket
+             */
+            String aiOutputBucket,
+
+            /*
              * 임시 자원(Input JSON 등) 자동 정리를 위한 S3 Lifecycle 정책 설정입니다.
              * 매핑 경로: aws.s3.lifecycle.*
              */
@@ -58,6 +66,14 @@ public record AwsProperties(
                  * YAML 프로퍼티: aws.s3.lifecycle.temp-prefixes
                  */
                 @DefaultValue({"inputs/", "temp/"}) List<String> tempPrefixes,
+
+                /*
+                 * 결과물 버킷(aws.s3.ai-output-bucket)에서 만료 대상이 되는 경로 목록입니다.
+                 * 추론 결과물은 DB 등록 직후 즉시 삭제되지만, 삭제가 실패하거나 작업이 종결된 뒤에
+                 * 뒤늦게 기록된 고아 결과물이 남을 수 있어 최종 방어선이 필요합니다.
+                 * YAML 프로퍼티: aws.s3.lifecycle.output-prefixes
+                 */
+                @DefaultValue({"outputs/"}) List<String> outputPrefixes,
 
                 /*
                  * 객체 생성 후 만료(삭제)까지의 일수입니다.

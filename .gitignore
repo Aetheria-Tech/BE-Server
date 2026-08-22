@@ -36,3 +36,6 @@ out/
 
 ### VS Code ###
 .vscode/
+
+### QueryDSL (IDE 생성물 - Gradle 은 build/generated 를 사용) ###
+src/main/generated/

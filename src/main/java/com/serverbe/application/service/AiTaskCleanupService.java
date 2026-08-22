@@ -3,14 +3,18 @@ package com.serverbe.application.service;
 import com.serverbe.application.port.in.task.CleanupZombieTaskUseCase;
 import com.serverbe.application.port.out.task.TaskUpdatePort;
 import com.serverbe.application.port.out.task.TaskQueryPort;
+import com.serverbe.application.service.helper.AiTaskResourceCleaner;
 import com.serverbe.domain.model.task.AiTask;
 import com.serverbe.domain.model.task.vo.TaskStatus;
 import com.serverbe.infrastructure.config.properties.TaskProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -26,6 +30,7 @@ public class AiTaskCleanupService implements CleanupZombieTaskUseCase {
 
     private final TaskQueryPort taskQueryPort;
     private final TaskUpdatePort taskUpdatePort;
+    private final AiTaskResourceCleaner resourceCleaner;
     private final int taskTimeoutThreshold;
 
     /**
@@ -34,9 +39,15 @@ public class AiTaskCleanupService implements CleanupZombieTaskUseCase {
      */
     private final List<TaskStatus> zombieStatus = List.of(TaskStatus.PENDING, TaskStatus.PROCESSING);
 
-    public AiTaskCleanupService(TaskQueryPort taskQueryPort, TaskUpdatePort taskUpdatePort, TaskProperties taskProperties) {
+    public AiTaskCleanupService(
+            TaskQueryPort taskQueryPort,
+            TaskUpdatePort taskUpdatePort,
+            AiTaskResourceCleaner resourceCleaner,
+            TaskProperties taskProperties
+    ) {
         this.taskQueryPort = taskQueryPort;
         this.taskUpdatePort = taskUpdatePort;
+        this.resourceCleaner = resourceCleaner;
         this.taskTimeoutThreshold = taskProperties.taskTimeoutThresholdMinutes();
     }
 
@@ -62,14 +73,46 @@ public class AiTaskCleanupService implements CleanupZombieTaskUseCase {
         );
 
         // 좀비 작업이 존재할 경우에만 상태 업데이트 수행
-        if (!zombieTasks.isEmpty()) {
-            log.warn("[AI Pipeline] {}개의 좀비 Task FAILED 처리", zombieTasks.size());
-
-            for (AiTask task : zombieTasks) {
-                // 도메인 로직을 호출하여 상태 및 에러 메시지 갱신
-                AiTask failedTask = task.markAsFailed("AI 서버 응답 시간 초과 (Timeout)");
-                taskUpdatePort.save(failedTask);
-            }
+        if (zombieTasks.isEmpty()) {
+            return;
         }
+
+        log.warn("[AI Pipeline] {}개의 좀비 Task FAILED 처리", zombieTasks.size());
+
+        List<AiTask> failedTasks = new ArrayList<>();
+        for (AiTask task : zombieTasks) {
+            // 도메인 로직을 호출하여 상태 및 에러 메시지 갱신
+            AiTask failedTask = task.markAsFailed("AI 서버 응답 시간 초과 (Timeout)");
+            taskUpdatePort.save(failedTask);
+            failedTasks.add(failedTask);
+        }
+
+        cleanUpResourcesAfterCommit(failedTasks);
+    }
+
+    /**
+     * 좀비 처리된 작업들이 S3에 남긴 임시 자원의 삭제를 <b>트랜잭션 커밋 이후로</b> 예약합니다.
+     * <p>
+     * 좀비 작업은 "AI 서버가 끝내 응답하지 않아 입력 프롬프트가 S3에 방치된" 바로 그 상황입니다.
+     * 상태만 FAILED로 바꾸고 파일을 그대로 두면 타임아웃될수록 스토리지 비용이 누적되므로 반드시 함께 정리해야 합니다.
+     * </p>
+     * <p>
+     * 삭제는 네트워크 I/O이므로 트랜잭션 안에서 수행하면 그 시간만큼 DB 커넥션을 붙잡습니다.
+     * 또한 상태 갱신이 롤백되었는데 파일만 먼저 지워지는 상황을 막기 위해, 커밋이 확정된 뒤에만 삭제합니다.
+     * </p>
+     */
+    private void cleanUpResourcesAfterCommit(List<AiTask> failedTasks) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            // 트랜잭션 없이 호출된 경우(테스트 등)에는 즉시 정리합니다.
+            failedTasks.forEach(resourceCleaner::cleanUp);
+            return;
+        }
+
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                failedTasks.forEach(resourceCleaner::cleanUp);
+            }
+        });
     }
 }
