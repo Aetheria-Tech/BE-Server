@@ -1,10 +1,16 @@
 package com.serverbe.application.service;
 
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
+/*
+ * 전체 컨텍스트와 외부 Webhook이 필요한 알림 발송 테스트.
+ * 기본 `gradlew test` 에서는 제외되며 `gradlew integrationTest` 로만 실행됩니다.
+ */
+@Tag("integration")
 @SpringBootTest
 class NotificationServiceTest {
 

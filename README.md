@@ -43,7 +43,7 @@
 | --- | --- |
 | **Language / Runtime** | Java 17 |
 | **Framework** | Spring Boot 3.5.8, Spring MVC, **Spring WebFlux (Reactor)** |
-| **Persistence** | Spring Data JPA, Hibernate, **Querydsl 5.0.0 (Jakarta)**, MySQL 8 |
+| **Persistence** | Spring Data JPA, Hibernate, **Querydsl 5.0.0 (Jakarta)**, MySQL 8, **Flyway** (스키마 마이그레이션) |
 | **Cache / In-Memory** | Redis (Lettuce), **Lua Script**, Redis GEO, Redis Pub/Sub, Caffeine |
 | **Auth / Security** | Spring Security, OAuth2 Client (Kakao·Google), **JWT (jjwt 0.11.5)**, AES-GCM 필드 암호화 |
 | **Resilience** | **Resilience4j 2.2.0** (Circuit Breaker), Spring AOP, **ShedLock 5.13.0** (Redis Provider) |
@@ -246,6 +246,7 @@ sequenceDiagram
 - **PII 필드 암호화와 무중단 키 교체** — 이메일 등 민감 정보를 JPA `AttributeConverter`로 **AES-GCM 자동 암복호화**합니다. 암호문에 키 버전을 새겨두고, 구버전 키로 암호화된 데이터를 읽으면 마이그레이션 대상으로 표시해 점진적으로 재암호화합니다. ([`CryptoConverter.java`](src/main/java/com/serverbe/adapter/out/persistence/converter/CryptoConverter.java), [`AesGcmEncryptor.java`](src/main/java/com/serverbe/infrastructure/crypto/AesGcmEncryptor.java))
 - **DB 커넥션 풀 보호** — AI 결과 처리는 S3 다운로드·삭제, SSE 발송 등 긴 네트워크 I/O를 포함합니다. 메서드 전체에 `@Transactional`을 걸면 그동안 커넥션을 점유해 풀이 고갈됩니다. `TransactionTemplate`으로 **DB 쓰기 구간만** 원자적으로 감싸고 외부 I/O는 트랜잭션 밖으로 뺐습니다. ([`AiResultRetrievalService.java`](src/main/java/com/serverbe/application/service/AiResultRetrievalService.java))
 - **다중 인스턴스 SSE** — SSE 연결은 특정 인스턴스에 고정되지만 완료 이벤트는 다른 인스턴스에서 발생할 수 있습니다. Redis Pub/Sub으로 이벤트를 브로드캐스트해 어느 인스턴스가 받든 올바른 클라이언트에게 전달되도록 했습니다. ([`SseNotificationAdapter.java`](src/main/java/com/serverbe/adapter/out/notification/SseNotificationAdapter.java), [`SseRedisSubscriber.java`](src/main/java/com/serverbe/adapter/out/notification/SseRedisSubscriber.java))
+- **스키마 관리를 `ddl-auto`에서 Flyway로 이관** — 동시 요청을 막는 유니크 제약을 추가하면서 `ddl-auto: update`에 맡길 수 없다고 판단했습니다. Hibernate의 `update`는 컬럼 추가는 해주지만 **기존 테이블에 유니크 제약을 붙여준다는 보장이 없고, 새 컬럼에 기존 행을 백필할 수도 없습니다.** 실제로 마이그레이션 대상 DB에는 한 사용자에게 진행 중 작업이 7건 쌓여 있어, 정리 없이는 유니크 인덱스 생성 자체가 실패하는 상태였습니다. `기존 중복 정리 → 컬럼 추가 → 백필 → 제약 생성` 순서를 명시적 SQL로 작성하고 `ddl-auto`는 `validate`로 낮춰, 스키마 변경 권한을 한 곳으로 모았습니다. ([`V2__add_active_task_slot.sql`](src/main/resources/db/migration/V2__add_active_task_slot.sql))
 - **표준화된 에러 응답** — 도메인별 `ErrorCode` enum과 `BusinessException` 계층을 정의하고 `@RestControllerAdvice`에서 일괄 변환해, 모든 API가 동일한 응답 포맷을 갖도록 했습니다. ([`BusinessExceptionHandler.java`](src/main/java/com/serverbe/infrastructure/error/BusinessExceptionHandler.java), [`RestApiResponse.java`](src/main/java/com/serverbe/infrastructure/common/response/RestApiResponse.java))
 
 ---
@@ -386,6 +387,11 @@ cp .env.example .env   # 이후 아래 표를 참고해 값을 채웁니다
 ./gradlew bootRun
 ```
 
+`.env`는 애플리케이션이 직접 읽으므로(spring-dotenv) IDE 플러그인 없이도 동일하게 기동됩니다.
+
+기동 시 **Flyway가 `src/main/resources/db/migration`의 마이그레이션을 순서대로 적용**하여 스키마를 만듭니다.
+Hibernate는 `ddl-auto: validate`로 엔티티와 실제 스키마의 일치 여부만 검증하며, 스키마를 변경하지 않습니다.
+
 - Swagger UI — `http://localhost:8080/swagger-ui.html`
 - Health Check — `http://localhost:8080/actuator/health` (서킷 브레이커 상태 포함)
 
@@ -404,10 +410,14 @@ POST /api/v1/test/ai/tasks/{taskId}/mock-sqs-receive
 ## 테스트
 
 ```bash
-./gradlew test
+./gradlew test              # 단위 테스트 — 외부 인프라 불필요
+./gradlew integrationTest   # 통합·성능 테스트 — 로컬 MySQL·Redis 필요
 ```
 
-26개 테스트 클래스로 구성되어 있으며, 단순 CRUD 검증보다 **실패 경로와 동시성 검증**에 무게를 두었습니다.
+실제 인프라가 있어야 하는 테스트는 `@Tag("integration")`으로 분리해 기본 `test` 태스크에서 제외했습니다.
+덕분에 레포를 클론한 직후, DB나 Redis 없이도 `./gradlew build`가 통과합니다.
+
+단순 CRUD 검증보다 **실패 경로와 동시성 검증**에 무게를 두었습니다.
 
 | 유형 | 내용 |
 | --- | --- |
