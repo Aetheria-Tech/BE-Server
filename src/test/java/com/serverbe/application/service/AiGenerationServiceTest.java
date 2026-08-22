@@ -1,7 +1,7 @@
 package com.serverbe.application.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.serverbe.adapter.in.web.dto.task.TaskStatusResponse;
+import com.serverbe.application.port.in.dto.task.TaskStatusResult;
 import com.serverbe.application.port.out.dto.geocoding.GeocodeResult;
 import com.serverbe.application.port.out.geocode.GeocodePort;
 import com.serverbe.application.port.out.s3.S3AiInputPort;
@@ -59,7 +59,7 @@ class AiGenerationServiceTest {
     @Mock
     private S3AiInputPort s3AiInputPort;
     @Mock
-    private SageMakerAsyncPort sageMakerAdapter;
+    private SageMakerAsyncPort sageMakerAsyncPort;
 
     private AiGenerationService aiGenerationService;
 
@@ -70,7 +70,7 @@ class AiGenerationServiceTest {
     void setUp() {
         // ObjectMapper는 순수 직렬화 유틸이므로 mocking 없이 실제 인스턴스를 사용합니다.
         aiGenerationService = new AiGenerationService(
-                taskQueryPort, taskUpdatePort, geocodePort, taskRateLimitPort, s3AiInputPort, sageMakerAdapter, new ObjectMapper()
+                taskQueryPort, taskUpdatePort, geocodePort, taskRateLimitPort, s3AiInputPort, sageMakerAsyncPort, new ObjectMapper()
         );
     }
 
@@ -100,7 +100,7 @@ class AiGenerationServiceTest {
         given(geocodePort.geocode(anyString())).willReturn(Mono.just(new GeocodeResult(37.5, 127.0, "서울시 강남구")));
         stubSaveAssignsIdOnce();
         given(s3AiInputPort.uploadInputJson(anyString(), anyString())).willReturn("s3://bucket/inputs/" + GENERATED_TASK_ID + ".json");
-        given(sageMakerAdapter.invokeAsync(anyString())).willReturn("s3://bucket/outputs/" + GENERATED_TASK_ID + ".json.out");
+        given(sageMakerAsyncPort.invokeAsync(anyString())).willReturn("s3://bucket/outputs/" + GENERATED_TASK_ID + ".json.out");
 
         // when
         Mono<String> resultMono = aiGenerationService.initiateGeneration(USER_ID, "서울시 강남구", "HEART", Proficiency.BEGINNER);
@@ -202,7 +202,7 @@ class AiGenerationServiceTest {
         given(geocodePort.geocode(anyString())).willReturn(Mono.just(new GeocodeResult(37.5, 127.0, "서울시 강남구")));
         stubSaveAssignsIdOnce();
         given(s3AiInputPort.uploadInputJson(anyString(), anyString())).willReturn(inputS3Uri);
-        given(sageMakerAdapter.invokeAsync(inputS3Uri))
+        given(sageMakerAsyncPort.invokeAsync(inputS3Uri))
                 .willThrow(new RuntimeException("SageMaker 엔드포인트 응답 없음"));
 
         // when & then
@@ -228,7 +228,7 @@ class AiGenerationServiceTest {
         given(taskQueryPort.findById(GENERATED_TASK_ID)).willReturn(Optional.of(task));
 
         // when
-        TaskStatusResponse response = aiGenerationService.getTaskStatus(GENERATED_TASK_ID, USER_ID);
+        TaskStatusResult response = aiGenerationService.getTaskStatus(GENERATED_TASK_ID, USER_ID);
 
         // then
         assertThat(response).isNotNull();

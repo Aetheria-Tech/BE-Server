@@ -2,8 +2,8 @@ package com.serverbe.application.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.serverbe.adapter.in.web.dto.task.TaskStatusResponse;
 import com.serverbe.application.port.in.art.InitiateAiGenerationUseCase;
+import com.serverbe.application.port.in.dto.task.TaskStatusResult;
 import com.serverbe.application.port.in.task.GetTaskStatusUseCase;
 import com.serverbe.application.port.out.dto.geocoding.GeocodeResult;
 import com.serverbe.application.port.out.geocode.GeocodePort;
@@ -44,7 +44,7 @@ public class AiGenerationService implements InitiateAiGenerationUseCase, GetTask
     private final GeocodePort geocodePort;
     private final TaskRateLimitPort taskRateLimitPort;
     private final S3AiInputPort s3AiInputPort;
-    private final SageMakerAsyncPort sageMakerAdapter;
+    private final SageMakerAsyncPort sageMakerAsyncPort;
     private final ObjectMapper objectMapper;
 
     /**
@@ -155,7 +155,7 @@ public class AiGenerationService implements InitiateAiGenerationUseCase, GetTask
                         .subscribeOn(Schedulers.boundedElastic()))
 
                 // Step 2: SageMaker 호출 및 보상 트랜잭션 연동
-                .flatMap(inputS3Uri -> Mono.fromCallable(() -> sageMakerAdapter.invokeAsync(inputS3Uri))
+                .flatMap(inputS3Uri -> Mono.fromCallable(() -> sageMakerAsyncPort.invokeAsync(inputS3Uri))
                         .subscribeOn(Schedulers.boundedElastic())
                         .map(outputS3Uri -> pendingTask.markAsProcessing(inputS3Uri, outputS3Uri))
                         // 🛡️ [보상 로직] SageMaker 호출에서 예외가 발생하면 S3 파일 삭제를 시도합니다.
@@ -237,18 +237,18 @@ public class AiGenerationService implements InitiateAiGenerationUseCase, GetTask
      *
      * @param taskId 조회할 AI 작업의 고유 ID
      * @param userId 조회를 요청한 사용자의 ID
-     * @return 작업의 현재 상태(상태 코드, S3 결과물 경로 등)를 담은 응답 DTO
+     * @return 작업의 현재 상태(상태 코드, S3 결과물 경로 등)를 담은 애플리케이션 계층의 결과 객체
      * @throws AiException 작업 ID가 존재하지 않거나, 본인의 작업이 아닌 경우 발생
      */
     @Override
-    public TaskStatusResponse getTaskStatus(String taskId, Long userId) {
+    public TaskStatusResult getTaskStatus(String taskId, Long userId) {
         AiTask task = taskQueryPort.findById(taskId)
                 .orElseThrow(() -> new AiException(AiErrorCode.NOT_FOUND_AITASK));
 
         // 타인의 작업을 조회할 수 없도록 소유권 검증 로직 수행
         task.validateOwner(userId);
 
-        return TaskStatusResponse.from(task);
+        return TaskStatusResult.from(task);
     }
 
     /**

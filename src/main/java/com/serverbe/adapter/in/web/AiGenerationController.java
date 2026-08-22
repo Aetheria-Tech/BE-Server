@@ -37,7 +37,7 @@ public class AiGenerationController {
     ) {
         return ResponseEntity.ok(
                 RestApiResponse.success(
-                        getTaskStatusUseCase.getTaskStatus(taskId, userId)
+                        TaskStatusResponse.from(getTaskStatusUseCase.getTaskStatus(taskId, userId))
                 )
         );
     }

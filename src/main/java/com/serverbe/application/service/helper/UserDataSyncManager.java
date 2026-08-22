@@ -23,10 +23,14 @@ public class UserDataSyncManager {
         return userRepositoryPort.findByOauthId(oauthInfo.oauthId(), oauthInfo.provider())
                 .map(existingUser -> {
                     log.info("[LOGIN] 기존 회원 접속: ID={}, Provider={}", existingUser.id(), oauthInfo.provider());
-                    return userRepositoryPort.save(existingUser.updateFromOAuth(oauthInfo));
+                    return userRepositoryPort.save(existingUser.updateFromOAuth(
+                            oauthInfo.email(), oauthInfo.nickname(), oauthInfo.oauthRefreshToken()
+                    ));
                 })
                 .orElseGet(() -> {
-                    User newUser = userRepositoryPort.save(User.createNew(oauthInfo, oauthInfo.provider()));
+                    User newUser = userRepositoryPort.save(User.createNew(
+                            oauthInfo.oauthId(), oauthInfo.provider(), oauthInfo.email(), oauthInfo.nickname(), oauthInfo.oauthRefreshToken()
+                    ));
                     log.info("[REGISTER] 신규 회원 가입 완료: ID={}, Provider={}", newUser.id(), oauthInfo.provider());
                     return newUser;
                 });
