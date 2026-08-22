@@ -22,6 +22,7 @@ import com.serverbe.domain.model.task.AiTask;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionTemplate;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
@@ -48,6 +49,21 @@ public class AiGenerationService implements InitiateAiGenerationUseCase, GetTask
     private final SageMakerAsyncPort sageMakerAsyncPort;
     private final AiTaskResourceCleaner resourceCleaner;
     private final ObjectMapper objectMapper;
+
+    /**
+     * 상태 전이(UPDATE) 구간을 하나의 트랜잭션으로 묶는 템플릿.
+     * <p>
+     * 트랜잭션 없이 {@code taskUpdatePort.save(...)} 를 호출하면 어댑터의 {@code findById} 가 자기 트랜잭션을
+     * 열고 닫아 엔티티가 준영속이 되고, 이어지는 저장이 merge 를 유발해 <b>SELECT 두 번 + UPDATE 한 번</b>이
+     * 나갑니다. 트랜잭션 안에서는 조회 결과가 관리 상태로 남아 merge 가 추가 조회 없이 끝납니다.
+     * </p>
+     * <p>
+     * 신규 생성(INSERT) 경로에는 적용하지 않습니다. 그쪽은 {@code active_user_id} 유니크 위반을
+     * {@code AiTaskPersistenceAdapter.save} 내부에서 잡아 {@code DUPLICATE_AI_REQUEST} 로 변환하는데,
+     * 바깥 트랜잭션이 있으면 위반이 커밋 시점으로 밀려 그 catch 를 빠져나가기 때문입니다.
+     * </p>
+     */
+    private final TransactionTemplate transactionTemplate;
 
     /**
      * AI 생성 작업을 비동기 리액티브(Reactive) 파이프라인으로 시작합니다.
@@ -226,7 +242,7 @@ public class AiGenerationService implements InitiateAiGenerationUseCase, GetTask
      * @return 데이터베이스에 반영된 {@link AiTask} 엔티티를 방출하는 Mono
      */
     private Mono<AiTask> saveProcessingTask(AiTask processingTask) {
-        return Mono.fromCallable(() -> taskUpdatePort.save(processingTask))
+        return Mono.fromCallable(() -> transactionTemplate.execute(status -> taskUpdatePort.save(processingTask)))
                 .subscribeOn(Schedulers.boundedElastic());
     }
 
@@ -246,7 +262,7 @@ public class AiGenerationService implements InitiateAiGenerationUseCase, GetTask
 
         return Mono.fromCallable(() -> {
                     AiTask failedTask = aiTask.markAsFailed(e.getMessage());
-                    return taskUpdatePort.save(failedTask);
+                    return transactionTemplate.execute(status -> taskUpdatePort.save(failedTask));
                 })
                 .subscribeOn(Schedulers.boundedElastic())
                 // DB 기록마저 실패할 경우 예외를 먹어치우고(Log만 남김) 원래의 비즈니스 예외만 던지도록 처리

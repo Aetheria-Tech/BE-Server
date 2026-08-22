@@ -22,7 +22,10 @@ import java.time.LocalDateTime;
         name = "ai_generation_tasks",
         indexes = {
                 // existsByUserIdAndStatusIn 이 AI 생성 요청마다 실행되므로 복합 인덱스로 풀스캔을 방지합니다.
-                @Index(name = "idx_ai_task_user_status", columnList = "user_id, status")
+                @Index(name = "idx_ai_task_user_status", columnList = "user_id, status"),
+                // 5분 주기 좀비 스윕(status IN (...) AND updated_at < ?)이 타는 인덱스입니다.
+                // 등치 조건인 status 가 선두여야 범위 조건인 updated_at 까지 이어서 좁혀집니다.
+                @Index(name = "idx_ai_task_status_updated", columnList = "status, updated_at")
         },
         uniqueConstraints = {
                 // "1인 1작업" 규칙의 최종 방어선. Redis 락이 뚫려도 두 번째 INSERT가 DB에서 거부됩니다.

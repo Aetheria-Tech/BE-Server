@@ -41,6 +41,9 @@ public class AiTaskCleanupService implements CleanupZombieTaskUseCase {
      */
     private final List<TaskStatus> zombieStatus = List.of(TaskStatus.PENDING, TaskStatus.PROCESSING);
 
+    /** DB 에 기록할 실패 사유. 도메인 상태 전이와 벌크 UPDATE 가 같은 문구를 써야 하므로 한 곳에서 정의합니다. */
+    private static final String TIMEOUT_REASON = "AI 서버 응답 시간 초과 (Timeout)";
+
     public AiTaskCleanupService(
             TaskQueryPort taskQueryPort,
             TaskUpdatePort taskUpdatePort,
@@ -60,7 +63,9 @@ public class AiTaskCleanupService implements CleanupZombieTaskUseCase {
      * <p>
      * <b>동작 방식:</b><br>
      * 1. 현재 시간 기준으로 설정된 타임아웃 시간(예: 10분) 이상 지난 {@code PENDING} 또는 {@code PROCESSING} 상태의 작업을 조회합니다.<br>
-     * 2. 조회된 작업들을 모두 'Timeout' 사유를 포함하여 {@code FAILED} 상태로 변경합니다.<br>
+     * 2. 조회된 작업들을 모두 'Timeout' 사유를 포함하여 {@code FAILED} 상태로 변경합니다.
+     *    이때 건별로 저장하지 않고 <b>단일 벌크 UPDATE</b> 를 사용합니다. 건별 저장은 어댑터가 id 로
+     *    엔티티를 다시 조회한 뒤 갱신하므로 좀비 N건에 문장이 2N개 나가기 때문입니다.<br>
      * 3. 이 과정은 하나의 트랜잭션({@code @Transactional})으로 묶여 부분 업데이트(Partial Update)를 방지합니다.<br>
      * 4. 커밋이 확정된 뒤 S3에 방치된 임시 자원을 정리하고, 대기 중인 클라이언트에게 SSE 실패 알림을 발송합니다.
      * </p>
@@ -84,13 +89,17 @@ public class AiTaskCleanupService implements CleanupZombieTaskUseCase {
 
         log.warn("[AI Pipeline] {}개의 좀비 Task FAILED 처리", zombieTasks.size());
 
-        List<AiTask> failedTasks = new ArrayList<>();
+        // 도메인 상태 전이는 그대로 수행합니다. 커밋 이후의 S3 정리와 SSE 알림이 이 결과를 사용합니다.
+        List<AiTask> failedTasks = new ArrayList<>(zombieTasks.size());
+        List<String> failedTaskIds = new ArrayList<>(zombieTasks.size());
         for (AiTask task : zombieTasks) {
-            // 도메인 로직을 호출하여 상태 및 에러 메시지 갱신
-            AiTask failedTask = task.markAsFailed("AI 서버 응답 시간 초과 (Timeout)");
-            taskUpdatePort.save(failedTask);
-            failedTasks.add(failedTask);
+            failedTasks.add(task.markAsFailed(TIMEOUT_REASON));
+            failedTaskIds.add(task.id());
         }
+
+        // DB 반영은 건별 저장이 아니라 한 번의 UPDATE 로 끝냅니다.
+        int updated = taskUpdatePort.markFailedInBulk(failedTaskIds, TIMEOUT_REASON);
+        log.info("[AI Pipeline] 좀비 Task 벌크 FAILED 처리 완료 - 대상 {}건, 반영 {}건", failedTaskIds.size(), updated);
 
         finalizeFailedTasksAfterCommit(failedTasks);
     }

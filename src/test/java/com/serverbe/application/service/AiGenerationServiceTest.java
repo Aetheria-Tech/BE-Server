@@ -25,6 +25,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.support.TransactionTemplate;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
@@ -53,6 +54,8 @@ class AiGenerationServiceTest {
     @Mock
     private TaskUpdatePort taskUpdatePort;
     @Mock
+    private org.springframework.transaction.PlatformTransactionManager transactionManager;
+    @Mock
     private GeocodePort geocodePort;
     @Mock
     private TaskRateLimitPort taskRateLimitPort;
@@ -71,9 +74,11 @@ class AiGenerationServiceTest {
     @BeforeEach
     void setUp() {
         // ObjectMapper는 순수 직렬화 유틸이므로 mocking 없이 실제 인스턴스를 사용합니다.
+        // 상태 전이 구간은 TransactionTemplate 으로 감싸져 있습니다.
+        // 단위 테스트에서는 트랜잭션 매니저를 목으로 두어 콜백이 그대로 실행되게만 합니다.
         aiGenerationService = new AiGenerationService(
                 taskQueryPort, taskUpdatePort, geocodePort, taskRateLimitPort, s3AiInputPort, sageMakerAsyncPort,
-                resourceCleaner, new ObjectMapper()
+                resourceCleaner, new ObjectMapper(), new TransactionTemplate(transactionManager)
         );
     }
 

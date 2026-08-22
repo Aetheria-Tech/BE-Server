@@ -59,25 +59,25 @@ class AiTaskCleanupServiceTest {
     }
 
     @Test
-    @DisplayName("성공: 좀비 Task가 존재하면 모두 FAILED 상태로 갱신하여 저장한다")
-    void cleanUpZombieTasks_Success_MarksAllAsFailed() {
-        // given
+    @DisplayName("성공: 좀비 Task를 건별 저장이 아니라 단 한 번의 벌크 UPDATE로 FAILED 처리한다")
+    void cleanUpZombieTasks_Success_MarksAllAsFailedInOneBulkUpdate() {
+        // given: 건별 save 는 어댑터가 id 로 엔티티를 다시 조회하므로 좀비 N건에 문장이 2N개 나간다.
         List<AiTask> zombies = List.of(zombieTask("zombie-1"), zombieTask("zombie-2"));
         given(taskQueryPort.findZombieTasks(anyList(), any(LocalDateTime.class))).willReturn(zombies);
-        given(taskUpdatePort.save(any(AiTask.class))).willAnswer(inv -> inv.getArgument(0));
+        given(taskUpdatePort.markFailedInBulk(anyList(), anyString())).willReturn(2);
 
         // when
         aiTaskCleanupService.cleanUpZombieTasks();
 
-        // then
-        ArgumentCaptor<AiTask> captor = ArgumentCaptor.forClass(AiTask.class);
-        verify(taskUpdatePort, times(2)).save(captor.capture());
-        assertThat(captor.getAllValues())
-                .extracting(AiTask::status)
-                .containsOnly(TaskStatus.FAILED);
-        assertThat(captor.getAllValues())
-                .extracting(AiTask::errorMessage)
-                .allMatch(msg -> msg.contains("Timeout"));
+        // then: 벌크 호출은 정확히 1회, 대상 id 는 전부 포함되어야 한다
+        ArgumentCaptor<List<String>> idCaptor = ArgumentCaptor.forClass(List.class);
+        ArgumentCaptor<String> reasonCaptor = ArgumentCaptor.forClass(String.class);
+        verify(taskUpdatePort, times(1)).markFailedInBulk(idCaptor.capture(), reasonCaptor.capture());
+        assertThat(idCaptor.getValue()).containsExactly("zombie-1", "zombie-2");
+        assertThat(reasonCaptor.getValue()).contains("Timeout");
+
+        // 건별 저장 경로는 더 이상 사용하지 않는다
+        verify(taskUpdatePort, never()).save(any(AiTask.class));
     }
 
     @Test
@@ -90,6 +90,7 @@ class AiTaskCleanupServiceTest {
         aiTaskCleanupService.cleanUpZombieTasks();
 
         // then
+        verify(taskUpdatePort, never()).markFailedInBulk(anyList(), anyString());
         verify(taskUpdatePort, never()).save(any());
         verify(resourceCleaner, never()).cleanUp(any(AiTask.class));
         verify(taskNotificationPort, never()).notifyTaskFailed(anyString(), anyString());
@@ -100,7 +101,7 @@ class AiTaskCleanupServiceTest {
     void cleanUpZombieTasks_Fail_SaveThrows_PropagatesException() {
         // given
         given(taskQueryPort.findZombieTasks(anyList(), any(LocalDateTime.class))).willReturn(List.of(zombieTask("zombie-1")));
-        given(taskUpdatePort.save(any(AiTask.class))).willThrow(new RuntimeException("DB 커넥션 끊김"));
+        given(taskUpdatePort.markFailedInBulk(anyList(), anyString())).willThrow(new RuntimeException("DB 커넥션 끊김"));
 
         // when & then
         assertThatThrownBy(() -> aiTaskCleanupService.cleanUpZombieTasks())
@@ -115,7 +116,6 @@ class AiTaskCleanupServiceTest {
         // 상태만 FAILED로 바꾸고 파일을 두면 타임아웃될수록 스토리지 비용이 누적된다.
         List<AiTask> zombies = List.of(zombieTask("zombie-1"), zombieTask("zombie-2"));
         given(taskQueryPort.findZombieTasks(anyList(), any(LocalDateTime.class))).willReturn(zombies);
-        given(taskUpdatePort.save(any(AiTask.class))).willAnswer(inv -> inv.getArgument(0));
 
         // when
         aiTaskCleanupService.cleanUpZombieTasks();
@@ -134,7 +134,6 @@ class AiTaskCleanupServiceTest {
         // 자신의 SSE 타임아웃까지 무한 로딩에 머문다. (TaskTimeoutScheduler Javadoc이 보장한다고 적은 지점)
         List<AiTask> zombies = List.of(zombieTask("zombie-1"), zombieTask("zombie-2"));
         given(taskQueryPort.findZombieTasks(anyList(), any(LocalDateTime.class))).willReturn(zombies);
-        given(taskUpdatePort.save(any(AiTask.class))).willAnswer(inv -> inv.getArgument(0));
 
         // when
         aiTaskCleanupService.cleanUpZombieTasks();
@@ -150,7 +149,6 @@ class AiTaskCleanupServiceTest {
         // given: 상태 갱신은 이미 커밋되어 되돌릴 수 없으므로, 알림 실패는 삼키고 진행해야 한다.
         List<AiTask> zombies = List.of(zombieTask("zombie-1"), zombieTask("zombie-2"));
         given(taskQueryPort.findZombieTasks(anyList(), any(LocalDateTime.class))).willReturn(zombies);
-        given(taskUpdatePort.save(any(AiTask.class))).willAnswer(inv -> inv.getArgument(0));
         willThrow(new RuntimeException("Redis 발행 실패"))
                 .given(taskNotificationPort).notifyTaskFailed(eq("zombie-1"), anyString());
 

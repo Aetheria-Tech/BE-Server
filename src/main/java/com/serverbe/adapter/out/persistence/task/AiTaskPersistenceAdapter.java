@@ -59,6 +59,15 @@ public class AiTaskPersistenceAdapter implements TaskQueryPort, TaskUpdatePort {
     }
 
     @Override
+    public int markFailedInBulk(List<String> taskIds, String errorMessage) {
+        if (taskIds.isEmpty()) {
+            return 0;
+        }
+        // updatedAt 은 벌크 JPQL 이 @LastModifiedDate 를 발동시키지 않으므로 여기서 직접 채웁니다.
+        return jpaRepository.markFailedInBulk(taskIds, errorMessage, LocalDateTime.now());
+    }
+
+    @Override
     public AiTask save(AiTask aiTask) {
         if (aiTask.id() == null) {
             // 신규 생성
