@@ -1,5 +1,6 @@
 package com.serverbe.application.service;
 
+import com.serverbe.application.port.out.notification.TaskNotificationPort;
 import com.serverbe.application.port.out.task.TaskQueryPort;
 import com.serverbe.application.port.out.task.TaskUpdatePort;
 import com.serverbe.domain.model.art.vo.Proficiency;
@@ -20,8 +21,11 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -39,12 +43,14 @@ class AiTaskCleanupServiceTest {
     private TaskUpdatePort taskUpdatePort;
     @Mock
     private com.serverbe.application.service.helper.AiTaskResourceCleaner resourceCleaner;
+    @Mock
+    private TaskNotificationPort taskNotificationPort;
 
     private AiTaskCleanupService aiTaskCleanupService;
 
     @BeforeEach
     void setUp() {
-        aiTaskCleanupService = new AiTaskCleanupService(taskQueryPort, taskUpdatePort, resourceCleaner, new TaskProperties(10));
+        aiTaskCleanupService = new AiTaskCleanupService(taskQueryPort, taskUpdatePort, resourceCleaner, taskNotificationPort, new TaskProperties(10));
     }
 
     private AiTask zombieTask(String id) {
@@ -86,6 +92,7 @@ class AiTaskCleanupServiceTest {
         // then
         verify(taskUpdatePort, never()).save(any());
         verify(resourceCleaner, never()).cleanUp(any(AiTask.class));
+        verify(taskNotificationPort, never()).notifyTaskFailed(anyString(), anyString());
     }
 
     @Test
@@ -118,5 +125,39 @@ class AiTaskCleanupServiceTest {
         verify(resourceCleaner, times(2)).cleanUp(captor.capture());
         assertThat(captor.getAllValues())
                 .allSatisfy(task -> assertThat(task.status()).isEqualTo(TaskStatus.FAILED));
+    }
+
+    @Test
+    @DisplayName("실시간성: 좀비 Task를 FAILED 처리하면 대기 중인 클라이언트에게 SSE 실패 알림을 발송한다")
+    void cleanUpZombieTasks_NotifiesClientOfFailure() {
+        // given: 상태만 바꾸고 알리지 않으면 이미 SseEmitter를 열고 있는 클라이언트는
+        // 자신의 SSE 타임아웃까지 무한 로딩에 머문다. (TaskTimeoutScheduler Javadoc이 보장한다고 적은 지점)
+        List<AiTask> zombies = List.of(zombieTask("zombie-1"), zombieTask("zombie-2"));
+        given(taskQueryPort.findZombieTasks(anyList(), any(LocalDateTime.class))).willReturn(zombies);
+        given(taskUpdatePort.save(any(AiTask.class))).willAnswer(inv -> inv.getArgument(0));
+
+        // when
+        aiTaskCleanupService.cleanUpZombieTasks();
+
+        // then
+        verify(taskNotificationPort).notifyTaskFailed(eq("zombie-1"), anyString());
+        verify(taskNotificationPort).notifyTaskFailed(eq("zombie-2"), anyString());
+    }
+
+    @Test
+    @DisplayName("견고성: 한 건의 알림 발송이 실패해도 나머지 좀비 작업의 마무리는 계속된다")
+    void cleanUpZombieTasks_NotificationFailure_DoesNotAbortRemainingTasks() {
+        // given: 상태 갱신은 이미 커밋되어 되돌릴 수 없으므로, 알림 실패는 삼키고 진행해야 한다.
+        List<AiTask> zombies = List.of(zombieTask("zombie-1"), zombieTask("zombie-2"));
+        given(taskQueryPort.findZombieTasks(anyList(), any(LocalDateTime.class))).willReturn(zombies);
+        given(taskUpdatePort.save(any(AiTask.class))).willAnswer(inv -> inv.getArgument(0));
+        willThrow(new RuntimeException("Redis 발행 실패"))
+                .given(taskNotificationPort).notifyTaskFailed(eq("zombie-1"), anyString());
+
+        // when & then: 예외가 밖으로 새어 나오지 않는다
+        aiTaskCleanupService.cleanUpZombieTasks();
+
+        verify(resourceCleaner, times(2)).cleanUp(any(AiTask.class));
+        verify(taskNotificationPort).notifyTaskFailed(eq("zombie-2"), anyString());
     }
 }

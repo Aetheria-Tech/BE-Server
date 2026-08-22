@@ -239,14 +239,36 @@ sequenceDiagram
 
 ---
 
+### 7. 소셜 계정 중복 가입 — 선언만 있고 실재하지 않던 유니크 제약
+
+**문제** · 유저 엔티티는 처음부터 `(oauth_id, provider)` 유니크 제약을 선언하고 있었지만, **실제 DB에는 그 인덱스가 존재한 적이 없었습니다.** 같은 소셜 계정으로 최초 로그인이 동시에 두 번 들어오면 중복 회원이 생성되고, 한 번 중복 행이 생기면 `findByOauthIdAndProvider`가 `Optional`을 반환하므로 **그 계정은 이후 모든 로그인에서 `NonUniqueResultException`으로 영구히 실패**합니다. 사용자 입장에서는 어느 날 갑자기 로그인이 되지 않고, 재시도로도 절대 복구되지 않습니다.
+
+**원인** · 두 겹입니다.
+
+- `@UniqueConstraint`의 `columnNames`는 자바 필드명이 아니라 **물리 컬럼명**을 받습니다. 필드는 `provider`였지만 컬럼은 `@Column(name = "oauth_provider")`였고, 존재하지 않는 컬럼을 가리킨 제약은 만들어지지 않습니다.
+- `ddl-auto: validate`는 테이블·컬럼·타입만 검증하고 **유니크 인덱스는 보지 않습니다.** 그래서 기동 시점에도 드러나지 않았습니다.
+
+그동안 중복을 막아 온 것은 "조회 후 없으면 삽입" 로직뿐이었습니다. 이 패턴은 두 요청이 **동시에 조회 단계를 통과**할 수 있어 그 자체로는 아무것도 보장하지 못합니다.
+
+**해결**
+
+- 컬럼명을 `oauth_provider`로 교정하고 제약에 이름(`uk_users_oauth`)을 명시해, 엔티티 선언과 마이그레이션 DDL이 같은 이름을 가리키도록 했습니다.
+- 이미 생긴 중복은 `V3` 마이그레이션으로 정리했습니다. 최초 가입 계정을 남기고 러닝 아트·작업 이력을 그쪽으로 이관한 뒤 중복 행을 삭제합니다. 이때 **이관보다 먼저 잃는 계정의 진행 중 작업을 종결시켜 `V2`의 `active_user_id` 슬롯을 반납시키는 순서가 핵심**입니다 — 두 계정이 각각 진행 중 작업을 갖고 있으면 `user_id`만 옮기는 순간 `uk_ai_task_active_user`에 걸려 이관 자체가 실패합니다.
+- 경합에서 진 요청이 500으로 죽지 않도록 복구 경로를 넣었습니다. 신규 등록을 **`REQUIRES_NEW`로 분리**한 것이 요점입니다. 바깥 트랜잭션에 합류시키면 제약 위반이 그 트랜잭션까지 rollback-only로 오염시켜 **뒤이은 재조회 자체가 불가능**해지기 때문입니다. 제약 위반을 잡은 시점에는 이긴 쪽의 행이 이미 커밋되어 있으므로, 재조회 한 번으로 정상 로그인이 완성됩니다.
+
+> 근거 · [`UserEntity.java`](src/main/java/com/serverbe/adapter/out/persistence/user/UserEntity.java), [`V3__add_users_oauth_unique.sql`](src/main/resources/db/migration/V3__add_users_oauth_unique.sql), [`UserDataSyncManager.java`](src/main/java/com/serverbe/application/service/helper/UserDataSyncManager.java)
+
+---
+
 ### 그 외 설계 기록
 
 - **트랜잭션 커밋 이후 Redis 반영** — 러닝 아트 삭제 시 DB 삭제와 Redis GEO 삭제를 함께 수행하면, DB가 롤백되어도 Redis 데이터는 이미 사라져 정합성이 깨집니다. `TransactionSynchronization#afterCommit`으로 커밋 성공 이후에만 GEO를 갱신하도록 분리했습니다. ([`RunningArtService.java`](src/main/java/com/serverbe/application/service/RunningArtService.java), 커밋 `14d73c1`)
+- **좀비 태스크 실패 알림도 커밋 이후에** — 타임아웃 정리 스케줄러는 상태를 `FAILED`로 바꾸기만 하고 알림을 보내지 않았습니다. 이미 `SseEmitter`를 열고 결과를 기다리던 클라이언트는 아무 이벤트도 받지 못한 채 **자신의 SSE 타임아웃까지 무한 로딩**에 머물렀습니다. S3 임시 자원 정리와 **같은 `afterCommit` 블록**에 실패 알림을 묶었습니다. 커밋 이후여야 하는 이유는 위와 같습니다 — 상태 갱신이 롤백됐는데 클라이언트만 실패 알림을 받으면 SSE 연결이 터미널 상태로 닫혀 되돌릴 수 없습니다. 반대로 알림 발송 실패는 로그만 남기고 삼킵니다. 상태는 이미 커밋되어 되돌릴 수 없고, 한 건의 알림 실패가 나머지 태스크의 마무리까지 중단시켜서는 안 되기 때문입니다. ([`AiTaskCleanupService.java`](src/main/java/com/serverbe/application/service/AiTaskCleanupService.java))
 - **서킷 브레이커 오작동 방지** — 외부 API의 4xx는 *우리 요청이 잘못된 것*이고 5xx는 *상대 서버 장애*입니다. 이를 `ExternalApiClientException` / `ExternalApiException`으로 분리하고 4xx를 `ignoreExceptions`에 등록해, 잘못된 주소 입력이 반복될 때 회로가 열려버리는 문제를 막았습니다. 응답 지연으로 인한 스레드 고갈에 대비해 `slowCallRateThreshold`도 함께 설정했습니다. ([`application.yml`](src/main/resources/application.yml))
 - **PII 필드 암호화와 무중단 키 교체** — 이메일 등 민감 정보를 JPA `AttributeConverter`로 **AES-GCM 자동 암복호화**합니다. 암호문에 키 버전을 새겨두고, 구버전 키로 암호화된 데이터를 읽으면 마이그레이션 대상으로 표시해 점진적으로 재암호화합니다. ([`CryptoConverter.java`](src/main/java/com/serverbe/adapter/out/persistence/converter/CryptoConverter.java), [`AesGcmEncryptor.java`](src/main/java/com/serverbe/infrastructure/crypto/AesGcmEncryptor.java))
 - **DB 커넥션 풀 보호** — AI 결과 처리는 S3 다운로드·삭제, SSE 발송 등 긴 네트워크 I/O를 포함합니다. 메서드 전체에 `@Transactional`을 걸면 그동안 커넥션을 점유해 풀이 고갈됩니다. `TransactionTemplate`으로 **DB 쓰기 구간만** 원자적으로 감싸고 외부 I/O는 트랜잭션 밖으로 뺐습니다. ([`AiResultRetrievalService.java`](src/main/java/com/serverbe/application/service/AiResultRetrievalService.java))
 - **다중 인스턴스 SSE** — SSE 연결은 특정 인스턴스에 고정되지만 완료 이벤트는 다른 인스턴스에서 발생할 수 있습니다. Redis Pub/Sub으로 이벤트를 브로드캐스트해 어느 인스턴스가 받든 올바른 클라이언트에게 전달되도록 했습니다. ([`SseNotificationAdapter.java`](src/main/java/com/serverbe/adapter/out/notification/SseNotificationAdapter.java), [`SseRedisSubscriber.java`](src/main/java/com/serverbe/adapter/out/notification/SseRedisSubscriber.java))
-- **스키마 관리를 `ddl-auto`에서 Flyway로 이관** — 동시 요청을 막는 유니크 제약을 추가하면서 `ddl-auto: update`에 맡길 수 없다고 판단했습니다. Hibernate의 `update`는 컬럼 추가는 해주지만 **기존 테이블에 유니크 제약을 붙여준다는 보장이 없고, 새 컬럼에 기존 행을 백필할 수도 없습니다.** 실제로 마이그레이션 대상 DB에는 한 사용자에게 진행 중 작업이 7건 쌓여 있어, 정리 없이는 유니크 인덱스 생성 자체가 실패하는 상태였습니다. `기존 중복 정리 → 컬럼 추가 → 백필 → 제약 생성` 순서를 명시적 SQL로 작성하고 `ddl-auto`는 `validate`로 낮춰, 스키마 변경 권한을 한 곳으로 모았습니다. ([`V2__add_active_task_slot.sql`](src/main/resources/db/migration/V2__add_active_task_slot.sql))
+- **스키마 관리를 `ddl-auto`에서 Flyway로 이관** — 동시 요청을 막는 유니크 제약을 추가하면서 `ddl-auto: update`에 맡길 수 없다고 판단했습니다. Hibernate의 `update`는 컬럼 추가는 해주지만 **기존 테이블에 유니크 제약을 붙여준다는 보장이 없고, 새 컬럼에 기존 행을 백필할 수도 없습니다.** 실제로 마이그레이션 대상 DB에는 한 사용자에게 진행 중 작업이 7건 쌓여 있어, 정리 없이는 유니크 인덱스 생성 자체가 실패하는 상태였습니다. `기존 중복 정리 → 컬럼 추가 → 백필 → 제약 생성` 순서를 명시적 SQL로 작성하고 `ddl-auto`는 `validate`로 낮춰, 스키마 변경 권한을 한 곳으로 모았습니다. 이후 소셜 계정 유니크 제약(7번 항목)을 추가할 때도 `기존 중복 정리 → 자식 데이터 이관 → 제약 생성`이라는 같은 순서를 그대로 따랐습니다. ([`V2__add_active_task_slot.sql`](src/main/resources/db/migration/V2__add_active_task_slot.sql), [`V3__add_users_oauth_unique.sql`](src/main/resources/db/migration/V3__add_users_oauth_unique.sql))
 - **표준화된 에러 응답** — 도메인별 `ErrorCode` enum과 `BusinessException` 계층을 정의하고 `@RestControllerAdvice`에서 일괄 변환해, 모든 API가 동일한 응답 포맷을 갖도록 했습니다. ([`BusinessExceptionHandler.java`](src/main/java/com/serverbe/infrastructure/error/BusinessExceptionHandler.java), [`RestApiResponse.java`](src/main/java/com/serverbe/infrastructure/common/response/RestApiResponse.java))
 
 ---
@@ -335,6 +357,7 @@ src/main/java/com/serverbe
     └── common                   # 공통 응답 포맷, @Trace / @Timer 로깅 AOP
 
 src/main/resources/scripts       # Redis Lua 스크립트 (토큰 회전·로그아웃·토큰 버킷)
+src/main/resources/db/migration  # Flyway 마이그레이션 (V1 베이스라인 → V2 작업 슬롯 → V3 소셜 계정 유니크)
 ```
 
 ---
@@ -416,12 +439,14 @@ POST /api/v1/test/ai/tasks/{taskId}/mock-sqs-receive
 
 실제 인프라가 있어야 하는 테스트는 `@Tag("integration")`으로 분리해 기본 `test` 태스크에서 제외했습니다.
 덕분에 레포를 클론한 직후, DB나 Redis 없이도 `./gradlew build`가 통과합니다.
+이 그룹에는 `ServerBeApplicationTests`(컨텍스트 기동과 함께 Flyway 마이그레이션 적용 + Hibernate `validate` 검증), `BlacklistPerformanceTest`, `RateLimiterServiceConcurrencyTest`, `NotificationServiceTest`가 속합니다.
 
 단순 CRUD 검증보다 **실패 경로와 동시성 검증**에 무게를 두었습니다.
 
 | 유형 | 내용 |
 | --- | --- |
-| **서비스 단위 테스트** | 로그인·로그아웃·재발급·탈퇴, AI 생성/결과 수신/좀비 정리, 러닝 아트 CRUD와 소유권 검증 — 성공 경로뿐 아니라 각 단계의 예외 분기와 보상 로직 동작을 함께 검증 |
+| **서비스 단위 테스트** | 로그인·로그아웃·재발급·탈퇴, AI 생성/결과 수신/좀비 정리, 러닝 아트 CRUD와 소유권 검증 — 성공 경로뿐 아니라 각 단계의 예외 분기와 보상 로직 동작을 함께 검증. 좀비 정리는 실패 알림 발송과 알림 실패 시의 견고성까지 확인 |
+| **경합 복구 테스트** | `UserDataSyncManagerTest` — 동시 최초 로그인으로 유니크 제약에 걸린 요청이 500이 아니라 재조회를 통해 정상 로그인으로 마무리되는지, 복구 불가능한 무결성 위반은 그대로 전파되는지 검증 |
 | **외부 연동 테스트** | OkHttp `MockWebServer`로 Kakao·Google OAuth와 지오코딩 API의 정상 응답, 4xx, 5xx, 타임아웃 시나리오를 재현 |
 | **동시성 테스트** | `RateLimiterServiceConcurrencyTest` — 다중 스레드가 동시에 요청할 때 Lua 토큰 버킷이 한도를 초과 허용하지 않는지 검증 |
 | **성능 측정** | `BlacklistPerformanceTest`, `WebClientPerformanceTest` — 토큰 블랙리스트 조회 및 WebClient 커넥션 풀 동작 특성 측정 |
