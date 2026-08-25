@@ -168,3 +168,20 @@ tasks.register('integrationTest', Test) {
 
     shouldRunAfter tasks.named('test')
 }
+
+/**
+ * 실행 가능 jar 의 이름을 고정한다.
+ * <p>
+ * 이름을 고정하지 않으면 산출물이 {@code Server-BE-0.0.1-SNAPSHOT.jar} 과
+ * {@code Server-BE-0.0.1-SNAPSHOT-plain.jar} 두 개가 되어, Dockerfile 의
+ * {@code COPY build/libs/*.jar} 가 어느 쪽을 집을지 알 수 없게 된다.
+ * 버전을 올릴 때마다 Dockerfile 을 고쳐야 하는 문제도 함께 사라진다.
+ */
+bootJar {
+    archiveFileName = 'app.jar'
+}
+
+// 부트 jar 만 배포하므로 라이브러리용 plain jar 는 만들지 않는다.
+jar {
+    enabled = false
+}

@@ -260,6 +260,72 @@ sequenceDiagram
 
 ---
 
+### 8. 5분마다 도는 스케줄러의 숨은 비용 — 풀 스캔과 쓰기 증폭
+
+**문제** · 좀비 태스크 정리 스케줄러는 5분마다 조용히 돕니다. 그런데 이 한 번의 실행이 **테이블 전체를 읽고**, 정리 대상이 N건이면 **문장을 2N개** 내보내고 있었습니다. 종결된 작업(`COMPLETED`·`FAILED`)은 삭제되지 않고 계속 쌓이므로 이 비용은 **서비스 수명에 비례해 증가**합니다. 눈에 띄는 장애가 없어 더 오래 방치되기 쉬운 종류의 비용입니다.
+
+**원인 — 읽기** · `findZombieTasks`의 술어는 `status IN ('PENDING','PROCESSING') AND updated_at < ?` 인데, 이 테이블의 어떤 인덱스도 이 조건을 좁혀 주지 못했습니다.
+
+| 기존 인덱스 | 사용 불가 사유 |
+| --- | --- |
+| `PRIMARY(id)` | 조건에 `id`가 없음 |
+| `uk_ai_task_active_user(active_user_id)` | 조건에 `active_user_id`가 없음 |
+| `idx_ai_task_user_status(user_id, status)` | **선두 컬럼이 `user_id`** 라 `status`만으로는 탈 수 없음 |
+
+`EXPLAIN`을 뜨면 `possible_keys`가 `NULL`, `type`이 `ALL`로 나옵니다. 5분마다 풀 스캔을 돌고 있었던 것입니다.
+
+**원인 — 쓰기** · 도메인 모델이 불변 Record라 어댑터의 갱신 경로는 **id로 엔티티를 다시 조회한 뒤** 값을 옮겨 담아 저장합니다. 건별 저장을 반복하면 좀비 1건당 `SELECT` + `UPDATE`, 즉 N건에 문장 2N개가 나갑니다.
+
+**해결 — 읽기** · `(status, updated_at)` 복합 인덱스를 추가했습니다. **컬럼 순서가 핵심**입니다. `status`는 등치 조건(`IN`), `updated_at`은 범위 조건(`<`)이므로 **등치 컬럼이 선두여야** 인덱스가 범위 조건까지 이어서 좁혀 줍니다. 반대로 `(updated_at, status)`로 잡으면 범위 조건에서 인덱스 탐색이 끊깁니다.
+
+**해결 — 쓰기** · 건별 저장을 **단일 벌크 `UPDATE`** 로 바꿨습니다. 스윕은 방치된 작업을 한꺼번에 거두는 일이라 건별 상태 전이가 필요 없고, 문장 하나면 충분합니다. 다만 벌크 JPQL은 ORM을 우회하므로 **세 가지를 직접 챙겨야** 합니다.
+
+- **`active_user_id = NULL`** — 건별 경로에서 `releaseActiveSlot()`이 하던 일입니다. 빠뜨리면 `uk_ai_task_active_user` 슬롯이 점유된 채 남아 **그 사용자는 새 작업을 영영 만들 수 없습니다.** "1인 1작업" 제약이 그대로 족쇄가 됩니다.
+- **`updated_at` 수동 갱신** — 벌크 JPQL은 `@LastModifiedDate` 감사를 발동시키지 않습니다. 갱신하지 않으면 **다음 스윕이 같은 행을 또 집습니다.**
+- **`clearAutomatically = true`** — 벌크는 영속성 컨텍스트를 우회하므로, 남아 있는 낡은 스냅샷이 이후 dirty checking으로 **방금의 갱신을 되돌릴 수 있습니다.**
+
+도메인 상태 전이(`markAsFailed`) 자체는 그대로 수행합니다. 커밋 이후의 S3 임시 자원 정리와 SSE 실패 알림이 그 결과를 사용하기 때문입니다. 실패 사유 문구는 상수 하나로 모아, 도메인 전이와 벌크 `UPDATE`가 서로 다른 문구를 기록하는 일이 없게 했습니다.
+
+> 근거 · [`V4__add_ai_task_sweep_index.sql`](src/main/resources/db/migration/V4__add_ai_task_sweep_index.sql), [`JpaAiTaskRepository.java`](src/main/java/com/serverbe/adapter/out/persistence/task/JpaAiTaskRepository.java) `markFailedInBulk`, [`AiTaskCleanupService.java`](src/main/java/com/serverbe/application/service/AiTaskCleanupService.java) · 커밋 `64d83ae`
+
+---
+
+### 9. Hibernate가 만든 스키마와 Flyway가 선언한 스키마의 드리프트
+
+**문제의 뿌리** · Flyway를 도입할 때 기존 DB는 `baseline-on-migrate`로 `V1`을 건너뜁니다. 즉 **기존 환경의 실제 스키마는 `ddl-auto: update` 시절 Hibernate가 만들어 둔 상태 그대로**이고, `V1`이 "선언한" 스키마와는 미묘하게 어긋나 있습니다. 아래 두 문제는 증상이 전혀 달라 보이지만 뿌리가 같습니다.
+
+#### 9-1. 자바 enum에서 사라진 등급이 조회 API 전체를 죽이다
+
+**문제** · `Proficiency` enum에는 `INTRODUCTION` / `BEGINNER` / `SKILLED` / `EXPERT` 넷뿐인데, DB에는 과거에 존재했던 `MASTER` 행이 남아 있었습니다. `@Enumerated(STRING)` 역변환이 `No enum constant Proficiency.MASTER`로 터지므로, **그 행이 결과 집합에 하나라도 걸리면 목록 조회·주변 검색·상세 조회가 전부 예외로 죽습니다.** 특정 데이터가 조회 범위에 들어올 때만 터지기 때문에 재현이 까다롭고, 코드에는 아무 흔적도 남지 않습니다.
+
+**해결 — 데이터** · 행을 지우지 않고 살아있는 등급 중 가장 가까운 `EXPERT`로 옮겼습니다(`MASTER`는 `EXPERT` 위의 최상위 등급이었습니다). 삭제가 아니므로 **Redis GEO 인덱스를 따로 정리할 필요가 없습니다.** `ai_generation_tasks`에는 해당 행이 없었지만 컬럼 정의가 동일하고 다른 환경의 데이터는 확인할 수 없어 방어적으로 함께 처리했습니다.
+
+**해결 — 스키마** · ENUM 정의에서 값을 뺄 때 `ALGORITHM=COPY`를 명시했습니다. MySQL의 ENUM은 **문자열이 아니라 순번으로 저장**되기 때문입니다.
+
+```
+BEGINNER=1, EXPERT=2, INTRODUCTION=3, MASTER=4, SKILLED=5
+```
+
+가운데의 `MASTER`를 빼면 `SKILLED`가 5번에서 4번으로 밀립니다. `INPLACE`로 처리되어 저장된 순번이 그대로 재해석되면 **`SKILLED` 행이 조용히 다른 등급으로 바뀝니다.** 예외도 로그도 남지 않는 데이터 손상입니다. `COPY`는 테이블을 재작성하며 문자열 값 기준으로 변환하므로 이 사고를 막습니다. MySQL 8은 값 삭제에 `INPLACE`를 허용하지 않아 실질적으로는 `COPY`로 떨어지지만, **의도를 스크립트에 못 박아** 두었습니다.
+
+#### 9-2. 환경마다 이름이 갈리는 FK와 인덱스
+
+**문제** · `V1`은 `fk_running_arts_user`·`idx_running_arts_user`를 선언하지만, 기존 DB에는 Hibernate가 만든 해시 이름 FK와 InnoDB가 그 이름으로 자동 생성한 인덱스만 존재합니다. **신규 환경과 기존 환경의 제약 이름이 서로 다른 상태**이고, 이름이 갈리면 이후 마이그레이션이 대상을 특정할 수 없습니다.
+
+**해결** · 하나의 스크립트가 양쪽 환경에서 모두 돌아야 하므로 `information_schema`를 읽어 **조건부로 DDL을 조립·실행**했습니다. 기존 이름은 환경마다 해시가 다르므로 절대 하드코딩하지 않고 항상 조회해서 조립합니다. 실행 순서에도 이유가 있습니다.
+
+1. **표준 이름 인덱스를 먼저 만든다** — FK가 기댈 인덱스가 남아 있어야 3번에서 낡은 인덱스를 지울 수 있습니다.
+2. **FK를 드롭 후 재생성한다** — MySQL은 FK 제약의 이름 변경을 지원하지 않습니다.
+3. **남은 낡은 인덱스를 지운다** — FK를 드롭해도 그 이름으로 자동 생성됐던 인덱스는 그대로 남습니다.
+
+조건이 맞지 않을 때의 no-op으로는 `SELECT 1`을 씁니다. `DO`는 `PREPARE`가 받아 주는 문이 아니기 때문입니다.
+
+**재발 방지** · 엔티티 쪽에도 이름을 못 박았습니다. `@Index(name = "idx_running_arts_user")`와 `@JoinColumn(foreignKey = @ForeignKey(name = "fk_running_arts_user"))`를 명시해, 앞으로 만들어지는 스키마는 처음부터 표준 이름을 갖습니다. 드리프트는 한 번 정리하는 것보다 **다시 생기지 않게 막는 쪽**이 중요합니다.
+
+> 근거 · [`V5__drop_master_proficiency_and_normalize_art_keys.sql`](src/main/resources/db/migration/V5__drop_master_proficiency_and_normalize_art_keys.sql), [`RunningArtEntity.java`](src/main/java/com/serverbe/adapter/out/persistence/art/RunningArtEntity.java), [`Proficiency.java`](src/main/java/com/serverbe/domain/model/art/vo/Proficiency.java) · 커밋 `64d83ae`
+
+---
+
 ### 그 외 설계 기록
 
 - **트랜잭션 커밋 이후 Redis 반영** — 러닝 아트 삭제 시 DB 삭제와 Redis GEO 삭제를 함께 수행하면, DB가 롤백되어도 Redis 데이터는 이미 사라져 정합성이 깨집니다. `TransactionSynchronization#afterCommit`으로 커밋 성공 이후에만 GEO를 갱신하도록 분리했습니다. ([`RunningArtService.java`](src/main/java/com/serverbe/application/service/RunningArtService.java), 커밋 `14d73c1`)
@@ -267,6 +333,7 @@ sequenceDiagram
 - **서킷 브레이커 오작동 방지** — 외부 API의 4xx는 *우리 요청이 잘못된 것*이고 5xx는 *상대 서버 장애*입니다. 이를 `ExternalApiClientException` / `ExternalApiException`으로 분리하고 4xx를 `ignoreExceptions`에 등록해, 잘못된 주소 입력이 반복될 때 회로가 열려버리는 문제를 막았습니다. 응답 지연으로 인한 스레드 고갈에 대비해 `slowCallRateThreshold`도 함께 설정했습니다. ([`application.yml`](src/main/resources/application.yml))
 - **PII 필드 암호화와 무중단 키 교체** — 이메일 등 민감 정보를 JPA `AttributeConverter`로 **AES-GCM 자동 암복호화**합니다. 암호문에 키 버전을 새겨두고, 구버전 키로 암호화된 데이터를 읽으면 마이그레이션 대상으로 표시해 점진적으로 재암호화합니다. ([`CryptoConverter.java`](src/main/java/com/serverbe/adapter/out/persistence/converter/CryptoConverter.java), [`AesGcmEncryptor.java`](src/main/java/com/serverbe/infrastructure/crypto/AesGcmEncryptor.java))
 - **DB 커넥션 풀 보호** — AI 결과 처리는 S3 다운로드·삭제, SSE 발송 등 긴 네트워크 I/O를 포함합니다. 메서드 전체에 `@Transactional`을 걸면 그동안 커넥션을 점유해 풀이 고갈됩니다. `TransactionTemplate`으로 **DB 쓰기 구간만** 원자적으로 감싸고 외부 I/O는 트랜잭션 밖으로 뺐습니다. ([`AiResultRetrievalService.java`](src/main/java/com/serverbe/application/service/AiResultRetrievalService.java))
+- **준영속 엔티티가 부른 불필요한 SELECT** — 도메인 모델이 불변이라 상태 전이는 항상 "조회 → 값 이관 → 저장"으로 이뤄집니다. 이때 트랜잭션 없이 저장을 호출하면 어댑터의 `findById`가 자기 트랜잭션을 열고 닫아 엔티티가 **준영속** 상태가 되고, 이어지는 저장이 merge를 유발해 **SELECT 두 번 + UPDATE 한 번**이 나갑니다. 상태 전이 구간을 `TransactionTemplate`으로 묶어 조회 결과가 관리 상태로 남도록 했습니다. 반대로 **신규 생성(INSERT) 경로에는 일부러 적용하지 않았습니다** — 그쪽은 `active_user_id` 유니크 위반을 어댑터의 `catch`에서 `DUPLICATE_AI_REQUEST`로 변환하는데, 바깥 트랜잭션이 있으면 위반이 **커밋 시점으로 밀려** 그 `catch`를 그대로 빠져나가기 때문입니다. ([`AiGenerationService.java`](src/main/java/com/serverbe/application/service/AiGenerationService.java))
 - **다중 인스턴스 SSE** — SSE 연결은 특정 인스턴스에 고정되지만 완료 이벤트는 다른 인스턴스에서 발생할 수 있습니다. Redis Pub/Sub으로 이벤트를 브로드캐스트해 어느 인스턴스가 받든 올바른 클라이언트에게 전달되도록 했습니다. ([`SseNotificationAdapter.java`](src/main/java/com/serverbe/adapter/out/notification/SseNotificationAdapter.java), [`SseRedisSubscriber.java`](src/main/java/com/serverbe/adapter/out/notification/SseRedisSubscriber.java))
 - **스키마 관리를 `ddl-auto`에서 Flyway로 이관** — 동시 요청을 막는 유니크 제약을 추가하면서 `ddl-auto: update`에 맡길 수 없다고 판단했습니다. Hibernate의 `update`는 컬럼 추가는 해주지만 **기존 테이블에 유니크 제약을 붙여준다는 보장이 없고, 새 컬럼에 기존 행을 백필할 수도 없습니다.** 실제로 마이그레이션 대상 DB에는 한 사용자에게 진행 중 작업이 7건 쌓여 있어, 정리 없이는 유니크 인덱스 생성 자체가 실패하는 상태였습니다. `기존 중복 정리 → 컬럼 추가 → 백필 → 제약 생성` 순서를 명시적 SQL로 작성하고 `ddl-auto`는 `validate`로 낮춰, 스키마 변경 권한을 한 곳으로 모았습니다. 이후 소셜 계정 유니크 제약(7번 항목)을 추가할 때도 `기존 중복 정리 → 자식 데이터 이관 → 제약 생성`이라는 같은 순서를 그대로 따랐습니다. ([`V2__add_active_task_slot.sql`](src/main/resources/db/migration/V2__add_active_task_slot.sql), [`V3__add_users_oauth_unique.sql`](src/main/resources/db/migration/V3__add_users_oauth_unique.sql))
 - **표준화된 에러 응답** — 도메인별 `ErrorCode` enum과 `BusinessException` 계층을 정의하고 `@RestControllerAdvice`에서 일괄 변환해, 모든 API가 동일한 응답 포맷을 갖도록 했습니다. ([`BusinessExceptionHandler.java`](src/main/java/com/serverbe/infrastructure/error/BusinessExceptionHandler.java), [`RestApiResponse.java`](src/main/java/com/serverbe/infrastructure/common/response/RestApiResponse.java))
@@ -357,7 +424,8 @@ src/main/java/com/serverbe
     └── common                   # 공통 응답 포맷, @Trace / @Timer 로깅 AOP
 
 src/main/resources/scripts       # Redis Lua 스크립트 (토큰 회전·로그아웃·토큰 버킷)
-src/main/resources/db/migration  # Flyway 마이그레이션 (V1 베이스라인 → V2 작업 슬롯 → V3 소셜 계정 유니크)
+src/main/resources/db/migration  # Flyway 마이그레이션 (V1 베이스라인 → V2 작업 슬롯 → V3 소셜 계정 유니크
+                                 #                    → V4 스윕 인덱스 → V5 ENUM·키 정규화)
 ```
 
 ---
@@ -446,6 +514,7 @@ POST /api/v1/test/ai/tasks/{taskId}/mock-sqs-receive
 | 유형 | 내용 |
 | --- | --- |
 | **서비스 단위 테스트** | 로그인·로그아웃·재발급·탈퇴, AI 생성/결과 수신/좀비 정리, 러닝 아트 CRUD와 소유권 검증 — 성공 경로뿐 아니라 각 단계의 예외 분기와 보상 로직 동작을 함께 검증. 좀비 정리는 실패 알림 발송과 알림 실패 시의 견고성까지 확인 |
+| **쿼리 비용 회귀 방지** | `AiTaskCleanupServiceTest` — 좀비 정리가 건별 저장이 아니라 **벌크 UPDATE를 정확히 1회** 호출하고 대상 id가 빠짐없이 담기는지, 정리 대상이 없으면 DB 호출 자체가 발생하지 않는지 검증. 성능 개선이 다음 리팩터링에서 조용히 되돌아가는 것을 막는 장치 |
 | **경합 복구 테스트** | `UserDataSyncManagerTest` — 동시 최초 로그인으로 유니크 제약에 걸린 요청이 500이 아니라 재조회를 통해 정상 로그인으로 마무리되는지, 복구 불가능한 무결성 위반은 그대로 전파되는지 검증 |
 | **외부 연동 테스트** | OkHttp `MockWebServer`로 Kakao·Google OAuth와 지오코딩 API의 정상 응답, 4xx, 5xx, 타임아웃 시나리오를 재현 |
 | **동시성 테스트** | `RateLimiterServiceConcurrencyTest` — 다중 스레드가 동시에 요청할 때 Lua 토큰 버킷이 한도를 초과 허용하지 않는지 검증 |

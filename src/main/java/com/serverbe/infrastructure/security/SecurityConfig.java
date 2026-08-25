@@ -39,7 +39,10 @@ public class SecurityConfig {
     };
 
     private static final String[] ACTUATOR_PATHS = {
-            "/actuator/health"
+            "/actuator/health",
+            // 로드밸런서가 보는 /actuator/health/alb 같은 헬스 그룹까지 열어 둔다.
+            // 정확히 일치만 허용하면 그룹 경로가 401 이 되어 ALB 가 태스크를 계속 unhealthy 로 판정한다.
+            "/actuator/health/**"
     };
 
     private static final String[] TEST_API_PATHS = {
