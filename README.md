@@ -22,6 +22,7 @@
 - [기술적 의사결정 및 트러블슈팅](#기술적-의사결정-및-트러블슈팅)
 - [API 명세](#api-명세)
 - [프로젝트 구조](#프로젝트-구조)
+- [배포](#배포)
 - [실행 방법](#실행-방법)
 - [테스트](#테스트)
 
@@ -326,6 +327,45 @@ BEGINNER=1, EXPERT=2, INTRODUCTION=3, MASTER=4, SKILLED=5
 
 ---
 
+### 10. 배포하기 전에 잡은 기동 실패 — 자격증명이 없으면 뜨지 않는 SQS 리스너
+
+**계기** · ECS 배포를 붙이기 전에, 운영에 올라갈 것과 **똑같은 `Dockerfile` 이미지**를 로컬에서 먼저 띄워 봤습니다. GitHub Actions는 `master` 푸시 한 번에 ECR push → ECS 롤링 배포까지 가므로, 기동이 안 되면 실패 지점이 CI 로그와 CloudWatch로 흩어집니다.
+
+**문제** · 컨테이너는 Flyway 마이그레이션까지 마친 뒤 **컨텍스트 refresh의 마지막 단계에서** 죽었습니다.
+
+```
+io.awspring.cloud.sqs.QueueAttributesResolvingException:
+    Error resolving attributes for queue ai-generation-notification-queue with strategy CREATE
+Caused by: software.amazon.awssdk.core.exception.SdkClientException:
+    Unable to load credentials from any of the providers in the chain ...
+```
+
+`AiNotificationSqsListener`의 `@SqsListener`는 `@Profile`이 없어 **모든 프로파일에서 활성화**됩니다. spring-cloud-aws는 리스너 컨테이너를 `SmartLifecycle`로 기동하면서 실제 SQS에 `GetQueueUrl`을 날리는데, 자격증명이 없으면 여기서 애플리케이션 기동 자체가 중단됩니다. `local` 프로파일은 S3·SageMaker를 `FakeS3Adapter`·`FakeSageMakerAdapter`로 가려 주지만, **SQS만 그 그물에서 빠져 있었습니다.**
+
+같은 문제가 테스트에서는 더 나쁜 모양으로 나타났습니다. 리눅스 컨테이너에서는 자격증명 체인이 몇 초 만에 예외로 떨어졌지만, 개발 PC에서 `gradlew integrationTest`를 돌렸을 때는 **15분 넘게 로그 한 줄 없이 멈춰** 있었습니다. 기동 실패보다 무한 대기가 진단하기 훨씬 어렵습니다.
+
+**해결** · 클래스를 `@Profile("prod")`로 막는 선택지는 쓸 수 없었습니다. `AiTestController`가 바로 이 빈을 주입받아 로컬에서 AI 파이프라인을 시뮬레이션하기 때문입니다. 리스너 빈은 살려 두고 **폴링 컨테이너만** 끕니다.
+
+```yaml
+spring.cloud.aws.sqs.enabled: ${AWS_SQS_ENABLED:true}
+```
+
+이 값이 `false`면 `@SqsListener`를 처리하는 BeanPostProcessor가 아예 등록되지 않아 애노테이션이 무시되고, `@Component` 빈은 그대로 남습니다. 즉 **네트워크를 타는 폴링만 사라지고 비즈니스 로직은 그대로 테스트할 수 있습니다.**
+
+기본값을 `true`로 둔 것이 핵심입니다. 운영(ECS)은 태스크 역할로 자격증명을 받으므로 **아무것도 주입하지 않아도 기존 동작 그대로**이고, CDK가 지키는 환경변수 계약도 바뀌지 않습니다. 끄는 쪽이 명시적인 선택이 되게 해서, 운영에서 조용히 꺼지는 일은 생기지 않습니다. 로컬 컨테이너(`docker-compose.yml`)와 Gradle 테스트 태스크에서만 `AWS_SQS_ENABLED=false`를 줍니다.
+
+**같은 검증에서 함께 나온 것**
+
+- **`mysql:8`은 8.4를 끌고 옴** — Flyway가 "지원이 검증되지 않은 버전" 경고를 냈습니다. 운영 RDS는 `VER_8_0`이므로 로컬도 `mysql:8.0`으로 고정했습니다. 버전이 갈리면 로컬에서 통과한 마이그레이션이 운영에서 다르게 동작할 수 있습니다.
+- **스키마는 Flyway가 만들지 않는다** — 마이그레이션 스크립트에 `CREATE DATABASE`가 없습니다. 빈 스키마가 먼저 있어야 하며, 로컬에서는 compose의 `MYSQL_DATABASE`가, 운영에서는 RDS의 `databaseName`이 그 역할을 합니다.
+- **컨테이너에는 `.env`가 없다** — `.dockerignore`가 제외합니다(운영 시크릿이 이미지에 구워지면 안 되니까). `application.yml`의 플레이스홀더 중 기본값이 없는 것이 29개라, 하나라도 빠지면 `Could not resolve placeholder`로 기동이 실패합니다. 로컬은 compose의 `env_file`이, 운영은 ECS 태스크 정의가 채웁니다.
+
+**검증 결과** · 빈 볼륨에서 `docker compose up -d --build` 한 번으로 Flyway `V1`~`V5`가 모두 적용되고 Hibernate `validate`를 통과하며, 약 10초 만에 `/actuator/health/alb`가 200을 돌려줍니다. 컨테이너는 비루트 유저(`uid=999(spring)`)로 돕니다.
+
+> 근거 · [`docker-compose.yml`](docker-compose.yml), [`application.yml`](src/main/resources/application.yml), [`AiNotificationSqsListener.java`](src/main/java/com/serverbe/infrastructure/config/event/AiNotificationSqsListener.java)
+
+---
+
 ### 그 외 설계 기록
 
 - **트랜잭션 커밋 이후 Redis 반영** — 러닝 아트 삭제 시 DB 삭제와 Redis GEO 삭제를 함께 수행하면, DB가 롤백되어도 Redis 데이터는 이미 사라져 정합성이 깨집니다. `TransactionSynchronization#afterCommit`으로 커밋 성공 이후에만 GEO를 갱신하도록 분리했습니다. ([`RunningArtService.java`](src/main/java/com/serverbe/application/service/RunningArtService.java), 커밋 `14d73c1`)
@@ -426,7 +466,26 @@ src/main/java/com/serverbe
 src/main/resources/scripts       # Redis Lua 스크립트 (토큰 회전·로그아웃·토큰 버킷)
 src/main/resources/db/migration  # Flyway 마이그레이션 (V1 베이스라인 → V2 작업 슬롯 → V3 소셜 계정 유니크
                                  #                    → V4 스윕 인덱스 → V5 ENUM·키 정규화)
+
+infra/                           # AWS CDK (TypeScript) — VPC·RDS·Redis·ECS Fargate·ALB·비동기 파이프라인
+Dockerfile                       # 멀티스테이지 빌드 (레이어드 jar)
+docker-compose.yml               # 로컬 스택 — MySQL 8.0 · Redis 7 · 위 Dockerfile 로 빌드한 앱
+.github/workflows/deploy.yml     # master push → 테스트 → ECR push → ECS 롤링 배포
+.github/workflows/infra-ci.yml   # infra/** PR → 타입 체크 + CDK 단언 테스트
 ```
+
+---
+
+## 배포
+
+AWS 인프라는 같은 저장소의 [`infra/`](infra) 에 AWS CDK 로 정의되어 있습니다.
+구성도와 백엔드-인프라 간 환경변수 계약은 [`infra/docs/architecture.md`](infra/docs/architecture.md),
+실행 방법은 [`infra/README.md`](infra/README.md) 에 있습니다.
+
+**앱 배포와 인프라 배포는 트리거가 분리되어 있습니다.** 앱 코드를 `master` 에 푸시하면
+GitHub Actions 가 테스트 → 이미지 빌드 → ECR push → ECS 롤링 배포까지 자동으로 수행하고,
+VPC·RDS 같은 인프라 변경은 `infra/` 에서 사람이 직접 `cdk deploy` 를 실행합니다.
+되돌리기 어려운 리소스를 push 하나로 바꾸지 않기 위한 구분이며, 각 워크플로우의 경로 필터가 이를 강제합니다.
 
 ---
 
@@ -434,21 +493,11 @@ src/main/resources/db/migration  # Flyway 마이그레이션 (V1 베이스라인
 
 ### 요구 사항
 
-- JDK 17
-- MySQL 8.x
-- Redis
+- Docker Desktop — 이것만 있으면 됩니다
+- (직접 실행할 경우) JDK 17 + MySQL 8.0 + Redis 7
 - (선택) AWS 계정 — S3 / SageMaker / SQS. **없어도 AI 파이프라인을 제외한 모든 기능이 동작합니다.**
 
-### 1. 인프라 준비
-
-```bash
-docker run -d --name aetheria-mysql -p 3306:3306 \
-  -e MYSQL_ROOT_PASSWORD=1234 -e MYSQL_DATABASE=aetheria mysql:8
-
-docker run -d --name aetheria-redis -p 6379:6379 redis:7
-```
-
-### 2. 환경 변수 설정
+### 1. 환경 변수 설정
 
 ```bash
 cp .env.example .env   # 이후 아래 표를 참고해 값을 채웁니다
@@ -472,16 +521,45 @@ cp .env.example .env   # 이후 아래 표를 참고해 값을 채웁니다
 | `AWS_S3_LIFECYCLE_ENABLED` | `true`면 기동 시 S3 임시 경로 만료 정책 자동 등록 (기본 `false`) |
 | `DISCORD_WEB_HOOK` | 서킷 브레이커 상태 변화 알림용 Webhook URL |
 
-### 3. 실행
+### 2. Docker로 한 번에 띄우기
 
 ```bash
+docker compose up -d
+docker compose logs -f app
+```
+
+[`docker-compose.yml`](docker-compose.yml)이 MySQL 8.0 · Redis 7과 함께 **운영 ECS에 올라가는 것과 똑같은 `Dockerfile`로 빌드한 앱 이미지**를 띄욵니다.
+로컬에서 도는 것이 배포되는 것과 같은 산출물이므로, 배포 후에야 드러날 문제를 여기서 먼저 만납니다.
+
+- 앱 컨테이너 안에는 `.env`가 **없습니다**(`.dockerignore`가 제외). compose가 `env_file`로 주입하고,
+  접속 주소(`DATABASE_URL` · `REDIS_HOST`)만 컨테이너 네트워크 기준으로 덮어씁니다.
+- 호스트에 네이티브 MySQL · Redis가 이미 떠 있는 경우를 고려해 컨테이너는 **3307 · 6380**으로 내보냅니다.
+  앱 컨테이너는 compose 네트워크에서 `mysql:3306` · `redis:6379`로 붙으므로 이 매핑과 무관합니다.
+- MySQL 이미지는 운영 RDS(`MysqlEngineVersion.VER_8_0`)에 맞춰 `mysql:8.0`으로 고정했습니다.
+  `mysql:8` 태그는 8.4를 끌어와 Flyway가 "지원 검증되지 않은 버전" 경고를 냅니다.
+
+### 3. Gradle로 직접 실행
+
+인프라만 컨테이너로 띄우고 앱은 IDE · Gradle에서 돌리는 방식입니다.
+
+```bash
+docker compose up -d mysql redis
 ./gradlew bootRun
 ```
 
+이때 앱은 `.env`의 `DATABASE_URL` · `REDIS_HOST`를 그대로 따르므로, 위 컨테이너에 붙이려면 **포트를 3307 · 6380으로** 맞춰야 합니다.
 `.env`는 애플리케이션이 직접 읽으므로(spring-dotenv) IDE 플러그인 없이도 동일하게 기동됩니다.
+
+### 확인
 
 기동 시 **Flyway가 `src/main/resources/db/migration`의 마이그레이션을 순서대로 적용**하여 스키마를 만듭니다.
 Hibernate는 `ddl-auto: validate`로 엔티티와 실제 스키마의 일치 여부만 검증하며, 스키마를 변경하지 않습니다.
+단, **`DATABASE_URL`이 가리키는 스키마 자체는 Flyway가 만들지 않습니다.** compose의 `MYSQL_DATABASE`가 빈 스키마를 먼저 만들어 둡니다.
+
+```bash
+curl http://localhost:8080/actuator/health/alb        # {"status":"UP"} — ALB가 보는 경로
+curl http://localhost:8080/actuator/health            # db · redis · circuitBreakers 상세
+```
 
 - Swagger UI — `http://localhost:8080/swagger-ui.html`
 - Health Check — `http://localhost:8080/actuator/health` (서킷 브레이커 상태 포함)
@@ -508,6 +586,13 @@ POST /api/v1/test/ai/tasks/{taskId}/mock-sqs-receive
 실제 인프라가 있어야 하는 테스트는 `@Tag("integration")`으로 분리해 기본 `test` 태스크에서 제외했습니다.
 덕분에 레포를 클론한 직후, DB나 Redis 없이도 `./gradlew build`가 통과합니다.
 이 그룹에는 `ServerBeApplicationTests`(컨텍스트 기동과 함께 Flyway 마이그레이션 적용 + Hibernate `validate` 검증), `BlacklistPerformanceTest`, `RateLimiterServiceConcurrencyTest`, `NotificationServiceTest`가 속합니다.
+
+두 태스크 모두 `AWS_SQS_ENABLED=false`를 주입합니다. `@SqsListener`는 컨텍스트 기동 중 실제 SQS로 `GetQueueUrl`을 날리기 때문에,
+자격증명이 없는 개발 PC와 CI 러너에서는 이것 없이 컨텍스트가 아예 뜨지 않습니다
+([트러블슈팅 10번](#10-배포하기-전에-잡은-기동-실패--자격증명이-없으면-뜨지-않는-sqs-리스너)).
+
+> `NotificationServiceTest`는 `DISCORD_WEB_HOOK`으로 **실제 아웃바운드 요청을 보냅니다.** 채널에 메시지를 남기고 싶지 않다면
+> `./gradlew integrationTest --tests "com.serverbe.ServerBeApplicationTests" --tests "com.serverbe.BlacklistPerformanceTest" --tests "com.serverbe.RateLimiterServiceConcurrencyTest"` 로 골라 실행하세요.
 
 단순 CRUD 검증보다 **실패 경로와 동시성 검증**에 무게를 두었습니다.
 

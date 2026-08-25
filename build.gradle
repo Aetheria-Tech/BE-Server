@@ -149,6 +149,11 @@ tasks.named('test') {
     useJUnitPlatform {
         excludeTags 'integration'
     }
+
+    // @SqsListener 는 컨텍스트 기동 중 실제 SQS 로 GetQueueUrl 을 날린다.
+    // 자격증명이 없는 개발 PC 와 CI 러너에서는 이 단계에서 컨텍스트 기동 자체가 막히므로,
+    // 테스트에서는 SQS 폴링을 끈다. 리스너 빈 자체는 남아 있어 단위 테스트로 직접 호출할 수 있다.
+    environment 'AWS_SQS_ENABLED', 'false'
 }
 
 /**
@@ -165,6 +170,9 @@ tasks.register('integrationTest', Test) {
     useJUnitPlatform {
         includeTags 'integration'
     }
+
+    // 로컬 MySQL·Redis 는 띄우지만 AWS 자격증명까지 요구하지는 않는다. (위 test 태스크와 같은 이유)
+    environment 'AWS_SQS_ENABLED', 'false'
 
     shouldRunAfter tasks.named('test')
 }
