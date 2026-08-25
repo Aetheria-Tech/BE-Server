@@ -496,7 +496,8 @@ docs/troubleshooting/            # 트러블슈팅 상세 기록 (항목별 문�
 infra/                           # AWS CDK (TypeScript) — VPC·RDS·Redis·ECS Fargate·ALB·비동기 파이프라인
 Dockerfile                       # 멀티스테이지 빌드 (레이어드 jar)
 docker-compose.yml               # 로컬 스택 — MySQL 8.0 · Redis 7 · 위 Dockerfile 로 빌드한 앱
-.github/workflows/deploy.yml     # master push → 테스트 → ECR push → ECS 롤링 배포
+.github/workflows/deploy.yml     # 테스트 → ECR push → ECS 롤링 배포
+                                 #   (자동 트리거는 현재 비활성, 수동 실행 전용)
 .github/workflows/infra-ci.yml   # infra/** PR → 타입 체크 + CDK 단언 테스트
 ```
 
