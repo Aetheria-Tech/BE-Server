@@ -25,3 +25,6 @@ HELP.md
 
 # 로컬 전용. 이미지에 들어갈 이유가 없다.
 docker-compose.yml
+
+# 문서. 이미지에 들어갈 이유가 없다.
+docs/

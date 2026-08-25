@@ -156,6 +156,9 @@ sequenceDiagram
 
 ## 기술적 의사결정 및 트러블슈팅
 
+아래는 각 문제의 요약입니다. **실제 코드 인용, 검토했다 기각한 대안, 재현·검증 방법**은
+[`docs/troubleshooting/`](docs/troubleshooting/)에 항목별 문서로 정리해 두었습니다.
+
 ### 1. WebFlux 이벤트 루프 블로킹 — 전 구간 스레드 격리
 
 **문제** · AI 파이프라인은 외부 API 대기 시간이 길어 WebFlux로 구현했지만, 그 안에서 호출하는 JPA·Redis·AWS SDK v2 동기 클라이언트는 전부 **블로킹 I/O**입니다.
@@ -165,6 +168,8 @@ sequenceDiagram
 **해결** · 파이프라인 내 모든 블로킹 구간을 `Mono.fromCallable(...).subscribeOn(Schedulers.boundedElastic())`으로 감싸 전용 스레드 풀로 격리했습니다. Rate Limit 검증, PENDING 저장, S3 업로드, SageMaker 호출, 상태 갱신, 에러 기록 — 예외 없이 전부 적용했습니다.
 
 > 근거 · [`AiGenerationService.java`](src/main/java/com/serverbe/application/service/AiGenerationService.java)
+>
+> 자세히 · [리액티브 파이프라인의 블로킹 I/O — 전 구간 스레드 격리](docs/troubleshooting/01-webflux-blocking-io.md)
 
 ---
 
@@ -177,6 +182,8 @@ sequenceDiagram
 **해결** · Saga 패턴의 보상 트랜잭션을 적용했습니다. SageMaker 호출 단계에 `onErrorResume`을 걸어 실패 시 방금 올린 S3 객체를 삭제합니다. 이때 **보상 로직 자체가 실패하더라도 원본 예외를 우선 전파**하도록 설계했습니다 — 삭제 실패로 원인 예외가 가려지면 디버깅이 불가능해지기 때문입니다. 삭제 실패 건은 수동 정리가 가능하도록 별도 `ERROR` 로그로 남기고, 추가 안전망으로 S3 Lifecycle 정책(임시 경로 1일 후 자동 만료)을 애플리케이션 기동 시 등록합니다.
 
 > 근거 · [`AiGenerationService.java`](src/main/java/com/serverbe/application/service/AiGenerationService.java) `compensateS3Upload`, [`S3LifecyclePolicyInitializer.java`](src/main/java/com/serverbe/infrastructure/config/S3LifecyclePolicyInitializer.java) · 커밋 `826fe6a`
+>
+> 자세히 · [S3 고아 파일 — Saga 보상 트랜잭션](docs/troubleshooting/02-s3-orphan-saga-compensation.md)
 
 ---
 
@@ -193,6 +200,8 @@ sequenceDiagram
 - 최종적으로 처리에 실패한 메시지는 예외를 그대로 전파해 **DLQ로 이동**시켜 유실을 방지했습니다.
 
 > 근거 · [`AiNotificationSqsListener.java`](src/main/java/com/serverbe/infrastructure/config/event/AiNotificationSqsListener.java) · 커밋 `51cf87f`, `cae72bf`
+>
+> 자세히 · [SQS 콜백 경합 조건 — 비관적 락과 재시도 유도](docs/troubleshooting/03-sqs-callback-race-condition.md)
 
 ---
 
@@ -208,6 +217,8 @@ sequenceDiagram
 - `lockAtMostFor = 10m` — 락을 쥔 서버가 OOM 등으로 죽었을 때 **락이 영구히 남는 데드락**을 방지하는 안전장치입니다.
 
 > 근거 · [`TaskTimeoutScheduler.java`](src/main/java/com/serverbe/infrastructure/scheduler/TaskTimeoutScheduler.java) · 커밋 `9423dbb`, `db03584`
+>
+> 자세히 · [스케줄러 중복 실행 — ShedLock 분산 락](docs/troubleshooting/04-scheduler-duplicate-shedlock.md)
 
 ---
 
@@ -223,6 +234,8 @@ sequenceDiagram
 - **Redis 장애 대응** — Rate Limiter가 죽었다고 서비스 전체가 멈춰선 안 됩니다. Resilience4j 서킷 브레이커로 감싸고, 폴백에서는 **Caffeine 로컬 캐시로 축소된 방어선**을 유지합니다. 사용자 단위는 로컬 카운팅으로 계속 차단하고, IP 단위는 Fail-Open으로 가용성을 우선합니다.
 
 > 근거 · [`token_bucket.lua`](src/main/resources/scripts/token_bucket.lua), [`RateLimiterService.java`](src/main/java/com/serverbe/application/service/RateLimiterService.java), [`RateLimitAspect.java`](src/main/java/com/serverbe/infrastructure/config/aop/RateLimitAspect.java), [`RateLimitFallbackHandler.java`](src/main/java/com/serverbe/application/service/fallback/RateLimitFallbackHandler.java) · 커밋 `2ad20c4`
+>
+> 자세히 · [Rate Limiting — Lua 원자적 토큰 버킷](docs/troubleshooting/05-rate-limit-lua-token-bucket.md)
 
 ---
 
@@ -237,6 +250,8 @@ sequenceDiagram
 - 토큰은 원문이 아닌 **SHA-256 해시**로만 저장하며, 로그아웃·전역 로그아웃도 각각 전용 Lua 스크립트로 처리합니다.
 
 > 근거 · [`rotate_token.lua`](src/main/resources/scripts/rotate_token.lua), [`global_logout.lua`](src/main/resources/scripts/global_logout.lua), [`TokenPersistenceAdapter.java`](src/main/java/com/serverbe/adapter/out/persistence/token/TokenPersistenceAdapter.java) · 커밋 `68428b8`
+>
+> 자세히 · [Refresh Token Rotation — 원자적 회전과 기기별 세션](docs/troubleshooting/06-refresh-token-rotation.md)
 
 ---
 
@@ -258,6 +273,8 @@ sequenceDiagram
 - 경합에서 진 요청이 500으로 죽지 않도록 복구 경로를 넣었습니다. 신규 등록을 **`REQUIRES_NEW`로 분리**한 것이 요점입니다. 바깥 트랜잭션에 합류시키면 제약 위반이 그 트랜잭션까지 rollback-only로 오염시켜 **뒤이은 재조회 자체가 불가능**해지기 때문입니다. 제약 위반을 잡은 시점에는 이긴 쪽의 행이 이미 커밋되어 있으므로, 재조회 한 번으로 정상 로그인이 완성됩니다.
 
 > 근거 · [`UserEntity.java`](src/main/java/com/serverbe/adapter/out/persistence/user/UserEntity.java), [`V3__add_users_oauth_unique.sql`](src/main/resources/db/migration/V3__add_users_oauth_unique.sql), [`UserDataSyncManager.java`](src/main/java/com/serverbe/application/service/helper/UserDataSyncManager.java)
+>
+> 자세히 · [소셜 계정 중복 가입 — 실재하지 않던 유니크 제약](docs/troubleshooting/07-oauth-duplicate-account.md)
 
 ---
 
@@ -288,6 +305,8 @@ sequenceDiagram
 도메인 상태 전이(`markAsFailed`) 자체는 그대로 수행합니다. 커밋 이후의 S3 임시 자원 정리와 SSE 실패 알림이 그 결과를 사용하기 때문입니다. 실패 사유 문구는 상수 하나로 모아, 도메인 전이와 벌크 `UPDATE`가 서로 다른 문구를 기록하는 일이 없게 했습니다.
 
 > 근거 · [`V4__add_ai_task_sweep_index.sql`](src/main/resources/db/migration/V4__add_ai_task_sweep_index.sql), [`JpaAiTaskRepository.java`](src/main/java/com/serverbe/adapter/out/persistence/task/JpaAiTaskRepository.java) `markFailedInBulk`, [`AiTaskCleanupService.java`](src/main/java/com/serverbe/application/service/AiTaskCleanupService.java) · 커밋 `64d83ae`
+>
+> 자세히 · [스케줄러의 숨은 비용 — 풀 스캔과 쓰기 증폭](docs/troubleshooting/08-scheduler-full-scan-and-write-amplification.md)
 
 ---
 
@@ -324,6 +343,8 @@ BEGINNER=1, EXPERT=2, INTRODUCTION=3, MASTER=4, SKILLED=5
 **재발 방지** · 엔티티 쪽에도 이름을 못 박았습니다. `@Index(name = "idx_running_arts_user")`와 `@JoinColumn(foreignKey = @ForeignKey(name = "fk_running_arts_user"))`를 명시해, 앞으로 만들어지는 스키마는 처음부터 표준 이름을 갖습니다. 드리프트는 한 번 정리하는 것보다 **다시 생기지 않게 막는 쪽**이 중요합니다.
 
 > 근거 · [`V5__drop_master_proficiency_and_normalize_art_keys.sql`](src/main/resources/db/migration/V5__drop_master_proficiency_and_normalize_art_keys.sql), [`RunningArtEntity.java`](src/main/java/com/serverbe/adapter/out/persistence/art/RunningArtEntity.java), [`Proficiency.java`](src/main/java/com/serverbe/domain/model/art/vo/Proficiency.java) · 커밋 `64d83ae`
+>
+> 자세히 · [스키마 드리프트 — ENUM 순번과 조건부 DDL](docs/troubleshooting/09-schema-drift-flyway-hibernate.md)
 
 ---
 
@@ -363,10 +384,14 @@ spring.cloud.aws.sqs.enabled: ${AWS_SQS_ENABLED:true}
 **검증 결과** · 빈 볼륨에서 `docker compose up -d --build` 한 번으로 Flyway `V1`~`V5`가 모두 적용되고 Hibernate `validate`를 통과하며, 약 10초 만에 `/actuator/health/alb`가 200을 돌려줍니다. 컨테이너는 비루트 유저(`uid=999(spring)`)로 돕니다.
 
 > 근거 · [`docker-compose.yml`](docker-compose.yml), [`application.yml`](src/main/resources/application.yml), [`AiNotificationSqsListener.java`](src/main/java/com/serverbe/infrastructure/config/event/AiNotificationSqsListener.java)
+>
+> 자세히 · [배포 전에 잡은 기동 실패 — SQS 리스너](docs/troubleshooting/10-sqs-listener-startup-failure.md)
 
 ---
 
 ### 그 외 설계 기록
+
+> 각 항목의 배경과 기각한 대안은 [설계 기록 상세](docs/troubleshooting/11-design-notes.md)에 있습니다.
 
 - **트랜잭션 커밋 이후 Redis 반영** — 러닝 아트 삭제 시 DB 삭제와 Redis GEO 삭제를 함께 수행하면, DB가 롤백되어도 Redis 데이터는 이미 사라져 정합성이 깨집니다. `TransactionSynchronization#afterCommit`으로 커밋 성공 이후에만 GEO를 갱신하도록 분리했습니다. ([`RunningArtService.java`](src/main/java/com/serverbe/application/service/RunningArtService.java), 커밋 `14d73c1`)
 - **좀비 태스크 실패 알림도 커밋 이후에** — 타임아웃 정리 스케줄러는 상태를 `FAILED`로 바꾸기만 하고 알림을 보내지 않았습니다. 이미 `SseEmitter`를 열고 결과를 기다리던 클라이언트는 아무 이벤트도 받지 못한 채 **자신의 SSE 타임아웃까지 무한 로딩**에 머물렀습니다. S3 임시 자원 정리와 **같은 `afterCommit` 블록**에 실패 알림을 묶었습니다. 커밋 이후여야 하는 이유는 위와 같습니다 — 상태 갱신이 롤백됐는데 클라이언트만 실패 알림을 받으면 SSE 연결이 터미널 상태로 닫혀 되돌릴 수 없습니다. 반대로 알림 발송 실패는 로그만 남기고 삼킵니다. 상태는 이미 커밋되어 되돌릴 수 없고, 한 건의 알림 실패가 나머지 태스크의 마무리까지 중단시켜서는 안 되기 때문입니다. ([`AiTaskCleanupService.java`](src/main/java/com/serverbe/application/service/AiTaskCleanupService.java))
@@ -467,6 +492,7 @@ src/main/resources/scripts       # Redis Lua 스크립트 (토큰 회전·로그
 src/main/resources/db/migration  # Flyway 마이그레이션 (V1 베이스라인 → V2 작업 슬롯 → V3 소셜 계정 유니크
                                  #                    → V4 스윕 인덱스 → V5 ENUM·키 정규화)
 
+docs/troubleshooting/            # 트러블슈팅 상세 기록 (항목별 문서 + 인덱스)
 infra/                           # AWS CDK (TypeScript) — VPC·RDS·Redis·ECS Fargate·ALB·비동기 파이프라인
 Dockerfile                       # 멀티스테이지 빌드 (레이어드 jar)
 docker-compose.yml               # 로컬 스택 — MySQL 8.0 · Redis 7 · 위 Dockerfile 로 빌드한 앱
