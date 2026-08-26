@@ -42,6 +42,18 @@ class LayerDependencyTest {
             .resideOutsideOfPackages("com.serverbe.domain..", "java..", "lombok..");
 
     /**
+     * 애플리케이션은 포트만 알면 됩니다. 어댑터나 인프라를 알기 시작하면 교체 가능성이 사라집니다.
+     *
+     * @implNote 이 규칙이 켜지기 전까지 서비스 다섯 개가 {@code infrastructure.config.properties.*}를
+     * 직접 import했습니다. 지금은 {@code application.config}의 순수 레코드를 받습니다.
+     */
+    @ArchTest
+    static final ArchRule 애플리케이션은_어댑터와_인프라를_모른다 = noClasses()
+            .that().resideInAPackage("com.serverbe.application..")
+            .should().dependOnClassesThat()
+            .resideInAnyPackage("com.serverbe.adapter..", "com.serverbe.infrastructure..");
+
+    /**
      * 인바운드 어댑터가 아웃바운드 어댑터를 직접 부르면 애플리케이션 계층을 건너뛰게 됩니다.
      * 두 어댑터는 오직 포트를 통해서만 만나야 합니다.
      */

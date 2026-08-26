@@ -6,7 +6,7 @@ import com.serverbe.application.port.out.task.TaskUpdatePort;
 import com.serverbe.domain.model.art.vo.Proficiency;
 import com.serverbe.domain.model.task.AiTask;
 import com.serverbe.domain.model.task.vo.TaskStatus;
-import com.serverbe.infrastructure.config.properties.TaskProperties;
+import com.serverbe.application.config.TaskTimeoutPolicy;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -50,7 +50,7 @@ class AiTaskCleanupServiceTest {
 
     @BeforeEach
     void setUp() {
-        aiTaskCleanupService = new AiTaskCleanupService(taskQueryPort, taskUpdatePort, resourceCleaner, taskNotificationPort, new TaskProperties(10));
+        aiTaskCleanupService = new AiTaskCleanupService(taskQueryPort, taskUpdatePort, resourceCleaner, taskNotificationPort, new TaskTimeoutPolicy(10));
     }
 
     private AiTask zombieTask(String id) {

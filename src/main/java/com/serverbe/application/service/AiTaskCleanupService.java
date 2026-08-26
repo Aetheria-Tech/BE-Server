@@ -7,7 +7,7 @@ import com.serverbe.application.port.out.task.TaskQueryPort;
 import com.serverbe.application.service.helper.AiTaskResourceCleaner;
 import com.serverbe.domain.model.task.AiTask;
 import com.serverbe.domain.model.task.vo.TaskStatus;
-import com.serverbe.infrastructure.config.properties.TaskProperties;
+import com.serverbe.application.config.TaskTimeoutPolicy;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -49,13 +49,13 @@ public class AiTaskCleanupService implements CleanupZombieTaskUseCase {
             TaskUpdatePort taskUpdatePort,
             AiTaskResourceCleaner resourceCleaner,
             TaskNotificationPort taskNotificationPort,
-            TaskProperties taskProperties
+            TaskTimeoutPolicy taskTimeoutPolicy
     ) {
         this.taskQueryPort = taskQueryPort;
         this.taskUpdatePort = taskUpdatePort;
         this.resourceCleaner = resourceCleaner;
         this.taskNotificationPort = taskNotificationPort;
-        this.taskTimeoutThreshold = taskProperties.taskTimeoutThresholdMinutes();
+        this.taskTimeoutThreshold = taskTimeoutPolicy.timeoutThresholdMinutes();
     }
 
     /**

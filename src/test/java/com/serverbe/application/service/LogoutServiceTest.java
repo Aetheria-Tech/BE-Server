@@ -4,7 +4,7 @@ import com.serverbe.application.port.out.security.TokenResolver;
 import com.serverbe.application.service.helper.AuthSessionManager;
 import com.serverbe.domain.exception.auth.AuthErrorCode;
 import com.serverbe.domain.exception.auth.AuthException;
-import com.serverbe.infrastructure.config.properties.JwtProperties;
+import com.serverbe.application.config.SessionPolicy;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -41,10 +41,8 @@ class LogoutServiceTest {
 
     @BeforeEach
     void setUp() {
-        JwtProperties jwtProperties = new JwtProperties(
-                null, null, new JwtProperties.RefreshToken(null, DEFAULT_RT_EXPIRATION, 0), null, null, 0
-        );
-        logoutService = new LogoutService(authSessionManager, tokenResolver, jwtProperties);
+        logoutService = new LogoutService(
+                authSessionManager, tokenResolver, new SessionPolicy(DEFAULT_RT_EXPIRATION));
     }
 
     @Test

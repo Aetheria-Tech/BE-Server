@@ -2,7 +2,7 @@ package com.serverbe.application.service;
 
 import com.serverbe.application.port.out.ratelimit.RateLimitPort;
 import com.serverbe.application.service.fallback.RateLimitFallbackHandler;
-import com.serverbe.infrastructure.config.properties.RateLimitProperties;
+import com.serverbe.application.config.RateLimitKeyPolicy;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -23,24 +23,15 @@ class RateLimiterServiceTest {
     private RateLimitPort rateLimitPort;
 
     @Mock
-    private RateLimitProperties rateLimitProperties;
-
-    @Mock
-    private RateLimitProperties.Prefix prefixProperties;
-
-    @Mock
     private RateLimitFallbackHandler fallbackHandler; // Cache 대신 Handler Mocking
 
     private static final String TEST_ENDPOINT = "/api/v1/test";
 
     @BeforeEach
     void setUp() {
-        // 이제 capacity, refillRate는 파라미터로 받으므로 prefix만 Mocking하면 됩니다.
-        given(rateLimitProperties.prefix()).willReturn(prefixProperties);
-        given(prefixProperties.user()).willReturn("rate:user:");
-        given(prefixProperties.ip()).willReturn("rate:ip:");
-
-        rateLimiterService = new RateLimiterService(rateLimitPort, rateLimitProperties, fallbackHandler);
+        // 키 접두사는 순수 record라 mocking할 것이 없습니다. application.yml의 실제 값과 동일하게 둡니다.
+        rateLimiterService = new RateLimiterService(
+                rateLimitPort, new RateLimitKeyPolicy("rate:user:", "rate:ip:"), fallbackHandler);
     }
 
     @Test

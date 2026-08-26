@@ -2,7 +2,7 @@ package com.serverbe.application.service.helper;
 
 import com.serverbe.application.port.out.security.TokenResolver;
 import com.serverbe.application.port.out.token.TokenPersistencePort;
-import com.serverbe.infrastructure.config.properties.JwtProperties;
+import com.serverbe.application.config.SessionPolicy;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -22,9 +22,9 @@ public class AuthSessionManager {
     private final Duration refreshTokenExpirationDays;
     private final TokenResolver tokenResolver;
 
-    public AuthSessionManager(TokenPersistencePort tokenPersistencePort, JwtProperties jwtProperties, TokenResolver tokenResolver) {
+    public AuthSessionManager(TokenPersistencePort tokenPersistencePort, SessionPolicy sessionPolicy, TokenResolver tokenResolver) {
         this.tokenPersistencePort = tokenPersistencePort;
-        this.refreshTokenExpirationDays = jwtProperties.refreshToken().expirationDays();
+        this.refreshTokenExpirationDays = sessionPolicy.refreshTokenTtl();
         this.tokenResolver = tokenResolver;
     }
 

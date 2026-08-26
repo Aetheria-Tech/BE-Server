@@ -3,7 +3,7 @@ package com.serverbe.application.service;
 import com.serverbe.application.port.in.ratelimit.RateLimitUseCase;
 import com.serverbe.application.port.out.ratelimit.RateLimitPort;
 import com.serverbe.application.service.fallback.RateLimitFallbackHandler;
-import com.serverbe.infrastructure.config.properties.RateLimitProperties;
+import com.serverbe.application.config.RateLimitKeyPolicy;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -19,14 +19,14 @@ public class RateLimiterService implements RateLimitUseCase {
 
     public RateLimiterService(
             RateLimitPort rateLimitPort,
-            RateLimitProperties rateLimitProperties,
+            RateLimitKeyPolicy rateLimitKeyPolicy,
             RateLimitFallbackHandler fallbackHandler
     ) {
         this.rateLimitPort = rateLimitPort;
         this.fallbackHandler = fallbackHandler;
 
-        this.rateLimitUserPrefix = rateLimitProperties.prefix().user();
-        this.rateLimitIpPrefix = rateLimitProperties.prefix().ip();
+        this.rateLimitUserPrefix = rateLimitKeyPolicy.userPrefix();
+        this.rateLimitIpPrefix = rateLimitKeyPolicy.ipPrefix();
     }
 
     @Override

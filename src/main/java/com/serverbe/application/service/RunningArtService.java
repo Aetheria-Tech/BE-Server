@@ -11,7 +11,7 @@ import com.serverbe.domain.model.art.RunningArt;
 import com.serverbe.domain.exception.BusinessException;
 import com.serverbe.domain.model.art.vo.Proficiency;
 import com.serverbe.domain.util.PolylineUtils;
-import com.serverbe.infrastructure.config.properties.ArtProperties;
+import com.serverbe.application.config.ArtSearchPolicy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -48,11 +48,11 @@ public class RunningArtService implements
     private final double maxRadius;
     private final int maxResultLimit;
 
-    public RunningArtService(RunningArtRepositoryPort repositoryPort, RunningArtRedisPort runningArtRedisPort, ArtProperties artProperties) {
+    public RunningArtService(RunningArtRepositoryPort repositoryPort, RunningArtRedisPort runningArtRedisPort, ArtSearchPolicy artSearchPolicy) {
         this.repositoryPort = repositoryPort;
         this.runningArtRedisPort = runningArtRedisPort;
-        this.maxRadius = artProperties.maxRadius();
-        this.maxResultLimit = artProperties.maxResultLimit();
+        this.maxRadius = artSearchPolicy.maxRadius();
+        this.maxResultLimit = artSearchPolicy.maxResultLimit();
     }
 
     /**

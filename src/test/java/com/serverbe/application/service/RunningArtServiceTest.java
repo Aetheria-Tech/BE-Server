@@ -10,7 +10,7 @@ import com.serverbe.domain.exception.server.ServerErrorCode;
 import com.serverbe.domain.exception.server.ServerException;
 import com.serverbe.domain.model.art.RunningArt;
 import com.serverbe.domain.model.art.vo.Proficiency;
-import com.serverbe.infrastructure.config.properties.ArtProperties;
+import com.serverbe.application.config.ArtSearchPolicy;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -63,12 +63,11 @@ class RunningArtServiceTest {
 
     @BeforeEach
     void setUp() {
-        // ArtProperties는 record라 굳이 mocking하지 않고, application.yml의 실제 운영값(art.max-radius,
-        // art.max-result-limit)과 동일한 값으로 실제 인스턴스를 생성해 생성자에 주입합니다.
-        // (RunningArtService 생성자가 artProperties.maxRadius()를 즉시 호출하므로 @InjectMocks로는
-        // ArtProperties를 mocking하지 않으면 NPE가 발생합니다.)
-        ArtProperties artProperties = new ArtProperties(5000.0, 5);
-        runningArtService = new RunningArtService(repositoryPort, runningArtRedisPort, artProperties);
+        // ArtSearchPolicy는 순수 record라 mocking하지 않고, application.yml의 실제 운영값
+        // (art.max-radius, art.max-result-limit)과 동일한 값으로 실제 인스턴스를 만들어 주입합니다.
+        // (RunningArtService 생성자가 값을 즉시 읽으므로 @InjectMocks로는 NPE가 납니다.)
+        ArtSearchPolicy artSearchPolicy = new ArtSearchPolicy(5000.0, 5);
+        runningArtService = new RunningArtService(repositoryPort, runningArtRedisPort, artSearchPolicy);
     }
 
     @Nested
