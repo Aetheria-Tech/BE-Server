@@ -1,5 +1,6 @@
 package com.serverbe.adapter.out.external.s3;
 
+import com.serverbe.application.port.out.dto.ai.AiPromptCommand;
 import com.serverbe.application.port.out.s3.S3AiInputPort;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Primary;
@@ -24,10 +25,10 @@ public class FakeS3Adapter implements S3AiInputPort {
      * 실제 네트워크 통신 없이 가짜(Mock) S3 URI를 즉시 생성하여 반환합니다.
      */
     @Override
-    public String uploadInputJson(String taskId, String promptJson) {
+    public String uploadInputJson(String taskId, AiPromptCommand prompt) {
         log.info("[MOCK] S3 업로드 시뮬레이션 작동 중...");
         log.info("[MOCK] Task ID: {}", taskId);
-        log.info("[MOCK] 업로드할 프롬프트 JSON: {}", promptJson);
+        log.info("[MOCK] 업로드할 프롬프트: {}", prompt);
 
         // 실제 S3에 올리지 않고, 가짜 S3 경로(URI)를 즉시 반환합니다.
         String dummyS3Uri = "s3://mock-project-bucket/ai-input/" + taskId + ".json";

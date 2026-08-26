@@ -1,5 +1,8 @@
 package com.serverbe.adapter.out.external.s3;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.serverbe.application.port.out.dto.ai.AiPromptCommand;
 import com.serverbe.application.port.out.s3.S3AiInputPort;
 import com.serverbe.domain.exception.s3.S3ErrorCode;
 import com.serverbe.domain.exception.s3.S3Exception;
@@ -25,6 +28,7 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 public class S3AiInputAdapter implements S3AiInputPort {
 
     private final S3Client s3Client;
+    private final ObjectMapper objectMapper;
     private final String inputBucketName;
 
     /**
@@ -32,10 +36,12 @@ public class S3AiInputAdapter implements S3AiInputPort {
      * 외부 프로퍼티 클래스에서 필요한 S3 버킷 이름만 추출하여 초기화합니다.
      *
      * @param s3Client      AWS SDK v2 S3 클라이언트 빈
+     * @param objectMapper  프롬프트 직렬화에 사용할 Jackson 매퍼
      * @param awsProperties AWS 관련 설정 정보를 담고 있는 프로퍼티 객체
      */
-    public S3AiInputAdapter(S3Client s3Client, AwsProperties awsProperties) {
+    public S3AiInputAdapter(S3Client s3Client, ObjectMapper objectMapper, AwsProperties awsProperties) {
         this.s3Client = s3Client;
+        this.objectMapper = objectMapper;
         this.inputBucketName = awsProperties.s3().aiInputBucket();
     }
 
@@ -47,13 +53,16 @@ public class S3AiInputAdapter implements S3AiInputPort {
      * S3 Object Key로 사용합니다.
      * </p>
      *
-     * @param taskId     AI 작업을 식별하는 고유 UUID (파일명으로 매핑됨)
-     * @param promptJson AI 모델이 읽어갈 요청 파라미터가 직렬화된 JSON 문자열
+     * @param taskId AI 작업을 식별하는 고유 UUID (파일명으로 매핑됨)
+     * @param prompt AI 모델이 읽어갈 요청 파라미터
      * @return 타 시스템에서 즉시 참조 가능한 표준 S3 URI (예: {@code s3://bucket-name/inputs/taskId.json})
      * @throws S3Exception S3 네트워크 타임아웃, 권한 거절 등 업로드 실패 시 발생
+     * @implNote 직렬화는 저장소의 표현 형식이므로 애플리케이션이 아니라 이 어댑터의 책임입니다.
      */
     @Override
-    public String uploadInputJson(String taskId, String promptJson) {
+    public String uploadInputJson(String taskId, AiPromptCommand prompt) {
+        String promptJson = serialize(taskId, prompt);
+
         // S3에 저장될 파일 경로 및 이름 (예: inputs/123e4567-e89b-12d3...json)
         String objectKey = "inputs/" + taskId + ".json";
 
@@ -83,6 +92,21 @@ public class S3AiInputAdapter implements S3AiInputPort {
         } catch (Exception e) {
             log.error("[S3 Upload Error] 알 수 없는 시스템 오류 - TaskID: {}, 원인: {}", taskId, e.getMessage());
             throw new S3Exception(S3ErrorCode.S3_UPLOAD_ERROR, "알 수 없는 S3 업로드 오류");
+        }
+    }
+
+    /**
+     * 추론 요청 파라미터를 AI 워커가 읽을 JSON 문자열로 직렬화합니다.
+     *
+     * @implNote 레코드 컴포넌트 이름이 그대로 JSON 키가 됩니다. 키가 바뀌면 추론 스크립트가
+     * 값을 찾지 못한 채 조용히 기본값으로 동작하므로 {@code S3AiInputAdapterTest}가 키 집합을 고정합니다.
+     */
+    private String serialize(String taskId, AiPromptCommand prompt) {
+        try {
+            return objectMapper.writeValueAsString(prompt);
+        } catch (JsonProcessingException e) {
+            log.error("[S3 Upload Error] 프롬프트 직렬화 실패 - TaskID: {}, 원인: {}", taskId, e.getMessage());
+            throw new S3Exception(S3ErrorCode.S3_UPLOAD_ERROR, "프롬프트 직렬화 실패: " + e.getMessage());
         }
     }
 

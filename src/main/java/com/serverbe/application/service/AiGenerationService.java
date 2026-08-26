@@ -1,13 +1,12 @@
 package com.serverbe.application.service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.serverbe.application.port.in.art.InitiateAiGenerationUseCase;
 import com.serverbe.application.port.in.dto.task.TaskStatusResult;
 import com.serverbe.application.port.in.task.GetTaskStatusUseCase;
 import com.serverbe.application.port.out.dto.geocoding.GeocodeResult;
 import com.serverbe.application.port.out.geocode.GeocodePort;
 import com.serverbe.application.port.out.sagemaker.SageMakerAsyncPort;
+import com.serverbe.application.port.out.dto.ai.AiPromptCommand;
 import com.serverbe.application.port.out.s3.S3AiInputPort;
 import com.serverbe.application.port.out.task.TaskQueryPort;
 import com.serverbe.application.port.out.task.TaskRateLimitPort;
@@ -26,7 +25,6 @@ import org.springframework.transaction.support.TransactionTemplate;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
-import java.util.Map;
 
 /**
  * AI 런닝 아트 생성 파이프라인을 오케스트레이션하는 핵심 비즈니스 서비스.
@@ -48,7 +46,6 @@ public class AiGenerationService implements InitiateAiGenerationUseCase, GetTask
     private final S3AiInputPort s3AiInputPort;
     private final SageMakerAsyncPort sageMakerAsyncPort;
     private final AiTaskResourceCleaner resourceCleaner;
-    private final ObjectMapper objectMapper;
 
     /**
      * 상태 전이(UPDATE) 구간을 하나의 트랜잭션으로 묶는 템플릿.
@@ -168,10 +165,10 @@ public class AiGenerationService implements InitiateAiGenerationUseCase, GetTask
             String shape,
             Proficiency proficiency
     ) {
-        return Mono.fromCallable(() -> buildPromptJson(geocodeResult, shape, proficiency))
+        return Mono.fromCallable(() -> buildPromptCommand(geocodeResult, shape, proficiency))
 
                 // Step 1: S3 업로드
-                .flatMap(promptJson -> Mono.fromCallable(() -> s3AiInputPort.uploadInputJson(pendingTask.id(), promptJson))
+                .flatMap(prompt -> Mono.fromCallable(() -> s3AiInputPort.uploadInputJson(pendingTask.id(), prompt))
                         .subscribeOn(Schedulers.boundedElastic()))
 
                 // Step 2: SageMaker 호출 및 보상 트랜잭션 연동
@@ -296,25 +293,26 @@ public class AiGenerationService implements InitiateAiGenerationUseCase, GetTask
     }
 
     /**
-     * AI 모델(SageMaker)에게 전달할 요청 파라미터를 JSON 문자열로 직렬화합니다.
+     * AI 모델(SageMaker)에게 전달할 요청 파라미터를 조립합니다.
      *
      * @param geocodeResult 런닝 시작 위치
      * @param shape         목표 아트 모양
      * @param proficiency   러닝 숙련도
-     * @return 직렬화된 JSON 문자열
-     * @throws JsonProcessingException 객체를 JSON으로 변환하는 과정에서 오류가 발생할 경우
+     * @return 추론 요청 파라미터
+     * @implNote 값이 비었을 때의 기본값(모양은 빈 문자열, 숙련도는 {@code BEGINNER})은 직렬화가 아니라
+     * <b>애플리케이션 정책</b>이므로 어댑터가 아니라 여기 남습니다. 직렬화는
+     * {@code adapter.out.external.s3.S3AiInputAdapter}가 합니다.
      */
-    private String buildPromptJson(
+    private AiPromptCommand buildPromptCommand(
             GeocodeResult geocodeResult,
             String shape,
             Proficiency proficiency
-    ) throws JsonProcessingException {
-        Map<String, Object> promptData = Map.of(
-                "latitude", geocodeResult.latitude(),
-                "longitude", geocodeResult.longitude(),
-                "shape", shape != null ? shape : "",
-                "proficiency", proficiency != null ? proficiency.name() : Proficiency.BEGINNER.name()
+    ) {
+        return new AiPromptCommand(
+                geocodeResult.latitude(),
+                geocodeResult.longitude(),
+                shape != null ? shape : "",
+                proficiency != null ? proficiency.name() : Proficiency.BEGINNER.name()
         );
-        return objectMapper.writeValueAsString(promptData);
     }
 }

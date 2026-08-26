@@ -1,22 +1,29 @@
-package com.serverbe.application.service;
+package com.serverbe.adapter.out.notification;
 
+import com.serverbe.application.port.out.notification.AlertNotificationPort;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import java.util.Collections;
 import java.util.Map;
 
+/**
+ * @responsibility 운영 알림을 Discord 웹훅으로 발송합니다.
+ * @implSpec Fire-and-Forget입니다. {@code subscribe()}로 발행만 하고 응답을 기다리지 않습니다.
+ * 알림 전송이 본래 요청 처리를 지연시키거나 실패시켜서는 안 됩니다.
+ * @implNote 웹훅 URL이 비어 있으면 조용히 넘어갑니다. 로컬·테스트 환경에서 URL 없이도 서버가 떠야 합니다.
+ */
 @Slf4j
-@Service
-public class NotificationService {
+@Component
+public class DiscordAlertAdapter implements AlertNotificationPort {
 
     private final String discordWebhookUrl;
     private final WebClient webClient;
 
-    public NotificationService(
+    public DiscordAlertAdapter(
             WebClient.Builder webClientBuilder,
             @Value("${notification.discord.webhook-url}") String discordWebhookUrl
     ) {
@@ -24,7 +31,8 @@ public class NotificationService {
         this.discordWebhookUrl = discordWebhookUrl;
     }
 
-    public void sendDiscordNotification(String message) {
+    @Override
+    public void sendAlert(String message) {
         if (discordWebhookUrl == null || discordWebhookUrl.isBlank()) {
             log.warn("웹훅 URL이 설정되지 않아 알림을 보낼 수 없습니다.");
             return;

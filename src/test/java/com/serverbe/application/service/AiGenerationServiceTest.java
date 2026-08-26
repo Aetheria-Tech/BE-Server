@@ -1,9 +1,9 @@
 package com.serverbe.application.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.serverbe.application.port.in.dto.task.TaskStatusResult;
 import com.serverbe.application.port.out.dto.geocoding.GeocodeResult;
 import com.serverbe.application.port.out.geocode.GeocodePort;
+import com.serverbe.application.port.out.dto.ai.AiPromptCommand;
 import com.serverbe.application.port.out.s3.S3AiInputPort;
 import com.serverbe.application.port.out.sagemaker.SageMakerAsyncPort;
 import com.serverbe.application.port.out.task.TaskQueryPort;
@@ -73,12 +73,12 @@ class AiGenerationServiceTest {
 
     @BeforeEach
     void setUp() {
-        // ObjectMapper는 순수 직렬화 유틸이므로 mocking 없이 실제 인스턴스를 사용합니다.
+        // 프롬프트 직렬화는 S3 어댑터의 책임이 되었으므로 이 서비스는 ObjectMapper를 모릅니다.
         // 상태 전이 구간은 TransactionTemplate 으로 감싸져 있습니다.
         // 단위 테스트에서는 트랜잭션 매니저를 목으로 두어 콜백이 그대로 실행되게만 합니다.
         aiGenerationService = new AiGenerationService(
                 taskQueryPort, taskUpdatePort, geocodePort, taskRateLimitPort, s3AiInputPort, sageMakerAsyncPort,
-                resourceCleaner, new ObjectMapper(), new TransactionTemplate(transactionManager)
+                resourceCleaner, new TransactionTemplate(transactionManager)
         );
     }
 
@@ -107,7 +107,7 @@ class AiGenerationServiceTest {
         given(taskQueryPort.existsActiveTaskByUserId(USER_ID)).willReturn(false);
         given(geocodePort.geocode(anyString())).willReturn(Mono.just(new GeocodeResult(37.5, 127.0, "서울시 강남구")));
         stubSaveAssignsIdOnce();
-        given(s3AiInputPort.uploadInputJson(anyString(), anyString())).willReturn("s3://bucket/inputs/" + GENERATED_TASK_ID + ".json");
+        given(s3AiInputPort.uploadInputJson(anyString(), any(AiPromptCommand.class))).willReturn("s3://bucket/inputs/" + GENERATED_TASK_ID + ".json");
         given(sageMakerAsyncPort.invokeAsync(anyString(), anyString())).willReturn("s3://bucket/outputs/" + GENERATED_TASK_ID + ".json.out");
 
         // when
@@ -187,7 +187,7 @@ class AiGenerationServiceTest {
         given(taskQueryPort.existsActiveTaskByUserId(USER_ID)).willReturn(false);
         given(geocodePort.geocode(anyString())).willReturn(Mono.just(new GeocodeResult(37.5, 127.0, "서울시 강남구")));
         stubSaveAssignsIdOnce();
-        given(s3AiInputPort.uploadInputJson(anyString(), anyString()))
+        given(s3AiInputPort.uploadInputJson(anyString(), any(AiPromptCommand.class)))
                 .willThrow(new S3Exception(S3ErrorCode.S3_UPLOAD_ERROR, "S3 업로드 실패"));
 
         // when & then
@@ -209,7 +209,7 @@ class AiGenerationServiceTest {
         given(taskQueryPort.existsActiveTaskByUserId(USER_ID)).willReturn(false);
         given(geocodePort.geocode(anyString())).willReturn(Mono.just(new GeocodeResult(37.5, 127.0, "서울시 강남구")));
         stubSaveAssignsIdOnce();
-        given(s3AiInputPort.uploadInputJson(anyString(), anyString())).willReturn(inputS3Uri);
+        given(s3AiInputPort.uploadInputJson(anyString(), any(AiPromptCommand.class))).willReturn(inputS3Uri);
         given(sageMakerAsyncPort.invokeAsync(GENERATED_TASK_ID, inputS3Uri))
                 .willThrow(new RuntimeException("SageMaker 엔드포인트 응답 없음"));
 
@@ -268,5 +268,30 @@ class AiGenerationServiceTest {
         org.assertj.core.api.Assertions.assertThatThrownBy(() -> aiGenerationService.getTaskStatus(GENERATED_TASK_ID, strangerId))
                 .isInstanceOf(AiException.class)
                 .hasFieldOrPropertyWithValue("errorCode", AiErrorCode.USER_IS_NOT_OWNER_OF_TASK);
+    }
+
+    @Test
+    @DisplayName("프롬프트 명령에 지오코딩 좌표가 실리고, 비어 있는 모양·숙련도는 기본값으로 채워진다")
+    void 프롬프트_명령에_지오코딩_좌표와_기본값이_채워진다() {
+        // given
+        given(taskRateLimitPort.tryLock(USER_ID, 5)).willReturn(true);
+        given(taskQueryPort.existsActiveTaskByUserId(USER_ID)).willReturn(false);
+        given(geocodePort.geocode(anyString())).willReturn(Mono.just(new GeocodeResult(37.5, 127.0, "서울시 강남구")));
+        stubSaveAssignsIdOnce();
+        given(s3AiInputPort.uploadInputJson(anyString(), any(AiPromptCommand.class)))
+                .willReturn("s3://bucket/inputs/" + GENERATED_TASK_ID + ".json");
+        given(sageMakerAsyncPort.invokeAsync(anyString(), anyString()))
+                .willReturn("s3://bucket/outputs/" + GENERATED_TASK_ID + ".json.out");
+
+        // when: 모양과 숙련도를 비운 채 요청한다
+        StepVerifier.create(aiGenerationService.initiateGeneration(USER_ID, "서울시 강남구", null, null))
+                .expectNext(GENERATED_TASK_ID)
+                .verifyComplete();
+
+        // then: 기본값 채우기는 직렬화가 아니라 애플리케이션 정책이므로 서비스가 책임진다
+        ArgumentCaptor<AiPromptCommand> captor = ArgumentCaptor.forClass(AiPromptCommand.class);
+        verify(s3AiInputPort).uploadInputJson(anyString(), captor.capture());
+
+        assertThat(captor.getValue()).isEqualTo(new AiPromptCommand(37.5, 127.0, "", "BEGINNER"));
     }
 }
