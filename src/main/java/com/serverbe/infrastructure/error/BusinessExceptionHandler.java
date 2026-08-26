@@ -45,7 +45,7 @@ public class BusinessExceptionHandler {
         var errorCode = e.getErrorCode();
         log.warn("[BUSINESS EXCEPTION] 비즈니스 로직 위반 발생 -> {}", errorCode.getMessage());
 
-        return ResponseEntity.status(errorCode.getStatus())
+        return ResponseEntity.status(ErrorKindHttpStatusMapper.toHttpStatus(errorCode.getKind()))
                 .body(RestApiResponse.fail(errorCode, errorCode.getMessage()));
     }
 
@@ -73,7 +73,7 @@ public class BusinessExceptionHandler {
 
         log.warn("[VALIDATION ERROR] 요청 파라미터 유효성 검증 실패 -> {}", finalMessage);
 
-        return ResponseEntity.status(ServerErrorCode.INVALID_REQUEST_PARAMETER.getStatus())
+        return ResponseEntity.status(ErrorKindHttpStatusMapper.toHttpStatus(ServerErrorCode.INVALID_REQUEST_PARAMETER.getKind()))
                 .body(RestApiResponse.fail(ServerErrorCode.INVALID_REQUEST_PARAMETER, finalMessage));
     }
 
@@ -96,7 +96,7 @@ public class BusinessExceptionHandler {
 
         log.warn("[CONSTRAINT ERROR] 제약 조건 위반 발생 -> {}", detailedErrorMessage);
 
-        return ResponseEntity.status(ServerErrorCode.INVALID_REQUEST_PARAMETER.getStatus())
+        return ResponseEntity.status(ErrorKindHttpStatusMapper.toHttpStatus(ServerErrorCode.INVALID_REQUEST_PARAMETER.getKind()))
                 .body(RestApiResponse.fail(ServerErrorCode.INVALID_REQUEST_PARAMETER, detailedErrorMessage));
     }
 
@@ -108,7 +108,7 @@ public class BusinessExceptionHandler {
         String detailedErrorMessage = String.format("필수 파라미터 [%s](이)가 누락되었습니다.", e.getParameterName());
         log.warn("[PARAMETER MISSING] 필수 요청 파라미터 누락 -> {}", detailedErrorMessage);
 
-        return ResponseEntity.status(ServerErrorCode.INVALID_REQUEST_PARAMETER.getStatus())
+        return ResponseEntity.status(ErrorKindHttpStatusMapper.toHttpStatus(ServerErrorCode.INVALID_REQUEST_PARAMETER.getKind()))
                 .body(RestApiResponse.fail(ServerErrorCode.INVALID_REQUEST_PARAMETER, detailedErrorMessage));
     }
 
@@ -119,7 +119,7 @@ public class BusinessExceptionHandler {
     public ResponseEntity<RestApiResponse<Void>> handleHttpMessageNotReadableException(HttpMessageNotReadableException e) {
         log.warn("[JSON PARSE ERROR] 잘못된 형식의 JSON 요청 수신 -> {}", e.getMostSpecificCause().getMessage());
 
-        return ResponseEntity.status(ServerErrorCode.MALFORMED_JSON_REQUEST.getStatus())
+        return ResponseEntity.status(ErrorKindHttpStatusMapper.toHttpStatus(ServerErrorCode.MALFORMED_JSON_REQUEST.getKind()))
                 .body(RestApiResponse.fail(ServerErrorCode.MALFORMED_JSON_REQUEST));
     }
 
@@ -130,7 +130,7 @@ public class BusinessExceptionHandler {
     public ResponseEntity<RestApiResponse<Void>> handleException(Exception e) {
         log.error("[UNHANDLED INTERNAL ERROR] 처리되지 않은 시스템 예외 발생", e);
 
-        return ResponseEntity.status(ServerErrorCode.INTERNAL_SERVER_ERROR.getStatus())
+        return ResponseEntity.status(ErrorKindHttpStatusMapper.toHttpStatus(ServerErrorCode.INTERNAL_SERVER_ERROR.getKind()))
                 .body(RestApiResponse.fail(ServerErrorCode.INTERNAL_SERVER_ERROR));
     }
 
@@ -173,7 +173,7 @@ public class BusinessExceptionHandler {
     public ResponseEntity<RestApiResponse<Void>> handleDataIntegrityViolationException(DataIntegrityViolationException e) {
         log.error("[INFRA EXCEPTION] DB 데이터 정합성 오류 (동시성/삭제 문제 예상) -> {}", e.getMessage());
 
-        return ResponseEntity.status(ServerErrorCode.INTERNAL_SERVER_ERROR.getStatus())
+        return ResponseEntity.status(ErrorKindHttpStatusMapper.toHttpStatus(ServerErrorCode.INTERNAL_SERVER_ERROR.getKind()))
                 .body(RestApiResponse.fail(ServerErrorCode.INTERNAL_SERVER_ERROR));
     }
 
@@ -187,7 +187,7 @@ public class BusinessExceptionHandler {
         log.warn("[RATE LIMIT EXCEPTION] 요청 한도 초과 -> {} (Retry-After: {}초)",
                 errorCode.getMessage(), e.getRetryAfterSeconds());
 
-        return ResponseEntity.status(errorCode.getStatus())
+        return ResponseEntity.status(ErrorKindHttpStatusMapper.toHttpStatus(errorCode.getKind()))
                 .header("Retry-After", String.valueOf(e.getRetryAfterSeconds()))
                 .body(RestApiResponse.fail(errorCode, errorCode.getMessage()));
     }
@@ -208,7 +208,7 @@ public class BusinessExceptionHandler {
         var errorCode = e.getErrorCode();
         log.warn("[RACE CONDITION] 상태 업데이트 경합 발생 (API 요청) -> {}", errorCode.getMessage());
 
-        return ResponseEntity.status(errorCode.getStatus())
+        return ResponseEntity.status(ErrorKindHttpStatusMapper.toHttpStatus(errorCode.getKind()))
                 .body(RestApiResponse.fail(errorCode, errorCode.getMessage()));
     }
 }

@@ -2,6 +2,7 @@ package com.serverbe.infrastructure.common.response;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.serverbe.domain.exception.ErrorCode;
+import com.serverbe.infrastructure.error.ErrorKindHttpStatusMapper;
 import org.springframework.http.HttpStatus;
 
 /**
@@ -51,7 +52,7 @@ public record RestApiResponse<T>(
     public static RestApiResponse<Void> fail(ErrorCode errorMessage) {
         return new RestApiResponse<>(
                 false,
-                errorMessage.getStatus(),
+                ErrorKindHttpStatusMapper.toHttpStatus(errorMessage.getKind()),
                 null,
                 new ApiError(errorMessage.getCode(), errorMessage.getMessage())
         );
@@ -66,7 +67,7 @@ public record RestApiResponse<T>(
     public static RestApiResponse<Void> fail(ErrorCode errorMessage, String reason) {
         return new RestApiResponse<>(
                 false,
-                errorMessage.getStatus(),
+                ErrorKindHttpStatusMapper.toHttpStatus(errorMessage.getKind()),
                 null,
                 new ApiError(errorMessage.getCode(), reason)
         );

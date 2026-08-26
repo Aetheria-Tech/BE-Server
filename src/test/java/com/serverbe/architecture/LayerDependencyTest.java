@@ -30,6 +30,18 @@ class LayerDependencyTest {
             .resideInAnyPackage("com.serverbe.adapter..", "com.serverbe.infrastructure..");
 
     /**
+     * 도메인은 프레임워크를 몰라야 합니다. Lombok은 컴파일 타임에만 존재하므로 런타임 의존이 아닙니다.
+     *
+     * @implNote 이 규칙이 켜지기 전까지 {@code ErrorCode}는 {@code HttpStatus}를 반환했고,
+     * {@code Address}는 Spring의 {@code StringUtils}를 썼습니다.
+     */
+    @ArchTest
+    static final ArchRule 도메인은_JDK와_Lombok에만_의존한다 = noClasses()
+            .that().resideInAPackage("com.serverbe.domain..")
+            .should().dependOnClassesThat()
+            .resideOutsideOfPackages("com.serverbe.domain..", "java..", "lombok..");
+
+    /**
      * 인바운드 어댑터가 아웃바운드 어댑터를 직접 부르면 애플리케이션 계층을 건너뛰게 됩니다.
      * 두 어댑터는 오직 포트를 통해서만 만나야 합니다.
      */
