@@ -1,4 +1,4 @@
-package com.serverbe.adapter.out.notification.dto;
+package com.serverbe.adapter.in.web.sse.dto;
 
 import com.serverbe.domain.model.task.vo.TaskStatus;
 import lombok.Builder;

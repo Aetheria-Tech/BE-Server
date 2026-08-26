@@ -1,7 +1,8 @@
-package com.serverbe.adapter.in.web;
+package com.serverbe.adapter.in.web.sse;
 
 import com.serverbe.application.annotation.RateLimit;
 import com.serverbe.application.annotation.RateLimits;
+import com.serverbe.application.port.in.dto.task.TaskSubscription;
 import com.serverbe.application.port.in.notification.SseSubscribeUseCase;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -25,6 +26,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 public class SseController {
 
     private final SseSubscribeUseCase sseSubscribeUseCase;
+    private final SseEmitterRegistry sseEmitterRegistry;
 
     @Operation(
             summary = "AI 작업 상태 SSE 구독",
@@ -40,7 +42,15 @@ public class SseController {
             @Parameter(description = "구독할 AI Task ID", example = "task-1234", required = true)
             @PathVariable String taskId
     ) {
-        SseEmitter emitter = sseSubscribeUseCase.subscribe(userId, taskId);
+        // 1. 인가 + 현재 상태 스냅샷 (애플리케이션 계층)
+        TaskSubscription subscription = sseSubscribeUseCase.subscribe(userId, taskId);
+
+        // 2. 커넥션 수립 (웹 어댑터의 책임)
+        SseEmitter emitter = sseEmitterRegistry.register(taskId);
+        sseEmitterRegistry.sendConnected(taskId, emitter);
+
+        // 3. 구독 직전에 이미 끝난 작업이면 종료 이벤트를 즉시 재생해 알림 유실을 막는다
+        sseEmitterRegistry.replayTerminalState(subscription, emitter);
 
         // SSE 연결의 안정성을 위해 꼭 필요한 헤더들을 주입하여 반환합니다.
         return ResponseEntity.ok()
