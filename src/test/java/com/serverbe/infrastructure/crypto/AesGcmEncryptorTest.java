@@ -30,8 +30,8 @@ class AesGcmEncryptorTest {
     @InjectMocks
     private AesGcmEncryptor encryptor;
 
-    private final String v1Key = "Kj8nS2vW9aLp4mQ7zX1yC5bE3tG6hR0f";
-    private final String v2Key = "mZ9xQ2wV5rT8nB1yP4uK7jL3aC6dS0eG";
+    private final String v1Key = "test-key-v1-do-not-use-in-prod!!";
+    private final String v2Key = "test-key-v2-do-not-use-in-prod!!";
     private final String plainText = "Hello, World! 12345";
 
     @BeforeEach

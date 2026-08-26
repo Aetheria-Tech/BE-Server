@@ -4,7 +4,19 @@ build/
 !gradle/wrapper/gradle-wrapper.jar
 !**/src/main/**/build/
 !**/src/test/**/build/
-.env
+# .env 하나만 적으면 .env.local / .env.prod 같은 변형이 그대로 커밋된다.
+# 공개 저장소에서 가장 흔한 사고 경로라 접두사 전체를 막고 예시 파일만 되살린다.
+.env*
+!.env.example
+
+### 키 · 인증서 — 저장소에 들어올 이유가 없는 확장자를 미리 막는다 ###
+*.pem
+*.p12
+*.jks
+*.keystore
+*.key
+*.pfx
+id_rsa*
 
 ### STS ###
 .apt_generated
