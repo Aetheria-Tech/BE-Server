@@ -29,6 +29,11 @@ public class AiTaskRedisAdapter implements TaskRateLimitPort {
      * 의도적으로 요청을 차단합니다. 다만 raw 인프라 예외가 그대로 500으로 새어 나가지 않도록
      * 클라이언트가 이해할 수 있는 비즈니스 예외로 변환합니다.
      * </p>
+     * <p>
+     * 반대편 정책은 {@link com.serverbe.adapter.out.persistence.ratelimit.RateLimitFallbackHandler}에
+     * 있습니다. 그쪽 HTTP 처리율 제한은 Fail-Open입니다. 두 정책은 <b>의도적으로</b> 반대이며,
+     * 일관성을 이유로 하나로 합쳐서는 안 됩니다.
+     * </p>
      *
      * @param userId  사용자 ID
      * @param seconds 락 유지 시간(초)
