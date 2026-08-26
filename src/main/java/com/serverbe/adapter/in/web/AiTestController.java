@@ -1,9 +1,9 @@
 package com.serverbe.adapter.in.web;
 
+import com.serverbe.adapter.in.web.response.RestApiResponse;
 import com.serverbe.application.port.in.dto.task.AiNotificationCommand;
 import com.serverbe.application.port.in.task.HandleAiNotificationUseCase;
 import com.serverbe.domain.exception.server.ServerErrorCode;
-import com.serverbe.infrastructure.common.response.RestApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;

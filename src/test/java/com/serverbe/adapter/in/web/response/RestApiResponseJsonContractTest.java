@@ -1,4 +1,4 @@
-package com.serverbe.infrastructure.common.response;
+package com.serverbe.adapter.in.web.response;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.serverbe.domain.exception.auth.AuthErrorCode;

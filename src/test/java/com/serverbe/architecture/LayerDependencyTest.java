@@ -7,6 +7,9 @@ import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
 import com.tngtech.archunit.lang.ArchRule;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.ControllerAdvice;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -110,6 +113,33 @@ class LayerDependencyTest {
     static final ArchRule 아웃바운드_포트_구현체는_어댑터다 = classes()
             .that().implement(resideInAPackage("com.serverbe.application.port.out.."))
             .should().resideInAPackage("com.serverbe.adapter.out..");
+
+    /**
+     * <b>웹 애노테이션이 붙으면 웹 어댑터입니다.</b> 위 두 규칙이 포트를 기준으로 잡지 못하는 것을
+     * 잡습니다 — {@code @RestControllerAdvice}는 포트를 구현하지 않지만
+     * <b>컨트롤러의 일부</b>입니다. 스프링 MVC가 컨트롤러에서 던져진 예외를 가로채 응답 본문과
+     * 상태 코드를 만드는 자리이고, 컨트롤러가 정상 경로에서 하는 일을 예외 경로에서 그대로 합니다.
+     *
+     * @implNote 이 규칙이 켜지기 전까지 {@code BusinessExceptionHandler}가
+     * {@code infrastructure.error}에 있었습니다. 함께 {@code RestApiResponse}(응답 봉투)와
+     * {@code ErrorKindHttpStatusMapper}도 인프라에 있어, 인바운드 어댑터를 {@code adapter.in}에
+     * 모아 둔 이유가 "진입점은 한곳에서 보인다"였는데 <b>진입점의 응답 규격만 다른 데</b>
+     * 있었습니다.
+     * @implNote 인바운드 규칙({@code 바깥이_흐름을_시작시키면_인바운드_어댑터다})은 <b>메서드</b>
+     * 애노테이션을 봐야 해서 커스텀 술어가 필요했지만, 이쪽은 <b>클래스</b> 애노테이션이므로
+     * ArchUnit 기본 술어로 바로 표현됩니다. 세 애노테이션을 모두 나열한 것은
+     * {@code @AnalyzeClasses}가 {@code DoNotIncludeJars}라 {@code @RestControllerAdvice}가
+     * {@code @ControllerAdvice}의 메타 애노테이션이라는 사실에 기댈 수 없기 때문입니다.
+     * @implNote {@code RestApiResponse} 같은 <b>타입</b>은 애노테이션이 없어 이 규칙이 잡지
+     * 못합니다. 그건 규칙 대신 문장으로 남겼습니다 — {@code adapter.in.web.response}의
+     * {@code package-info.java}를 보세요.
+     */
+    @ArchTest
+    static final ArchRule 웹_애노테이션이_붙은_클래스는_웹_어댑터다 = classes()
+            .that().areAnnotatedWith(RestController.class)
+            .or().areAnnotatedWith(RestControllerAdvice.class)
+            .or().areAnnotatedWith(ControllerAdvice.class)
+            .should().resideInAPackage("com.serverbe.adapter.in.web..");
 
     /**
      * 스레드에 바인딩되는 선언적 트랜잭션은 리액티브 파이프라인 위에서 <b>아무 일도 하지 않습니다.</b>

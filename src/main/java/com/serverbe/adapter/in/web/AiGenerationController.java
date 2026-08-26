@@ -2,10 +2,10 @@ package com.serverbe.adapter.in.web;
 
 import com.serverbe.adapter.in.web.dto.art.CreateRunningArtRequest;
 import com.serverbe.adapter.in.web.dto.task.TaskStatusResponse;
+import com.serverbe.adapter.in.web.response.RestApiResponse;
 import com.serverbe.application.port.in.art.InitiateAiGenerationUseCase;
 import com.serverbe.application.port.in.task.GetTaskStatusUseCase;
 import com.serverbe.domain.model.address.Address;
-import com.serverbe.infrastructure.common.response.RestApiResponse;
 import io.swagger.v3.oas.annotations.Parameter;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;

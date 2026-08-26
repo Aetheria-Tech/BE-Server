@@ -1,4 +1,4 @@
-package com.serverbe.infrastructure.error;
+package com.serverbe.adapter.in.web.error;
 
 import com.serverbe.domain.exception.ErrorKind;
 import org.junit.jupiter.api.DisplayName;

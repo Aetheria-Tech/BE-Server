@@ -1,4 +1,4 @@
-package com.serverbe.infrastructure.error;
+package com.serverbe.adapter.in.web.error;
 
 import com.serverbe.domain.exception.BusinessException;
 import com.serverbe.domain.exception.auth.AuthErrorCode;
@@ -6,7 +6,7 @@ import com.serverbe.domain.exception.server.AsyncRaceConditionException;
 import com.serverbe.domain.exception.server.DataIntegrityViolationException;
 import com.serverbe.domain.exception.server.RateLimitExceededException;
 import com.serverbe.domain.exception.server.ServerErrorCode;
-import com.serverbe.infrastructure.common.response.RestApiResponse;
+import com.serverbe.adapter.in.web.response.RestApiResponse;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;

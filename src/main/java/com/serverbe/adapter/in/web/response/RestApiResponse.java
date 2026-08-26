@@ -1,8 +1,8 @@
-package com.serverbe.infrastructure.common.response;
+package com.serverbe.adapter.in.web.response;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.serverbe.domain.exception.ErrorCode;
-import com.serverbe.infrastructure.error.ErrorKindHttpStatusMapper;
+import com.serverbe.adapter.in.web.error.ErrorKindHttpStatusMapper;
 import org.springframework.http.HttpStatus;
 
 /**

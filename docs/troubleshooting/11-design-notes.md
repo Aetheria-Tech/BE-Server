@@ -227,7 +227,7 @@ Hibernate의 `update`는 컬럼 추가는 해 주지만 **기존 테이블에 �
 
 ## 9. 표준화된 에러 응답
 
-> [`BusinessExceptionHandler.java`](../../src/main/java/com/serverbe/infrastructure/error/BusinessExceptionHandler.java) · [`RestApiResponse.java`](../../src/main/java/com/serverbe/infrastructure/common/response/RestApiResponse.java)
+> [`BusinessExceptionHandler.java`](../../src/main/java/com/serverbe/adapter/in/web/error/BusinessExceptionHandler.java) · [`RestApiResponse.java`](../../src/main/java/com/serverbe/adapter/in/web/response/RestApiResponse.java)
 
 도메인별 `ErrorCode` enum과 `BusinessException` 계층을 정의하고 `@RestControllerAdvice`에서 일괄
 변환해, 모든 API가 동일한 응답 포맷을 갖도록 했습니다.
