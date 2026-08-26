@@ -11,8 +11,12 @@ import com.serverbe.application.port.out.jpa.RunningArtRepositoryPort;
 import com.serverbe.domain.model.art.RunningArt;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import com.serverbe.application.port.dto.PageQuery;
+import com.serverbe.application.port.dto.PageResult;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -72,14 +76,6 @@ public class RunningArtPersistenceAdapter implements RunningArtRepositoryPort {
      * @param pageable 페이징 정보
      * @return 조회된 {@link RunningArt} 도메인 페이지
      * @responsibility 저장된 모든 런닝아트 목록을 조회합니다.
-     * @implSpec {@link JpaRunningArtRepository#findAll(Pageable)}을 통해 엔티티 페이지를 조회한 후 도메인 페이지로 변환합니다.
-     * @implNote 데이터 양이 많을 경우 성능 저하의 원인이 될 수 있으므로 페이징 처리를 권장합니다.
-     */
-    @Override
-    public Page<RunningArt> findAll(Pageable pageable) {
-        return jpaRepository.findAll(pageable).map(mapper::toDomain);
-    }
-
     /**
      * @param runningArtId 수정할 런닝아트 ID
      * @param dto          수정할 정보를 담은 {@link RunningArtUpdateCommand} DTO
@@ -169,14 +165,41 @@ public class RunningArtPersistenceAdapter implements RunningArtRepositoryPort {
     }
 
     /**
-     * @param pageable 페이징 정보
-     * @param userId   조회할 사용자의 고유 ID
-     * @return 해당 사용자의 {@link Page<RunningArt>} 목록
+     * @param userId    조회할 사용자의 고유 ID
+     * @param pageQuery 페이징·정렬 정보
+     * @return 해당 사용자의 {@link PageResult} 목록
      * @responsibility 특정 사용자가 생성한 런닝아트 목록을 조회합니다.
      * @implSpec 엔티티 간의 연관 관계 필드(User)를 기반으로 명명 규칙에 따른 JPA 쿼리 메서드를 사용합니다.
+     * @implNote Spring Data의 {@link Pageable}은 이 어댑터 밖으로 나가지 않습니다. 포트는 저장소
+     * 기술을 모르는 {@link PageQuery}만 주고받습니다.
      */
     @Override
-    public Page<RunningArt> findByUserId(Long userId, Pageable pageable) {
-        return jpaRepository.findByUser_Id(userId, pageable).map(mapper::toDomain);
+    public PageResult<RunningArt> findByUserId(Long userId, PageQuery pageQuery) {
+        Page<RunningArtEntity> page = jpaRepository.findByUser_Id(userId, toPageable(pageQuery));
+
+        return new PageResult<>(
+                page.getContent().stream().map(mapper::toDomain).toList(),
+                page.getNumber(),
+                page.getSize(),
+                page.getTotalElements()
+        );
+    }
+
+    /**
+     * @param pageQuery 애플리케이션 계층의 페이징·정렬 요청
+     * @return Spring Data가 이해하는 {@link Pageable}
+     */
+    private static Pageable toPageable(PageQuery pageQuery) {
+        if (pageQuery.sorts().isEmpty()) {
+            return PageRequest.of(pageQuery.page(), pageQuery.size());
+        }
+
+        Sort sort = Sort.by(pageQuery.sorts().stream()
+                .map(order -> new Sort.Order(
+                        order.direction() == PageQuery.Direction.ASC ? Sort.Direction.ASC : Sort.Direction.DESC,
+                        order.property()))
+                .toList());
+
+        return PageRequest.of(pageQuery.page(), pageQuery.size(), sort);
     }
 }

@@ -11,6 +11,8 @@ import com.serverbe.domain.exception.server.ServerException;
 import com.serverbe.domain.model.art.RunningArt;
 import com.serverbe.domain.model.art.vo.Proficiency;
 import com.serverbe.application.config.ArtSearchPolicy;
+import com.serverbe.application.port.dto.PageQuery;
+import com.serverbe.application.port.dto.PageResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -18,10 +20,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import reactor.core.publisher.Flux;
@@ -131,16 +129,17 @@ class RunningArtServiceTest {
     @DisplayName("성공: 사용자의 런닝 아트 목록을 페이지 단위로 조회한다")
     void getRunningArtsByUserId_Success() {
         // given
-        Pageable pageable = PageRequest.of(0, 10);
-        Page<RunningArt> page = new PageImpl<>(List.of(RunningArt.builder().id(ART_ID).userId(OWNER_ID).title("A").build()));
-        given(repositoryPort.findByUserId(OWNER_ID, pageable)).willReturn(page);
+        PageQuery pageQuery = PageQuery.of(0, 10);
+        PageResult<RunningArt> page = new PageResult<>(
+                List.of(RunningArt.builder().id(ART_ID).userId(OWNER_ID).title("A").build()), 0, 10, 1);
+        given(repositoryPort.findByUserId(OWNER_ID, pageQuery)).willReturn(page);
 
         // when
-        Page<RunningArtResult> result = runningArtService.getRunningArtsByUserId(OWNER_ID, pageable);
+        PageResult<RunningArtResult> result = runningArtService.getRunningArtsByUserId(OWNER_ID, pageQuery);
 
         // then
-        assertThat(result.getTotalElements()).isEqualTo(1);
-        assertThat(result.getContent().get(0).title()).isEqualTo("A");
+        assertThat(result.totalElements()).isEqualTo(1);
+        assertThat(result.content().get(0).title()).isEqualTo("A");
     }
 
     // ================= updateRunningArt =================

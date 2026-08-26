@@ -2,6 +2,7 @@ package com.serverbe.adapter.in.web.filter;
 
 
 import com.serverbe.application.port.out.security.TokenResolver;
+import com.serverbe.application.port.out.security.dto.JwtPayloadDto;
 import com.serverbe.application.port.out.token.TokenPersistencePort;
 import com.serverbe.domain.exception.BusinessException;
 import com.serverbe.domain.exception.auth.AuthErrorCode;
@@ -13,11 +14,15 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 import org.springframework.web.servlet.HandlerExceptionResolver;
+
+import java.util.List;
 
 /**
  * @responsibility 모든 HTTP 요청의 <b>인증 헤더</b>를 검사하여 유효한 사용자일 경우 <b>SecurityContext</b>에 인증 정보를 등록합니다.
@@ -75,8 +80,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 }
 
                 // 2. 모든 검증을 마친 후 인증 객체 등록
-                Authentication authentication = tokenResolver.getAuthentication(token);
-                SecurityContextHolder.getContext().setAuthentication(authentication);
+                SecurityContextHolder.getContext().setAuthentication(toAuthentication(token));
             }
 
             filterChain.doFilter(request, response);
@@ -85,5 +89,26 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             log.error("[JWT Filter Exception] -> ", e);
             handlerExceptionResolver.resolveException(request, response, null, e);
         }
+    }
+
+    /**
+     * @param accessToken 검증이 끝난 액세스 토큰
+     * @return Spring Security 인증 객체
+     * @responsibility 포트가 돌려준 페이로드를 프레임워크의 인증 객체로 조립합니다.
+     * @implSpec principal은 반드시 {@code Long userId}여야 합니다. 컨트롤러들이
+     * {@code @AuthenticationPrincipal Long userId}로 받고 {@code RateLimitAspect}가
+     * {@code (Long) getPrincipal()}로 캐스팅합니다. 권한 문자열도 {@code ROLE_} 접두사 없는
+     * {@code role.name()} 그대로여야 합니다.
+     * @implNote 이 조립이 어댑터에 있는 이유는 Spring Security가 웹 계층의 기술이기 때문입니다.
+     * 이전에는 {@code TokenResolver} 포트가 {@code Authentication}을 직접 반환했습니다.
+     */
+    private Authentication toAuthentication(String accessToken) {
+        JwtPayloadDto payload = tokenResolver.resolvePayload(accessToken);
+
+        return new UsernamePasswordAuthenticationToken(
+                payload.userId(),
+                null,
+                List.of(new SimpleGrantedAuthority(payload.role().name()))
+        );
     }
 }

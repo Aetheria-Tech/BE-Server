@@ -12,9 +12,6 @@ import com.serverbe.infrastructure.config.properties.JwtProperties;
 import com.serverbe.domain.exception.BusinessException;
 import io.jsonwebtoken.*;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -25,7 +22,7 @@ import java.util.Map;
 
 /**
  * @author Duskafka
- * @responsibility 발급된 JWT 토큰 및 리프레시 토큰의 유효성을 검증하고, 토큰 페이로드에서 사용자 식별자 및 권한 정보를 추출하여 <b>SecurityContext</b>에 적합한 형태로 변환합니다.
+ * @responsibility 발급된 JWT 토큰 및 리프레시 토큰의 유효성을 검증하고, 토큰 페이로드에서 사용자 식별자 및 권한 정보를 추출합니다.
  * @implSpec 1. <b>JwtParser</b>: {@link JwtKeyManager}에서 주입받은 공유 파서를 사용하여 서명을 검증합니다.<br>
  * 2. <b>예외 복구</b>: 토큰 재발급(Reissue) 로직을 지원하기 위해, 만료된 토큰({@link ExpiredJwtException})에서도 사용자 ID를 추출할 수 있는 특수 로직을 포함합니다.
  * @see TokenResolver
@@ -62,19 +59,23 @@ public class JwtTokenResolver implements TokenResolver {
     }
 
     /**
-     * @param accessToken 검증된 액세스 토큰
-     * @return 복호화된 정보를 담은 인증 객체
-     * @responsibility 토큰을 복호화하여 ID와 Role을 추출한 뒤 Spring Security 인증 객체를 생성합니다.
+     * @param token 복호화할 JWT 액세스/리프레시 토큰
+     * @return 사용자 ID와 권한 정보를 담은 {@link JwtPayloadDto}
+     * @responsibility <b>[최적화 핵심]</b> 고비용 연산인 JWS 서명 검증, AES-GCM 복호화, JSON 파싱을
+     * 단 1회만 수행하여 필요한 데이터를 모두 추출합니다.
+     * @implNote 여기서 만든 페이로드로 Spring Security 인증 객체를 조립하는 일은
+     * {@code adapter.in.web.filter.JwtAuthenticationFilter}가 합니다.
      */
     @Override
-    public Authentication getAuthentication(String accessToken) {
-        JwtPayloadDto payload = getJwtPayload(accessToken);
-        
-        List<SimpleGrantedAuthority> authorities = List.of(
-                new SimpleGrantedAuthority(payload.role().name())
-        );
+    public JwtPayloadDto resolvePayload(String token) {
+        // 1. 여기서 무거운 파싱 및 복호화 연산이 딱 한 번 수행됨
+        Map<String, Object> claimsMap = getDecryptedPayload(token);
 
-        return new UsernamePasswordAuthenticationToken(payload.userId(), null, authorities);
+        // 2. 이미 파싱된 Map 데이터를 재사용하여 ID와 Role을 추출
+        return new JwtPayloadDto(
+                extractId(claimsMap),
+                extractRole(claimsMap)
+        );
     }
 
     /**
@@ -116,7 +117,7 @@ public class JwtTokenResolver implements TokenResolver {
     @Override
     public Long getIdFromToken(String accessToken) {
         try {
-            return getJwtPayload(accessToken).userId();
+            return resolvePayload(accessToken).userId();
         } catch (NumberFormatException e) {
             throw new AuthException(AuthErrorCode.JWT_TOKEN_IS_INVALID, "ID 형식이 올바르지 않습니다.");
         }
@@ -129,7 +130,7 @@ public class JwtTokenResolver implements TokenResolver {
     @Override
     public Role getRoleFromToken(String accessToken) {
         try {
-            return getJwtPayload(accessToken).role();
+            return resolvePayload(accessToken).role();
         } catch (IllegalArgumentException e) {
             throw new AuthException(AuthErrorCode.JWT_TOKEN_IS_INVALID, "유효하지 않은 Role 값입니다.");
         }
@@ -204,22 +205,6 @@ public class JwtTokenResolver implements TokenResolver {
             log.error("Token Decryption Failed", e);
             throw new AuthException(AuthErrorCode.JWT_TOKEN_IS_INVALID, "토큰 복호화에 실패했습니다.");
         }
-    }
-
-    /**
-     * @param token 복호화할 JWT 액세스/리프레시 토큰
-     * @return 사용자 ID와 권한 정보를 담은 {@link JwtPayloadDto}
-     * @responsibility <b>[최적화 핵심]</b> 고비용 연산인 JWS 서명 검증, AES-GCM 복호화, JSON 파싱을 단 1회만 수행하여 필요한 데이터를 모두 추출합니다.
-     */
-    public JwtPayloadDto getJwtPayload(String token) {
-        // 1. 여기서 무거운 파싱 및 복호화 연산이 딱 한 번 수행됨
-        Map<String, Object> claimsMap = getDecryptedPayload(token);
-
-        // 2. 이미 파싱된 Map 데이터를 재사용하여 ID와 Role을 추출
-        return new JwtPayloadDto(
-                extractId(claimsMap),
-                extractRole(claimsMap)
-        );
     }
 
     private long extractId(Map<String, Object> claimsMap) {
