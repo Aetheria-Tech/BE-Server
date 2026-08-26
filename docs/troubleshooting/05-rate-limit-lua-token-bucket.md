@@ -1,7 +1,7 @@
 # 5. Rate Limiting — Lua 원자적 토큰 버킷과 서킷 브레이커 폴백
 
 > 요약 · [README — 5. Rate Limiting](../../README.md#5-rate-limiting--lua-원자적-토큰-버킷과-서킷-브레이커-폴백)
-> 근거 · [`token_bucket.lua`](../../src/main/resources/scripts/token_bucket.lua) · [`RateLimiterService.java`](../../src/main/java/com/serverbe/application/service/RateLimiterService.java) · [`RateLimitAspect.java`](../../src/main/java/com/serverbe/infrastructure/config/aop/RateLimitAspect.java) · [`RateLimitFallbackHandler.java`](../../src/main/java/com/serverbe/application/service/fallback/RateLimitFallbackHandler.java) · [`RateLimit.java`](../../src/main/java/com/serverbe/application/annotation/RateLimit.java)
+> 근거 · [`token_bucket.lua`](../../src/main/resources/scripts/token_bucket.lua) · [`RateLimiterService.java`](../../src/main/java/com/serverbe/application/service/RateLimiterService.java) · [`RateLimitAspect.java`](../../src/main/java/com/serverbe/infrastructure/config/aop/RateLimitAspect.java) · [`RateLimitFallbackHandler.java`](../../src/main/java/com/serverbe/adapter/out/persistence/ratelimit/RateLimitFallbackHandler.java) · [`RateLimit.java`](../../src/main/java/com/serverbe/application/annotation/RateLimit.java)
 > 커밋 · `2ad20c4`
 
 ## 1. 상황

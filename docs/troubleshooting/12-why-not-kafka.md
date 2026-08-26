@@ -153,7 +153,7 @@ SQS 요청 과금이 그 금액에 도달하려면 **월 10억 건 단위**가 �
 이것이 두 번째 결론이자 결정타입니다.
 
 [3번 문서](03-sqs-callback-race-condition.md)의 핵심 설계는 **아무것도 저장하지 않고 예외를 던지는
-것**입니다. 추론이 너무 빨리 끝나 콜백이 `PROCESSING` 저장보다 먼저 도착하면, 리스너는 실패로
+것**입니다. 추론이 너무 빨리 끝나 콜백이 `PROCESSING` 저장보다 먼저 도착하면, 알림 처리 쪽은 실패로
 확정하지 않고 예외를 던져 ack를 막습니다.
 
 ```java
@@ -166,7 +166,7 @@ if (task.isPending()) {
 }
 ```
 
-> [`AiNotificationSqsListener.java`](../../src/main/java/com/serverbe/infrastructure/config/event/AiNotificationSqsListener.java)
+> [`AiNotificationService.java`](../../src/main/java/com/serverbe/application/service/AiNotificationService.java)
 
 이 코드가 동작하는 이유는 자바에 있지 않고 **큐 설정에** 있습니다.
 
@@ -248,26 +248,31 @@ Kafka는 오프셋이 **파티션 단위**라 앞 레코드가 막히면 뒤가 
 
 ---
 
-## 7. 남은 과제 — 지금 코드는 브로커를 바꾸기 쉽지 않다
+## 7. 남은 과제 — 무엇을 정리했고 무엇을 남겼나
 
-결론이 "SQS 유지"라고 해서 현재 구조가 깨끗하다는 뜻은 아닙니다. `AiNotificationSqsListener`는
-브로커에 꽤 깊이 묶여 있습니다.
+결론이 "SQS 유지"라고 해서 현재 구조가 깨끗하다는 뜻은 아니었습니다. 이 문서를 처음 쓸 때
+`AiNotificationSqsListener`는 네 가지 방식으로 브로커에 묶여 있었습니다. 그중 **셋은 정리했고,
+하나는 의도적으로 남겼습니다.** 갈라놓은 기준은 **브로커와 무관하게 손해가 없는 일인가**입니다.
 
-- 패키지가 `infrastructure.config.event`입니다. 클래스 주석은 스스로를 "인바운드 어댑터"라고
-  부르지만, 헥사고날 규약대로면 `adapter.in` 쪽에 있어야 합니다.
-- `@SqsListener` 애노테이션과 처리 오케스트레이션(락 조회, 상태 판정, `afterCommit` 정리)을
-  한 클래스가 함께 쥡니다.
-- 어댑터 DTO인 `SageMakerNotificationDto`를 그대로 흐름에 밀어 넣습니다.
-- 그리고 무엇보다, **재시도 유도가 "예외를 던진다"는 SQS 특유의 계약에 묶여 있습니다**(§4-1).
+| 묶여 있던 지점 | 지금 |
+| --- | --- |
+| 패키지가 `infrastructure.config.event`였다. 클래스 주석은 스스로를 "인바운드 어댑터"라고 불렀지만 위치가 규약과 어긋났다 | **옮겼습니다** — `adapter.in.messaging`. 시간이 트리거인 `TaskTimeoutScheduler`, 기동 이벤트가 트리거인 `RedisGeoWarmUpListener`도 같은 이유로 `adapter.in` 아래로 왔습니다 |
+| `@SqsListener` 애노테이션과 처리 오케스트레이션(락 조회, 상태 판정, `afterCommit` 정리)을 한 클래스가 쥐고 있었다 | **갈랐습니다** — 전송 번역은 리스너, 처리 규칙과 트랜잭션 경계는 `AiNotificationService`(`HandleAiNotificationUseCase`) |
+| 어댑터 DTO인 `SageMakerNotificationDto`를 그대로 흐름에 밀어 넣었다 | **막았습니다** — 이 DTO는 리스너 밖으로 나가지 않고, 경계를 넘는 것은 `AiNotificationCommand`뿐입니다 |
+| **재시도 유도가 "예외를 던진다"는 SQS 특유의 계약에 묶여 있다**(§4-1) | **그대로 남겼습니다** |
 
-**그런데 이것을 지금 미리 추상화하지는 않았습니다.** 소비자가 하나뿐이고 교체 계획도 없는 상태에서
-포트를 먼저 뚫으면 **가짜 이식성**만 남기 때문입니다. `MessageConsumerPort` 같은 인터페이스는
-메서드 시그니처는 감춰 주지만 "예외를 던지면 5분 뒤 다시 온다"는 의미까지 감추지 못합니다.
-의미가 새는 추상화는 교체 시점에 어차피 다시 설계됩니다.
+앞의 셋은 **소비자가 몇 개든, 브로커가 무엇이든 어차피 이렇게 서 있어야 하는 모양**입니다. 실제로
+얻은 것도 이식성이 아니라 당장의 결합 해소였습니다 — 로컬 시뮬레이션용 `AiTestController`가 SQS 리스너
+빈을 직접 주입받던 우회 경로가 사라져, 두 진입점이 같은 포트 앞에서 만나게 됐습니다.
+
+**반면 네 번째는 여전히 미리 추상화하지 않았습니다.** 소비자가 하나뿐이고 교체 계획도 없는 상태에서
+`MessageConsumerPort` 같은 것을 먼저 뚫으면 **가짜 이식성**만 남기 때문입니다. 인터페이스는 메서드
+시그니처는 감춰 주지만 "예외를 던지면 5분 뒤 다시 온다"는 의미까지 감추지 못합니다. 지금
+`HandleAiNotificationUseCase`의 javadoc이 **"구현체는 예외를 삼키지 않아야 한다"**고 적어 둔 것이
+바로 그 새는 의미이고, 클래스를 갈라도 새는 곳은 그대로라는 증거이기도 합니다.
 
 진짜 교체에 필요한 것은 인터페이스가 아니라 **재시도 의미의 재설계**입니다. 그래서 이 항목은
 "언젠가 할 리팩터링"이 아니라 **§5의 트리거가 켜졌을 때 함께 할 일**로 남겨 둡니다.
-다만 패키지 위치를 옮기는 것만큼은 브로커와 무관하므로 먼저 해도 손해가 없습니다.
 
 ---
 
@@ -278,7 +283,8 @@ Kafka는 오프셋이 **파티션 단위**라 앞 레코드가 막히면 뒤가 
 | 주장 | 근거 |
 | --- | --- |
 | 백엔드는 큐에 발행하지 않는다 | [`aetheria-cdk.test.ts`](../../infra/test/aetheria-cdk.test.ts) — "백엔드는 큐를 소비만 한다" 케이스가 `sqs:ReceiveMessage` 포함과 `sqs:SendMessage` **미포함**을 함께 단언합니다 |
-| 재시도가 SQS 계약에 묶여 있다 | [`AiNotificationSqsListenerTest`](../../src/test/java/com/serverbe/infrastructure/config/event/AiNotificationSqsListenerTest.java) — PENDING에서 `AsyncRaceConditionException`이 던져지는지만 검증합니다. 재시도 자체는 검증 대상이 아닙니다(큐가 하므로) |
+| 재시도가 SQS 계약에 묶여 있다 | [`AiNotificationServiceTest`](../../src/test/java/com/serverbe/application/service/AiNotificationServiceTest.java) — PENDING에서 `AsyncRaceConditionException`이 던져지는지만 검증합니다. 재시도 자체는 검증 대상이 아닙니다(큐가 하므로) |
+| 예외가 리스너 밖으로 나간다 | [`AiNotificationSqsListenerTest`](../../src/test/java/com/serverbe/adapter/in/messaging/AiNotificationSqsListenerTest.java) — 유스케이스에서 올라온 예외를 리스너가 삼키지 않는지 단언합니다 |
 | 되감아도 원본이 없다 | `AiTaskResourceCleaner#cleanUp` + 버킷 라이프사이클 `expire-processed-requests`(30일) |
 | SNS가 Kafka로 배달할 수 없다 | [Amazon SNS `Subscribe` API](https://docs.aws.amazon.com/sns/latest/api/API_Subscribe.html)의 프로토콜 목록 |
 | 비용 기준선 | [`infra/README.md`](../../infra/README.md)의 월 비용 표, [Amazon MSK 요금](https://aws.amazon.com/msk/pricing/) |

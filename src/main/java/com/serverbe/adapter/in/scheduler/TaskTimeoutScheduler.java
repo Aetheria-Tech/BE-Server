@@ -1,4 +1,4 @@
-package com.serverbe.infrastructure.scheduler;
+package com.serverbe.adapter.in.scheduler;
 
 import com.serverbe.application.port.in.task.CleanupZombieTaskUseCase;
 import lombok.RequiredArgsConstructor;
@@ -8,12 +8,15 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
- * AI 작업 파이프라인의 타임아웃을 관리하고 좀비 태스크를 주기적으로 정리하는 인프라 계층의 스케줄러.
+ * AI 작업 파이프라인의 타임아웃을 관리하고 좀비 태스크를 주기적으로 정리하는 <b>인바운드 어댑터</b>.
  * <p>
  * <b>설계 원칙:</b><br>
- * 본 스케줄러는 인프라 계층(Infrastructure Layer)에 위치하며, 비즈니스 로직을 직접 수행하지 않습니다.
- * 대신 응용 계층(Application Layer)의 인바운드 포트인 {@link CleanupZombieTaskUseCase}를 호출하여
- * 제어 흐름을 도메인 로직으로 위임합니다.
+ * 시간이 트리거하는 진입점일 뿐 비즈니스 로직을 직접 수행하지 않습니다. 응용 계층의 인바운드 포트인
+ * {@link CleanupZombieTaskUseCase}를 호출해 제어 흐름을 도메인 로직으로 위임합니다.
+ * </p>
+ * <p>
+ * HTTP 요청 대신 시각이 흐름을 시작시킬 뿐, 컨트롤러와 방향이 같습니다. 그래서 인프라가 아니라
+ * {@code adapter.in}에 둡니다.
  * </p>
  */
 @Slf4j

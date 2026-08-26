@@ -1,7 +1,7 @@
 # 10. 배포하기 전에 잡은 기동 실패 — 자격증명이 없으면 뜨지 않는 SQS 리스너
 
 > 요약 · [README — 10. 배포하기 전에 잡은 기동 실패](../../README.md#10-배포하기-전에-잡은-기동-실패--자격증명이-없으면-뜨지-않는-sqs-리스너)
-> 근거 · [`AiNotificationSqsListener.java`](../../src/main/java/com/serverbe/infrastructure/config/event/AiNotificationSqsListener.java) · [`application.yml`](../../src/main/resources/application.yml) · [`docker-compose.yml`](../../docker-compose.yml) · [`build.gradle`](../../build.gradle)
+> 근거 · [`AiNotificationSqsListener.java`](../../src/main/java/com/serverbe/adapter/in/messaging/AiNotificationSqsListener.java) · [`application.yml`](../../src/main/resources/application.yml) · [`docker-compose.yml`](../../docker-compose.yml) · [`build.gradle`](../../build.gradle)
 > 커밋 · `7d983bc`
 
 ## 1. 상황 — 왜 배포 전에 띄워 봤나
@@ -84,7 +84,7 @@ public class AiNotificationSqsListener {
 
 | 대안 | 기각 이유 |
 | --- | --- |
-| 클래스에 `@Profile("prod")` | **쓸 수 없습니다.** [`AiTestController`](../../src/main/java/com/serverbe/adapter/in/web/AiTestController.java)가 바로 이 빈을 주입받아 로컬에서 AI 파이프라인을 시뮬레이션합니다. 리스너 빈이 사라지면 그 도구도 함께 죽습니다. |
+| 클래스에 `@Profile("prod")` | **당시엔 쓸 수 없었습니다.** [`AiTestController`](../../src/main/java/com/serverbe/adapter/in/web/AiTestController.java)가 바로 이 빈을 주입받아 로컬에서 AI 파이프라인을 시뮬레이션했기 때문입니다. 리스너 빈이 사라지면 그 도구도 함께 죽습니다. (지금은 그 결합이 없습니다. 그래도 결론은 같습니다 — 바로 아래 상자를 보세요.) |
 | 가짜 AWS 자격증명을 환경변수로 준다 | 자격증명 **해석**은 통과하지만 `GetQueueUrl`이 실제 AWS로 나가 인증 실패합니다. 문제를 한 단계 미룰 뿐입니다. |
 | LocalStack / ElasticMQ를 로컬 스택에 추가 | 가장 충실한 재현이지만, 로컬에서 앱 하나 띄우는 데 컨테이너와 큐 생성 스크립트가 더 필요해집니다. 이번 목적(이미지 기동 검증)에 비해 과합니다. 실제 SQS 소비 경로를 검증해야 할 때 다시 꺼낼 카드입니다. |
 | 리스너 메서드를 조건부로 등록하는 커스텀 설정 | `@SqsListener`는 애노테이션 기반이라 메서드 단위 조건부 등록이 자연스럽지 않습니다. 프레임워크가 이미 제공하는 스위치가 있습니다. |
@@ -107,6 +107,13 @@ spring:
         enabled: ${AWS_SQS_ENABLED:true}
 ```
 
+> 위 표의 첫 줄은 그 뒤 사정이 달라졌습니다. `AiTestController`는 이제 리스너가 아니라
+> `HandleAiNotificationUseCase`를 부르므로, 리스너 빈이 사라져도 시뮬레이션은 살아남습니다.
+> **그럼에도 아래 5장의 선택을 되돌리지 않았습니다** — `@Profile`은 "로컬에서 빈을 지우는" 해결이고,
+> 우리가 끄고 싶은 것은 빈이 아니라 **네트워크를 타는 폴링**이기 때문입니다. 프로파일로 막으면 로컬에서
+> 존재하지 않는 빈을 두고 통합 테스트를 짜게 됩니다. 결합이 사라졌다고 해서 결론이 바뀌지는 않는,
+> **기각 이유와 기각 결론이 따로 서 있는** 경우입니다.
+
 ### 왜 이 스위치가 정확히 맞는가
 
 `spring.cloud.aws.sqs.enabled=false`이면 SQS 자동 구성이 통째로 비활성화되고, 그 안에서 등록되던
@@ -114,12 +121,17 @@ spring:
 `@Component`로 선언된 리스너 빈은 **평범한 스프링 빈으로 남습니다.**
 
 즉 사라지는 것은 **네트워크를 타는 폴링뿐**이고, 비즈니스 로직은 그대로 테스트할 수 있습니다.
-`AiTestController`는 리스너 메서드를 직접 호출하므로 영향받지 않습니다.
+`AiTestController`는 큐를 거치지 않고 유스케이스를 직접 호출하므로 영향받지 않습니다.
 
 ```java
-// AiTestController.java — 리스너 빈을 직접 호출한다
-sqsListener.receiveAiTaskNotification(dummyMessage);
+// AiTestController.java — 큐를 건너뛰고 유스케이스로 바로 들어간다
+handleAiNotificationUseCase.handleNotification(
+        new AiNotificationCommand(taskId, completed, failureReason));
 ```
+
+> 이 줄은 원래 `sqsListener.receiveAiTaskNotification(dummyMessage)`였습니다. 웹 어댑터가 메시징
+> 어댑터를 주입받고 있었던 셈인데, 지금은 두 진입점이 같은 포트 앞에서 만납니다.
+> 배경은 [12번 문서 §7](12-why-not-kafka.md#7-남은-과제--무엇을-정리했고-무엇을-남겼나)에 있습니다.
 
 ### 기본값을 `true`로 둔 것이 핵심이다
 
@@ -211,8 +223,10 @@ docker compose exec mysql mysql -uroot -pletmein webflux \
 
 ## 8. 남은 과제
 
-- **실제 SQS 소비 경로는 로컬에서 검증되지 않습니다.** 지금 로컬에서 도는 것은 리스너 메서드 직접 호출
+- **실제 SQS 소비 경로는 로컬에서 검증되지 않습니다.** 지금 로컬에서 도는 것은 유스케이스 직접 호출
   (`mock-sqs-receive`)이지, 메시지 역직렬화·가시성 타임아웃·DLQ 이동을 포함한 전체 경로가 아닙니다.
-  이 경로까지 검증하려면 LocalStack이나 ElasticMQ가 필요합니다.
+  이 경로까지 검증하려면 LocalStack이나 ElasticMQ가 필요합니다. 리스너가 얇아진 지금은 **건너뛰는
+  구간이 더 명확해졌을 뿐** 여전히 건너뜁니다 — `SageMakerNotificationDto` 역직렬화와 Task ID 판정이
+  그 구간이고, 그래서 그 부분만은 단위 테스트로 따로 덮어 두었습니다.
 - `strategy CREATE`는 큐가 없으면 **만들려고 시도**합니다. 운영에서 큐 이름 오타가 나면 조용히 빈 큐가
   생겨 메시지를 영영 받지 못하는 상황이 가능합니다. 조회 전용 전략으로 바꾸는 편이 안전합니다.

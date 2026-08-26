@@ -1,4 +1,4 @@
-package com.serverbe.adapter.in.web.dto.sqs;
+package com.serverbe.adapter.in.messaging.dto;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 

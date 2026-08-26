@@ -1,7 +1,8 @@
 # 3. SQS 콜백 경합 조건 — 비관적 락과 재시도 유도
 
 > 요약 · [README — 3. SQS 콜백 경합 조건](../../README.md#3-sqs-콜백-경합-조건--비관적-락과-재시도-유도)
-> 근거 · [`AiNotificationSqsListener.java`](../../src/main/java/com/serverbe/infrastructure/config/event/AiNotificationSqsListener.java) · [`JpaAiTaskRepository.java`](../../src/main/java/com/serverbe/adapter/out/persistence/task/JpaAiTaskRepository.java) · [`AsyncRaceConditionException.java`](../../src/main/java/com/serverbe/domain/exception/server/AsyncRaceConditionException.java)
+> 근거 · [`AiNotificationService.java`](../../src/main/java/com/serverbe/application/service/AiNotificationService.java) ·
+> [`AiNotificationSqsListener.java`](../../src/main/java/com/serverbe/adapter/in/messaging/AiNotificationSqsListener.java) · [`JpaAiTaskRepository.java`](../../src/main/java/com/serverbe/adapter/out/persistence/task/JpaAiTaskRepository.java) · [`AsyncRaceConditionException.java`](../../src/main/java/com/serverbe/domain/exception/server/AsyncRaceConditionException.java)
 > 커밋 · `51cf87f`, `cae72bf`
 
 ## 1. 상황
@@ -68,9 +69,15 @@ sequenceDiagram
 
 ## 5. 해결
 
+> **읽기 전 참고 —** 아래 설계는 당시 `AiNotificationSqsListener` 한 클래스 안에 있었습니다. 지금은
+> 전송 번역(리스너)과 처리 규칙(`AiNotificationService`)으로 갈라져 있고, 코드 인용은 현재 위치를
+> 기준으로 합니다. **판단 자체는 하나도 바뀌지 않았습니다.** 왜 갈랐는지는
+> [12번 문서 §7](12-why-not-kafka.md#7-남은-과제--무엇을-정리했고-무엇을-남겼나),
+> 지금의 배치는 [SQS 메시지 흐름](../architecture/sqs-message-flow.md)에 있습니다.
+
 ### 5-1. 비관적 락으로 직렬화
 
-리스너 메서드를 `@Transactional`로 묶고, 조회 자체를 `SELECT ... FOR UPDATE`로 바꿨습니다.
+알림 처리 메서드를 `@Transactional`로 묶고, 조회 자체를 `SELECT ... FOR UPDATE`로 바꿨습니다.
 
 ```java
 // JpaAiTaskRepository.java
@@ -79,13 +86,13 @@ sequenceDiagram
 Optional<AiTaskEntity> findByIdForUpdate(@Param("id") String id);
 ```
 
-`@Transactional`이 없으면 락은 조회 직후 곧바로 풀립니다. 그래서 리스너의 애노테이션에는 주석이 붙어
-있습니다 — `@Transactional // 비관적 락을 유지하기 위해 반드시 트랜잭션이 필요합니다!`
+`@Transactional`이 없으면 락은 조회 직후 곧바로 풀립니다. 그래서 `handleNotification`의 애노테이션에는
+주석이 붙어 있습니다 — `@Transactional // 비관적 락을 유지하기 위해 반드시 트랜잭션이 필요합니다!`
 
 ### 5-2. `PENDING`이면 예외를 던져 재시도를 유도
 
 락을 잡아도 (a)는 남습니다. 요청 스레드가 아직 `PROCESSING`을 **저장조차 하지 않은** 상태라면,
-리스너가 락을 먼저 잡고 `PENDING`을 보게 됩니다. 이때는 실패로 확정하지 않고 예외를 던집니다.
+알림 처리 쪽이 락을 먼저 잡고 `PENDING`을 보게 됩니다. 이때는 실패로 확정하지 않고 예외를 던집니다.
 
 ```java
 // [경합 조건 방어] 메인 스레드가 아직 PROCESSING으로 상태를 업데이트하지 못했다면 재시도를 유도합니다.
@@ -159,7 +166,8 @@ private void cleanUpResourcesAfterCommit(AiTask task) {
 
 ### 5-5. Task ID는 `inferenceId`에서 먼저 찾는다
 
-경합과는 별개지만 같은 리스너에서 함께 잡은 문제입니다. 초기 구현은 결과물 S3 경로를 파싱해 Task ID를
+경합과는 별개지만 같은 수신 경로에서 함께 잡은 문제입니다. 이 판정은 지금도 리스너에 남아 있습니다 —
+메시지 형식을 읽는 일이기 때문입니다. 초기 구현은 결과물 S3 경로를 파싱해 Task ID를
 얻었습니다. 그런데 **실패 알림은 성공 알림과 페이로드 구조가 달라 결과물 경로가 아예 없습니다.**
 경로 파싱에만 의존하면 추론 실패가 DB에 기록되지 못한 채 **전량 DLQ로 빠집니다.**
 
@@ -177,11 +185,14 @@ private void cleanUpResourcesAfterCommit(AiTask task) {
 
 ## 6. 검증
 
-- **단위 테스트** — [`AiNotificationSqsListenerTest.java`](../../src/test/java/com/serverbe/infrastructure/config/event/AiNotificationSqsListenerTest.java)
+- **단위 테스트** — [`AiNotificationServiceTest.java`](../../src/test/java/com/serverbe/application/service/AiNotificationServiceTest.java)
   가 `PENDING` 진입 시 `AsyncRaceConditionException`이 던져지는지, 종결 상태에서 결과 등록이
-  호출되지 않고 자원 정리만 수행되는지를 검증합니다. (`./gradlew test`)
+  호출되지 않고 자원 정리만 수행되는지를 검증합니다.
+  [`AiNotificationSqsListenerTest.java`](../../src/test/java/com/serverbe/adapter/in/messaging/AiNotificationSqsListenerTest.java)
+  는 그 앞단, 즉 `inferenceId` 우선 판정과 **예외가 삼켜지지 않고 리스너 밖으로 나가는지**를 맡습니다.
+  (`./gradlew test`)
 - **AWS 없이 전체 흐름 재현** — 로컬/개발 프로파일 전용 시뮬레이션 엔드포인트로 SQS를 거치지 않고
-  리스너를 직접 호출할 수 있습니다.
+  유스케이스를 직접 호출할 수 있습니다.
 
   ```bash
   curl -X POST "http://localhost:8080/api/v1/test/ai/tasks/{taskId}/mock-sqs-receive?status=Completed"

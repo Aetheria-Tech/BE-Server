@@ -1,10 +1,15 @@
 package com.serverbe.architecture;
 
+import com.tngtech.archunit.base.DescribedPredicate;
+import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
 import com.tngtech.archunit.lang.ArchRule;
 
+import java.util.Set;
+
+import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
 /**
@@ -62,4 +67,38 @@ class LayerDependencyTest {
             .that().resideInAPackage("com.serverbe.adapter.in..")
             .should().dependOnClassesThat()
             .resideInAPackage("com.serverbe.adapter.out..");
+
+    /**
+     * 흐름을 <b>바깥에서 시작시키는 것</b>은 전부 인바운드 어댑터입니다. 트리거가 HTTP 요청인지,
+     * 큐 메시지인지, 시각인지, 스프링 생명주기 이벤트인지는 <b>방향을 바꾸지 않습니다.</b>
+     *
+     * @implNote 이 규칙이 켜지기 전까지 SQS 리스너는 {@code infrastructure.config.event}에,
+     * 좀비 태스크 스케줄러는 {@code infrastructure.scheduler}에 있었습니다. 세 클래스 모두 주석으로는
+     * 스스로를 "인바운드 어댑터"라고 부르면서 위치는 인프라였습니다. 주석이 아니라 위치가 사실이어야
+     * 합니다. 다만 {@code @PostConstruct}로 프레임워크 내부 이벤트를 구독하는 것(예:
+     * {@code CircuitBreakerEventListener})은 진입점이 아니라 관측이므로 여기에 걸리지 않습니다.
+     */
+    @ArchTest
+    static final ArchRule 바깥이_흐름을_시작시키면_인바운드_어댑터다 = classes()
+            .that(haveMethodAnnotatedWithAnyOf(
+                    "io.awspring.cloud.sqs.annotation.SqsListener",
+                    "org.springframework.scheduling.annotation.Scheduled",
+                    "org.springframework.context.event.EventListener"))
+            .should().resideInAPackage("com.serverbe.adapter.in..");
+
+    /**
+     * 메서드에 붙은 애노테이션까지 봐야 하므로 ArchUnit 기본 술어로는 표현되지 않습니다.
+     * 클래스 단위 애노테이션과 달리 {@code @SqsListener}·{@code @Scheduled}는 메서드에 붙습니다.
+     */
+    private static DescribedPredicate<JavaClass> haveMethodAnnotatedWithAnyOf(String... annotationNames) {
+        Set<String> names = Set.of(annotationNames);
+        return new DescribedPredicate<>("메서드에 " + String.join(" · ", annotationNames) + " 중 하나가 붙어 있다") {
+            @Override
+            public boolean test(JavaClass javaClass) {
+                return javaClass.getMethods().stream()
+                        .flatMap(method -> method.getAnnotations().stream())
+                        .anyMatch(annotation -> names.contains(annotation.getRawType().getName()));
+            }
+        };
+    }
 }

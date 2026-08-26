@@ -152,6 +152,8 @@ sequenceDiagram
 
 > **10분이 지나도 콜백이 오지 않는 좀비 태스크**는 5분 주기 스케줄러가 회수해 `FAILED` 처리하고 클라이언트에 실패 알림을 보냅니다. (`TaskTimeoutScheduler`)
 
+위 시퀀스가 `메시지 수신` 한 줄로 압축한 구간 — **콜백 하나가 갈라지는 다섯 갈래, 예외가 곧 재시도가 되는 이유, 트랜잭션 커밋 선의 위치, 콜백이 영영 오지 않을 때의 회수** — 은 [SQS 메시지 흐름 — 콜백 한 건이 지나가는 길](docs/architecture/sqs-message-flow.md)에 따로 그려 두었습니다.
+
 ---
 
 ## 기술적 의사결정 및 트러블슈팅
@@ -189,17 +191,17 @@ sequenceDiagram
 
 ### 3. SQS 콜백 경합 조건 — 비관적 락과 재시도 유도
 
-**문제** · SageMaker 추론이 매우 빨리 끝나면, **완료 콜백이 서버가 `PROCESSING` 상태를 저장하기도 전에 도착**합니다. 리스너는 아직 `PENDING` 상태인 태스크를 보고 실패 처리해 버립니다. 반대로 SQS의 at-least-once 특성 때문에 동일 메시지가 중복 수신되어 러닝 아트가 두 번 저장되는 문제도 있었습니다.
+**문제** · SageMaker 추론이 매우 빨리 끝나면, **완료 콜백이 서버가 `PROCESSING` 상태를 저장하기도 전에 도착**합니다. 콜백 처리 쪽은 아직 `PENDING` 상태인 태스크를 보고 실패 처리해 버립니다. 반대로 SQS의 at-least-once 특성 때문에 동일 메시지가 중복 수신되어 러닝 아트가 두 번 저장되는 문제도 있었습니다.
 
 **원인** · 요청 스레드와 SQS 리스너 스레드가 **동일한 `AiTask` 레코드에 순서 보장 없이 접근**하는 전형적인 경합 조건입니다.
 
 **해결**
 
-- 리스너를 `@Transactional`로 묶고 **비관적 락**으로 태스크를 조회해 동시 접근을 직렬화했습니다.
+- 알림 처리 메서드를 `@Transactional`로 묶고 **비관적 락**으로 태스크를 조회해 동시 접근을 직렬화했습니다.
 - 상태가 아직 `PENDING`이면 예외를 던져 **SQS 가시성 타임아웃 후 자연스럽게 재시도**되도록 유도했습니다. 이미 `COMPLETED`면 멱등하게 스킵합니다.
 - 최종적으로 처리에 실패한 메시지는 예외를 그대로 전파해 **DLQ로 이동**시켜 유실을 방지했습니다.
 
-> 근거 · [`AiNotificationSqsListener.java`](src/main/java/com/serverbe/infrastructure/config/event/AiNotificationSqsListener.java) · 커밋 `51cf87f`, `cae72bf`
+> 근거 · [`AiNotificationService.java`](src/main/java/com/serverbe/application/service/AiNotificationService.java) · [`AiNotificationSqsListener.java`](src/main/java/com/serverbe/adapter/in/messaging/AiNotificationSqsListener.java) · 커밋 `51cf87f`, `cae72bf`
 >
 > 자세히 · [SQS 콜백 경합 조건 — 비관적 락과 재시도 유도](docs/troubleshooting/03-sqs-callback-race-condition.md)
 
@@ -216,7 +218,7 @@ sequenceDiagram
 - `lockAtLeastFor = 4m` — 작업이 1초 만에 끝나 락이 즉시 풀리면, **서버 간 NTP 시계 오차(1~2초)** 로 뒤늦게 트리거된 다른 인스턴스가 중복 실행합니다. 실행 주기(5분)보다 약간 짧게 잡아 이를 차단했습니다.
 - `lockAtMostFor = 10m` — 락을 쥔 서버가 OOM 등으로 죽었을 때 **락이 영구히 남는 데드락**을 방지하는 안전장치입니다.
 
-> 근거 · [`TaskTimeoutScheduler.java`](src/main/java/com/serverbe/infrastructure/scheduler/TaskTimeoutScheduler.java) · 커밋 `9423dbb`, `db03584`
+> 근거 · [`TaskTimeoutScheduler.java`](src/main/java/com/serverbe/adapter/in/scheduler/TaskTimeoutScheduler.java) · 커밋 `9423dbb`, `db03584`
 >
 > 자세히 · [스케줄러 중복 실행 — ShedLock 분산 락](docs/troubleshooting/04-scheduler-duplicate-shedlock.md)
 
@@ -233,7 +235,7 @@ sequenceDiagram
 - **선언적 적용** — `@RateLimit(target = IP, capacity = 10, refillRate = 5)` 형태의 반복 가능(`@Repeatable`) 애노테이션과 AOP로, 엔드포인트마다 IP·USER 정책을 동시에 걸 수 있게 했습니다.
 - **Redis 장애 대응** — Rate Limiter가 죽었다고 서비스 전체가 멈춰선 안 됩니다. Resilience4j 서킷 브레이커로 감싸고, 폴백에서는 **Caffeine 로컬 캐시로 축소된 방어선**을 유지합니다. 사용자 단위는 로컬 카운팅으로 계속 차단하고, IP 단위는 Fail-Open으로 가용성을 우선합니다.
 
-> 근거 · [`token_bucket.lua`](src/main/resources/scripts/token_bucket.lua), [`RateLimiterService.java`](src/main/java/com/serverbe/application/service/RateLimiterService.java), [`RateLimitAspect.java`](src/main/java/com/serverbe/infrastructure/config/aop/RateLimitAspect.java), [`RateLimitFallbackHandler.java`](src/main/java/com/serverbe/application/service/fallback/RateLimitFallbackHandler.java) · 커밋 `2ad20c4`
+> 근거 · [`token_bucket.lua`](src/main/resources/scripts/token_bucket.lua), [`RateLimiterService.java`](src/main/java/com/serverbe/application/service/RateLimiterService.java), [`RateLimitAspect.java`](src/main/java/com/serverbe/infrastructure/config/aop/RateLimitAspect.java), [`RateLimitFallbackHandler.java`](src/main/java/com/serverbe/adapter/out/persistence/ratelimit/RateLimitFallbackHandler.java) · 커밋 `2ad20c4`
 >
 > 자세히 · [Rate Limiting — Lua 원자적 토큰 버킷](docs/troubleshooting/05-rate-limit-lua-token-bucket.md)
 
@@ -365,7 +367,7 @@ Caused by: software.amazon.awssdk.core.exception.SdkClientException:
 
 같은 문제가 테스트에서는 더 나쁜 모양으로 나타났습니다. 리눅스 컨테이너에서는 자격증명 체인이 몇 초 만에 예외로 떨어졌지만, 개발 PC에서 `gradlew integrationTest`를 돌렸을 때는 **15분 넘게 로그 한 줄 없이 멈춰** 있었습니다. 기동 실패보다 무한 대기가 진단하기 훨씬 어렵습니다.
 
-**해결** · 클래스를 `@Profile("prod")`로 막는 선택지는 쓸 수 없었습니다. `AiTestController`가 바로 이 빈을 주입받아 로컬에서 AI 파이프라인을 시뮬레이션하기 때문입니다. 리스너 빈은 살려 두고 **폴링 컨테이너만** 끕니다.
+**해결** · 클래스를 `@Profile("prod")`로 막는 선택지는 쓸 수 없었습니다. 당시 `AiTestController`가 바로 이 빈을 주입받아 로컬에서 AI 파이프라인을 시뮬레이션했기 때문입니다. 리스너 빈은 살려 두고 **폴링 컨테이너만** 끕니다. (그 결합은 이후 리팩터링으로 사라졌지만 결론은 그대로입니다 — 끄고 싶은 것은 빈이 아니라 네트워크를 타는 폴링이니까요.)
 
 ```yaml
 spring.cloud.aws.sqs.enabled: ${AWS_SQS_ENABLED:true}
@@ -383,9 +385,29 @@ spring.cloud.aws.sqs.enabled: ${AWS_SQS_ENABLED:true}
 
 **검증 결과** · 빈 볼륨에서 `docker compose up -d --build` 한 번으로 Flyway `V1`~`V5`가 모두 적용되고 Hibernate `validate`를 통과하며, 약 10초 만에 `/actuator/health/alb`가 200을 돌려줍니다. 컨테이너는 비루트 유저(`uid=999(spring)`)로 돕니다.
 
-> 근거 · [`docker-compose.yml`](docker-compose.yml), [`application.yml`](src/main/resources/application.yml), [`AiNotificationSqsListener.java`](src/main/java/com/serverbe/infrastructure/config/event/AiNotificationSqsListener.java)
+> 근거 · [`docker-compose.yml`](docker-compose.yml), [`application.yml`](src/main/resources/application.yml), [`AiNotificationSqsListener.java`](src/main/java/com/serverbe/adapter/in/messaging/AiNotificationSqsListener.java)
 >
 > 자세히 · [배포 전에 잡은 기동 실패 — SQS 리스너](docs/troubleshooting/10-sqs-listener-startup-failure.md)
+
+---
+
+### 메시지 브로커 선택 — 왜 SQS를 유지하고 Kafka로 가지 않았나
+
+앞의 1~10번이 겪은 장애의 기록이라면, 이 항목은 **내리지 않은 결정**의 기록입니다. "메시지 큐를 쓰는데 왜 Kafka가 아닌가"는 정당한 질문이고, 그 답을 근거와 함께 남겨 둡니다.
+
+**전제** · 이 서버는 **SQS에 메시지를 넣은 적이 없습니다.** `SqsTemplate`도 `sendMessage` 호출도 코드에 없고, CDK가 태스크 역할에 `sqs:SendMessage`를 **의도적으로 주지 않습니다.** 발행 주체는 SageMaker 비동기 추론이고, 그 `NotificationConfig`는 **SNS 토픽 ARN만** 받으므로 토픽 2개(성공/실패)가 알림 큐를 구독하는 형태가 됩니다. 즉 우리가 한 일은 큐를 고른 것이 아니라 **콜백을 받은 것**입니다.
+
+**그래서 Kafka 전환은 교체가 아니라 추가다** · SNS가 배달할 수 있는 대상 목록(`sqs` / `lambda` / `firehose` / `http(s)` / `email` / `sms` / `application`)에 **Kafka는 없습니다.** 전환하려면 `SNS → Lambda → Kafka Producer` 브릿지를 우리가 짜서 끼워 넣어야 하고, 그 순간 **실패 경로가 두 벌**이 됩니다 — 브릿지가 브로커에 넣지 못했을 때와 컨슈머가 처리하지 못했을 때. 지금은 큐 하나에 붙은 `maxReceiveCount: 3`과 DLQ 하나가 그 둘을 함께 덮습니다.
+
+**Kafka의 진짜 이점은 replay인데, 여기서는 무효다** · 순서 보장은 쓸 자리가 없고(콜백은 `inferenceId` 단건이라 FIFO 큐조차 고르지 않았습니다), 팬아웃은 이미 앞단의 SNS가 담당합니다. 남는 유일한 이점은 **오프셋 되감기**입니다. 그런데 메시지가 실어 나르는 것은 결과물이 아니라 **결과물의 주소**이고, 그 S3 객체는 처리 직후 삭제되며 라이프사이클이 30일 뒤 만료시킵니다. **되감아도 원본이 없습니다.** 여기서 나오는 규칙 — **replay 가능 여부는 브로커가 아니라 원본 데이터의 보존 정책이 결정합니다.**
+
+**결정타는 재시도 의미다** · 3번 항목의 핵심 설계, 즉 `PENDING`이면 예외를 던져 ack를 막고 5분 뒤 다시 받는 방식은 **Kafka에 그대로 이식되지 않습니다.** 그 코드가 동작하는 이유는 자바가 아니라 큐의 `visibilityTimeout: 5분`에 있습니다. **지연 재시도 스케줄러를 큐가 대신 갖고 있는 셈**이라 우리 코드에는 재시도 상태도 백오프 계산도 없습니다. Kafka 컨슈머는 예외를 던지면 같은 레코드를 **즉시** 다시 읽고 그 파티션이 그 자리에서 멈춥니다. 5분 지연 재시도를 원하면 `retry` 토픽과 지연 소비 컨슈머를 따로 만들어야 합니다. 여기에 **파티션 단위 head-of-line blocking**(건당 수 초가 걸리는 처리라 더 아픕니다)과, 유휴 상태에서도 월 $540 선인 MSK 상시 비용(현재 인프라 총액은 월 $115~125)이 더해집니다.
+
+**그래서 언제 다시 검토하나** · 결정을 닫아 두지 않기 위해 트리거를 명시했습니다 — ① 늦게 합류한 소비자가 **과거 이력을 처음부터** 읽어야 할 때(SNS 팬아웃이 못 하는 유일한 것입니다), ② 발행자가 우리 코드가 되어 도메인 이벤트를 로그로 쌓게 될 때, ③ S3 보존 기간이 길어져 replay가 실제 의미를 가질 때, ④ 메시지 수가 브로커 상시 비용을 넘어설 때. 함께 남긴 과제도 있습니다 — 지금 리스너는 `@SqsListener`와 처리 오케스트레이션을 한 클래스에 쥐고 있어 교체가 쉽지 않습니다. 그럼에도 **미리 포트를 뚫지 않은 이유**는, 인터페이스가 시그니처는 감춰도 "예외를 던지면 5분 뒤 다시 온다"는 의미까지는 감추지 못해 **가짜 이식성**만 남기 때문입니다.
+
+> 근거 · [`app-stack.ts`](infra/lib/app-stack.ts), [`AiNotificationService.java`](src/main/java/com/serverbe/application/service/AiNotificationService.java), [`AiNotificationSqsListener.java`](src/main/java/com/serverbe/adapter/in/messaging/AiNotificationSqsListener.java), [`AiTaskResourceCleaner.java`](src/main/java/com/serverbe/application/service/helper/AiTaskResourceCleaner.java)
+>
+> 자세히 · [메시지 브로커 선택 — 왜 Kafka가 아닌가](docs/troubleshooting/12-why-not-kafka.md)
 
 ---
 
@@ -399,7 +421,7 @@ spring.cloud.aws.sqs.enabled: ${AWS_SQS_ENABLED:true}
 - **PII 필드 암호화와 무중단 키 교체** — 이메일 등 민감 정보를 JPA `AttributeConverter`로 **AES-GCM 자동 암복호화**합니다. 암호문에 키 버전을 새겨두고, 구버전 키로 암호화된 데이터를 읽으면 마이그레이션 대상으로 표시해 점진적으로 재암호화합니다. ([`CryptoConverter.java`](src/main/java/com/serverbe/adapter/out/persistence/converter/CryptoConverter.java), [`AesGcmEncryptor.java`](src/main/java/com/serverbe/infrastructure/crypto/AesGcmEncryptor.java))
 - **DB 커넥션 풀 보호** — AI 결과 처리는 S3 다운로드·삭제, SSE 발송 등 긴 네트워크 I/O를 포함합니다. 메서드 전체에 `@Transactional`을 걸면 그동안 커넥션을 점유해 풀이 고갈됩니다. `TransactionTemplate`으로 **DB 쓰기 구간만** 원자적으로 감싸고 외부 I/O는 트랜잭션 밖으로 뺐습니다. ([`AiResultRetrievalService.java`](src/main/java/com/serverbe/application/service/AiResultRetrievalService.java))
 - **준영속 엔티티가 부른 불필요한 SELECT** — 도메인 모델이 불변이라 상태 전이는 항상 "조회 → 값 이관 → 저장"으로 이뤄집니다. 이때 트랜잭션 없이 저장을 호출하면 어댑터의 `findById`가 자기 트랜잭션을 열고 닫아 엔티티가 **준영속** 상태가 되고, 이어지는 저장이 merge를 유발해 **SELECT 두 번 + UPDATE 한 번**이 나갑니다. 상태 전이 구간을 `TransactionTemplate`으로 묶어 조회 결과가 관리 상태로 남도록 했습니다. 반대로 **신규 생성(INSERT) 경로에는 일부러 적용하지 않았습니다** — 그쪽은 `active_user_id` 유니크 위반을 어댑터의 `catch`에서 `DUPLICATE_AI_REQUEST`로 변환하는데, 바깥 트랜잭션이 있으면 위반이 **커밋 시점으로 밀려** 그 `catch`를 그대로 빠져나가기 때문입니다. ([`AiGenerationService.java`](src/main/java/com/serverbe/application/service/AiGenerationService.java))
-- **다중 인스턴스 SSE** — SSE 연결은 특정 인스턴스에 고정되지만 완료 이벤트는 다른 인스턴스에서 발생할 수 있습니다. Redis Pub/Sub으로 이벤트를 브로드캐스트해 어느 인스턴스가 받든 올바른 클라이언트에게 전달되도록 했습니다. ([`SseNotificationAdapter.java`](src/main/java/com/serverbe/adapter/out/notification/SseNotificationAdapter.java), [`SseRedisSubscriber.java`](src/main/java/com/serverbe/adapter/out/notification/SseRedisSubscriber.java))
+- **다중 인스턴스 SSE** — SSE 연결은 특정 인스턴스에 고정되지만 완료 이벤트는 다른 인스턴스에서 발생할 수 있습니다. Redis Pub/Sub으로 이벤트를 브로드캐스트해 어느 인스턴스가 받든 올바른 클라이언트에게 전달되도록 했습니다. ([`SseRedisPublishAdapter.java`](src/main/java/com/serverbe/adapter/out/notification/SseRedisPublishAdapter.java), [`SseRedisMessageListener.java`](src/main/java/com/serverbe/adapter/in/messaging/SseRedisMessageListener.java), [`SseEmitterRegistry.java`](src/main/java/com/serverbe/adapter/in/web/sse/SseEmitterRegistry.java))
 - **스키마 관리를 `ddl-auto`에서 Flyway로 이관** — 동시 요청을 막는 유니크 제약을 추가하면서 `ddl-auto: update`에 맡길 수 없다고 판단했습니다. Hibernate의 `update`는 컬럼 추가는 해주지만 **기존 테이블에 유니크 제약을 붙여준다는 보장이 없고, 새 컬럼에 기존 행을 백필할 수도 없습니다.** 실제로 마이그레이션 대상 DB에는 한 사용자에게 진행 중 작업이 7건 쌓여 있어, 정리 없이는 유니크 인덱스 생성 자체가 실패하는 상태였습니다. `기존 중복 정리 → 컬럼 추가 → 백필 → 제약 생성` 순서를 명시적 SQL로 작성하고 `ddl-auto`는 `validate`로 낮춰, 스키마 변경 권한을 한 곳으로 모았습니다. 이후 소셜 계정 유니크 제약(7번 항목)을 추가할 때도 `기존 중복 정리 → 자식 데이터 이관 → 제약 생성`이라는 같은 순서를 그대로 따랐습니다. ([`V2__add_active_task_slot.sql`](src/main/resources/db/migration/V2__add_active_task_slot.sql), [`V3__add_users_oauth_unique.sql`](src/main/resources/db/migration/V3__add_users_oauth_unique.sql))
 - **표준화된 에러 응답** — 도메인별 `ErrorCode` enum과 `BusinessException` 계층을 정의하고 `@RestControllerAdvice`에서 일괄 변환해, 모든 API가 동일한 응답 포맷을 갖도록 했습니다. ([`BusinessExceptionHandler.java`](src/main/java/com/serverbe/infrastructure/error/BusinessExceptionHandler.java), [`RestApiResponse.java`](src/main/java/com/serverbe/infrastructure/common/response/RestApiResponse.java))
 

@@ -144,7 +144,7 @@ AI 결과 처리는 S3 다운로드, S3 삭제, SSE 발송 등 **긴 네트워�
 
 ## 7. 다중 인스턴스 SSE
 
-> [`SseNotificationAdapter.java`](../../src/main/java/com/serverbe/adapter/out/notification/SseNotificationAdapter.java) · [`SseRedisSubscriber.java`](../../src/main/java/com/serverbe/adapter/out/notification/SseRedisSubscriber.java) · [`RedisPubSubConfig.java`](../../src/main/java/com/serverbe/infrastructure/config/RedisPubSubConfig.java)
+> [`SseRedisPublishAdapter.java`](../../src/main/java/com/serverbe/adapter/out/notification/SseRedisPublishAdapter.java) · [`SseRedisMessageListener.java`](../../src/main/java/com/serverbe/adapter/in/messaging/SseRedisMessageListener.java) · [`SseEmitterRegistry.java`](../../src/main/java/com/serverbe/adapter/in/web/sse/SseEmitterRegistry.java) · [`RedisPubSubConfig.java`](../../src/main/java/com/serverbe/infrastructure/config/RedisPubSubConfig.java)
 
 SSE 연결은 **특정 인스턴스의 메모리**에 고정됩니다(`Map<String, Set<SseEmitter>>`).
 그런데 완료 이벤트는 **다른 인스턴스**에서 발생할 수 있습니다. SQS 메시지를 어느 태스크가 받을지
@@ -155,6 +155,13 @@ SSE 연결은 **특정 인스턴스의 메모리**에 고정됩니다(`Map<Strin
 
 Redis Pub/Sub으로 이벤트를 브로드캐스트해, **어느 인스턴스가 받든 모든 인스턴스가 듣고**
 자기 메모리에 해당 클라이언트가 있으면 발송합니다.
+
+이 세 가지 — 커넥션 보관, Redis 발행, Redis 수신 후 전송 — 는 원래 `SseNotificationAdapter` 한 클래스에
+있었습니다. 그 탓에 아웃바운드 포트인 `TaskNotificationPort`가 `SseEmitter`(spring-webmvc 타입)를
+시그니처에 노출했습니다. 지금은 **방향에 맞게 셋으로 나뉘어 있습니다** — 발행만 하는
+`SseRedisPublishAdapter`(아웃바운드), 수신하는 `SseRedisMessageListener`(인바운드), 커넥션을 들고 있는
+`SseEmitterRegistry`(웹). 발행측과 수신측이 함께 쓰는 `SsePubSubMessage`는 어느 한쪽 어댑터에 두면
+`adapter.in → adapter.out` 의존이 생기므로 포트 DTO로 올렸습니다.
 
 ```java
 redisTemplate.convertAndSend(sseChannel, jsonMessage);
@@ -167,16 +174,16 @@ redisTemplate.convertAndSend(sseChannel, jsonMessage);
 **왜 sticky session이 아닌가** — ALB 세션 어피니티로 붙이면 인스턴스가 교체될 때(롤링 배포마다 일어납니다)
 연결이 끊깁니다. 그리고 **이벤트를 만든 쪽과 연결을 가진 쪽이 다르다는 문제는 그대로**입니다.
 
-### 남은 과제 — 채널 이름이 두 곳에서 정의된다
+### 함께 고친 것 — 채널 이름이 두 곳에서 정의되고 있었다
 
-발행 측은 `application.yml`의 `sse.channel`을 읽습니다.
+발행 측은 `application.yml`의 `sse.channel`을 읽었습니다.
 
 ```yaml
 sse:
   channel: "sse-notifications"
 ```
 
-구독 측은 **하드코딩**되어 있습니다.
+구독 측은 **하드코딩**되어 있었습니다.
 
 ```java
 @Bean
@@ -185,9 +192,12 @@ public ChannelTopic sseTopic() {
 }
 ```
 
-지금은 값이 같아 정상 동작합니다. 하지만 **yml만 바꾸면 발행과 구독이 서로 다른 채널을 보게 되고,
-그때 증상은 "알림이 안 온다"뿐**입니다. 예외도 로그도 남지 않습니다.
-`SseProperties`를 주입해 한 곳에서 읽도록 바꾸는 편이 안전합니다.
+두 값이 우연히 같아 동작했을 뿐입니다. **yml만 바꾸면 발행과 구독이 서로 다른 채널을 보게 되고,
+그때 증상은 "알림이 안 온다"뿐**입니다. 예외도 로그도 남지 않습니다. 위 분해 작업과 함께
+`RedisPubSubConfig`도 `SseProperties`를 주입받아, 지금은 채널 이름을 **한 곳에서만** 읽습니다.
+
+> **설정값이 두 곳에 있으면 그 둘이 어긋난 날 침묵으로 실패합니다.** 하드코딩된 쪽이 틀린 게 아니라
+> **두 곳에 있다는 것 자체가 결함**입니다.
 
 ---
 

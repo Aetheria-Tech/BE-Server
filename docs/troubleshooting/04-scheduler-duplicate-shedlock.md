@@ -1,7 +1,7 @@
 # 4. 스케줄러 중복 실행 — ShedLock 분산 락
 
 > 요약 · [README — 4. 스케줄러 중복 실행](../../README.md#4-스케줄러-중복-실행--shedlock-분산-락)
-> 근거 · [`TaskTimeoutScheduler.java`](../../src/main/java/com/serverbe/infrastructure/scheduler/TaskTimeoutScheduler.java) · [`ShedLockConfig.java`](../../src/main/java/com/serverbe/infrastructure/config/ShedLockConfig.java)
+> 근거 · [`TaskTimeoutScheduler.java`](../../src/main/java/com/serverbe/adapter/in/scheduler/TaskTimeoutScheduler.java) · [`ShedLockConfig.java`](../../src/main/java/com/serverbe/infrastructure/config/ShedLockConfig.java)
 > 커밋 · `9423dbb`, `db03584`
 
 ## 1. 상황
