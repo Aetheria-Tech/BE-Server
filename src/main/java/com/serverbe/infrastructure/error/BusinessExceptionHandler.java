@@ -2,6 +2,7 @@ package com.serverbe.infrastructure.error;
 
 import com.serverbe.domain.exception.BusinessException;
 import com.serverbe.domain.exception.auth.AuthErrorCode;
+import com.serverbe.domain.exception.server.AsyncRaceConditionException;
 import com.serverbe.domain.exception.server.DataIntegrityViolationException;
 import com.serverbe.domain.exception.server.RateLimitExceededException;
 import com.serverbe.domain.exception.server.ServerErrorCode;
@@ -195,5 +196,19 @@ public class BusinessExceptionHandler {
     public void handleClientAbortException(ClientAbortException e) {
         log.warn("클라이언트 연결 중단: {}", e.getMessage());
         // 별도의 응답 객체를 반환하지 않음
+    }
+
+    /**
+     * @param e 비동기 경합 조건 예외
+     * @responsibility HTTP 클라이언트 요청 처리 중 상태 업데이트 경합(Race Condition)이 발생했을 때 409 Conflict 에러를 반환합니다.
+     * @implNote SQS 리스너 등 백그라운드 워커에서 발생한 예외는 이 핸들러를 타지 않고 프레임워크 레벨에서 즉시 재시도(Retry) 처리됩니다.
+     */
+    @ExceptionHandler(AsyncRaceConditionException.class)
+    public ResponseEntity<RestApiResponse<Void>> handleAsyncRaceConditionException(AsyncRaceConditionException e) {
+        var errorCode = e.getErrorCode();
+        log.warn("[RACE CONDITION] 상태 업데이트 경합 발생 (API 요청) -> {}", errorCode.getMessage());
+
+        return ResponseEntity.status(errorCode.getStatus())
+                .body(RestApiResponse.fail(errorCode, errorCode.getMessage()));
     }
 }

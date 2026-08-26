@@ -53,6 +53,7 @@ public class AiTestController {
 
         return new SageMakerNotificationDto(
                 status,
+                taskId, // 실제 SageMaker가 되돌려주는 inferenceId 자리 (우리는 Task ID를 그대로 사용)
                 failureReason,
                 params
         );

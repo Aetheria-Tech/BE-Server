@@ -1,4 +1,4 @@
-package com.serverbe.infrastructure.util;
+package com.serverbe.domain.util;
 
 import com.serverbe.domain.exception.server.ServerErrorCode;
 import com.serverbe.domain.exception.server.ServerException;
@@ -9,6 +9,13 @@ import com.serverbe.domain.exception.server.ServerException;
  * <b>최적화 포인트:</b><br>
  * 수많은 위경도 좌표를 모두 메모리(List 등)에 적재하지 않고,
  * 문자열을 순차적으로 해독하면서 즉시 거리를 누적 계산하여 메모리 사용량을 최소화(O(1) 공간 복잡도)합니다.
+ * </p>
+ * <p>
+ * <b>패키지 위치에 대하여:</b> 이 유틸리티는 특정 프레임워크나 외부 I/O에 의존하지 않는 순수 알고리즘(좌표
+ * 디코딩 및 거리 계산)이므로 인프라(infrastructure) 계층이 아닌 도메인(domain) 계층에 위치합니다.
+ * 애플리케이션 서비스({@code RunningArtService})가 이 유틸리티를 안전하게 사용할 수 있으려면,
+ * 헥사고날 아키텍처의 의존성 규칙(바깥쪽 계층 → 안쪽 계층)에 따라 인프라 계층이 아닌 도메인 계층에
+ * 있어야 하기 때문입니다.
  * </p>
  */
 public final class PolylineUtils {

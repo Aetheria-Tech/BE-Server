@@ -14,7 +14,10 @@ build/
 .settings
 .springBeans
 .sts4-cache
-bin/
+# 앵커(/)를 반드시 유지한다. `bin/` 으로 두면 깊이에 상관없이 모든 bin 디렉터리에 걸려
+# infra/bin/aetheria-cdk.ts (CDK 앱 진입점)까지 커밋에서 빠지고, 그러면 clone 한 곳에서
+# cdk synth 자체가 불가능해진다. Eclipse 산출물은 저장소 루트에만 생긴다.
+/bin/
 !**/src/main/**/bin/
 !**/src/test/**/bin/
 
@@ -36,3 +39,6 @@ out/
 
 ### VS Code ###
 .vscode/
+
+### QueryDSL (IDE 생성물 - Gradle 은 build/generated 를 사용) ###
+src/main/generated/

@@ -29,7 +29,7 @@ import static com.serverbe.adapter.out.persistence.art.QRunningArtEntity.running
  */
 @Repository
 @RequiredArgsConstructor
-public class RunningArtPersistentAdapter implements RunningArtRepositoryPort {
+public class RunningArtPersistenceAdapter implements RunningArtRepositoryPort {
 
     private final JPAQueryFactory queryFactory;
     private final JpaRunningArtRepository jpaRepository;
