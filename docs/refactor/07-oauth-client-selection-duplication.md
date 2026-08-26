@@ -1,11 +1,11 @@
-# 07. OAuth 클라이언트 선택이 세 벌 중복
+# 07. OAuth 클라이언트 선택이 두 벌 중복
 
 > 상태 · 대기
-> 성격 · 중복 | 난이도 · 낮음 | 선행 항목 · [01번](01-dead-code.md)(중복 하나가 삭제로 사라짐)
+> 성격 · 중복 | 난이도 · 낮음 | 선행 항목 · [01번](01-dead-code.md) — **완료됨.** 세 벌 중 하나가 삭제로 사라져 **남은 것은 두 벌**입니다
 
 ## 1. 무엇이 문제인가
 
-`OAuthProvider`로 알맞은 `OAuthClientPort` 구현체를 고르는 메서드가 **세 서비스에 그대로 세 번**
+`OAuthProvider`로 알맞은 `OAuthClientPort` 구현체를 고르는 메서드가 **두 서비스에 그대로 두 번**
 있습니다.
 
 ```java
@@ -19,7 +19,9 @@ private OAuthClientPort getClient(OAuthProvider provider) {
 
 - [`LoginService`](../../src/main/java/com/serverbe/application/service/LoginService.java)
 - [`WithdrawService`](../../src/main/java/com/serverbe/application/service/WithdrawService.java)
-- `SocialTokenService` — [01번](01-dead-code.md)에서 삭제되면 소멸
+
+원래 세 벌이었습니다. 세 번째는 `SocialTokenService`에 있었고
+**[01번](01-dead-code.md)에서 파일째 삭제되면서 함께 사라졌습니다.**
 
 ## 2. 근거
 
@@ -27,12 +29,12 @@ private OAuthClientPort getClient(OAuthProvider provider) {
 grep -rn "private OAuthClientPort getClient" src/main/java --include=*.java
 ```
 
-세 서비스 모두 `private final List<OAuthClientPort> oAuthClients;`를 주입받고, 쓸 때마다
+두 서비스 모두 `private final List<OAuthClientPort> oAuthClients;`를 주입받고, 쓸 때마다
 **리스트를 순회해 매번 다시 고릅니다.**
 
 ## 3. 왜 고쳐야 하는가
 
-중복 자체는 크지 않습니다. 다섯 줄짜리이고 세 곳뿐이며, 01번을 닫으면 두 곳으로 줄어듭니다.
+중복 자체는 크지 않습니다. 다섯 줄짜리이고, 01번을 닫은 지금은 두 곳뿐입니다.
 **두 곳의 중복만으로 리팩터링을 정당화하기는 약합니다.**
 
 진짜 이유는 다른 데 있습니다. 지금 구조는 **매 호출마다 "이 provider를 누가 지원하는지"를 다시
@@ -47,7 +49,7 @@ grep -rn "private OAuthClientPort getClient" src/main/java --include=*.java
 
 ### 갈래 A. 공통 헬퍼로 뽑는다
 
-`OAuthClientSelector` 같은 컴포넌트를 만들어 세 서비스가 주입받습니다.
+`OAuthClientSelector` 같은 컴포넌트를 만들어 두 서비스가 주입받습니다.
 
 - 장점 — 변경이 작고, 지금 구조를 그대로 둡니다
 - 단점 — **탐색은 그대로 남습니다.** `supports()`도 남습니다. 중복만 없앨 뿐 원인은 그대로입니다
@@ -83,9 +85,11 @@ Map<OAuthProvider, OAuthClientPort> oAuthClientsByProvider(List<OAuthClientPort>
 
 ## 6. 하지 않기로 한 것
 
-- **`OAuthClientPort` 자체를 재설계하지 않습니다.** `getUserInfo`·`unlink`·`refreshSocialToken`의
-  시그니처는 이 항목의 범위 밖입니다.
+- **`OAuthClientPort` 자체를 재설계하지 않습니다.** `getUserInfo`·`unlink`·`getLoginUrl`의
+  시그니처는 이 항목의 범위 밖입니다. (`refreshSocialToken`은 [01번](01-dead-code.md)에서
+  죽은 메서드로 삭제되었습니다.)
 - **`AuthErrorCode.UNSUPPORTED_SOCIAL_LOGIN`을 없애지 않습니다.** Map으로 바꿔도 `null`이 나오는
   경우(요청에 실린 provider 문자열이 변환은 됐는데 어댑터가 없는 경우)는 남고, 그때 던질 것이
   필요합니다.
-- **01번보다 먼저 하지 않습니다.** 먼저 하면 곧 지울 파일까지 함께 고치게 됩니다.
+- **01번보다 먼저 하지 않습니다.** 먼저 했다면 곧 지울 파일까지 함께 고쳤을 것입니다. 01번이
+  완료되어 이 조건은 해소되었습니다.

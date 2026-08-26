@@ -124,7 +124,7 @@ AI 결과 처리는 S3 다운로드, S3 삭제, SSE 발송 등 **긴 네트워�
 
 ## 6. PII 필드 암호화와 무중단 키 교체
 
-> [`CryptoConverter.java`](../../src/main/java/com/serverbe/adapter/out/persistence/converter/CryptoConverter.java) · [`AesGcmEncryptor.java`](../../src/main/java/com/serverbe/infrastructure/crypto/AesGcmEncryptor.java)
+> [`CryptoConverter.java`](../../src/main/java/com/serverbe/adapter/out/persistence/converter/CryptoConverter.java) · [`AesGcmEncryptor.java`](../../src/main/java/com/serverbe/adapter/out/crypto/AesGcmEncryptor.java)
 
 이메일 등 민감 정보를 JPA `AttributeConverter`로 **AES-GCM 자동 암복호화**합니다.
 서비스 코드는 평문을 다루고, 영속화 경계에서만 암호화가 일어납니다.

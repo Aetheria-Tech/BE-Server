@@ -1,4 +1,4 @@
-package com.serverbe.infrastructure.security;
+package com.serverbe.adapter.out.security;
 
 import com.serverbe.domain.exception.auth.AuthErrorCode;
 import com.serverbe.domain.exception.auth.AuthException;

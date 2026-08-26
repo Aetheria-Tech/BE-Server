@@ -233,6 +233,10 @@ public class RunningArtService implements
 
     /**
      * @responsibility 비동기 AI 작업이 완료된 후, 전달받은 GPX 데이터를 바탕으로 런닝아트를 생성하고 DB/Redis에 등록합니다.
+     * @implNote 이 유스케이스는 이벤트 루프가 아니라 <b>블로킹 워커 스레드</b>에서 동기적으로 호출됩니다
+     * (지금 그 경로는 AI 결과 통보를 소비하는 SQS 워커입니다). 그래서 Redis GEO 동기화만 {@code block()}으로
+     * 받아도 논블로킹 스레드를 굶기지 않습니다. 호출 경로가 바뀌어 이벤트 루프에서 불리게 되면
+     * <b>이 전제가 먼저 깨집니다.</b>
      */
     @Override
     @Transactional
@@ -261,7 +265,7 @@ public class RunningArtService implements
         // 4. Redis 동기화 (기존 비동기 코드를 여기서만 살짝 block 해줍니다)
         try {
             runningArtRedisPort.saveLocation(savedArt.id(), savedArt.startLat(), savedArt.startLon())
-                    .block(); // ✨ SQS 리스너 워커 스레드이므로 block() 해도 전혀 문제없습니다!
+                    .block(); // 블로킹 워커 스레드에서 호출되므로 안전합니다 (근거는 위 @implNote)
             log.info("Redis 동기화 완료 (ArtId: {})", savedArt.id());
         } catch (Exception e) {
             // Redis 저장이 실패해도 DB 저장을 롤백시키지 않으려면 try-catch로 감싸줍니다.

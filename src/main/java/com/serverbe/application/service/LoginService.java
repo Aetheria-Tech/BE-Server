@@ -15,7 +15,6 @@ import com.serverbe.domain.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
@@ -45,7 +44,12 @@ public class LoginService implements LoginUseCase {
      * @responsibility 소셜 인증 코드를 검증하여 사용자 정보를 획득하고, 가입/로그인 처리 후 최종 보안 토큰을 반환합니다.
      * @requirement <b>UC-AUTH-01: 소셜 로그인 및 회원가입</b>
      * @implNote 1. 외부 API 통신 후 {@link Schedulers#boundedElastic()}으로 전환하여 블로킹 I/O 작업을 안전하게 처리합니다.<br>
-     * 2. 서비스 레이어에서의 {@code @Transactional}은 헬퍼 컴포넌트 내부로 전파되어 원자성을 보장받습니다.
+     * 2. <b>이 메서드에는 트랜잭션 경계가 없습니다.</b> 회원 동기화는
+     * {@link UserDataSyncManager#syncUserByOAuth}가 여는 JPA 트랜잭션 안에서, 세션 저장은
+     * {@link AuthSessionManager#saveSession}을 통해 Redis에서 각각 독립적으로 일어납니다.<br>
+     * 3. 따라서 <b>둘 사이는 원자적이지 않습니다.</b> 세션 저장이 실패하면 회원 정보는 커밋된 채 로그인만
+     * 실패합니다. 복구 경로는 <b>재로그인</b>입니다 — {@code syncUserByOAuth}가 멱등한 upsert라
+     * 커밋된 사용자 행은 그대로 재사용되고, 저장되지 못한 리프레시 토큰은 Redis 어디에도 남지 않습니다.
      */
     @Override
     public Mono<TokenResult> login(String code, OAuthProvider provider, String deviceId) {
@@ -56,7 +60,7 @@ public class LoginService implements LoginUseCase {
                 .map(oauthInfo -> {
                     log.debug("[OAUTH] 소셜 사용자 정보 수신 성공: OAuthID={}, Provider={}", oauthInfo.oauthId(), provider);
 
-                    // 1. 유저 정보 동기화 (JPA 트랜잭션 보장)
+                    // 1. 유저 정보 동기화 (JPA 트랜잭션은 헬퍼가 연다)
                     User user = userDataSyncManager.syncUserByOAuth(oauthInfo);
 
                     // 2. 서비스 전용 토큰 생성 (JWT)

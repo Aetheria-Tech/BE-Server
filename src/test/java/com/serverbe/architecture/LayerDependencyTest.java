@@ -6,11 +6,16 @@ import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
 import com.tngtech.archunit.lang.ArchRule;
+import org.springframework.transaction.annotation.Transactional;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import java.util.Set;
 
+import static com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAPackage;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
+import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noMethods;
 
 /**
  * @responsibility 헥사고날 아키텍처의 계층 간 의존 방향을 테스트로 고정합니다.
@@ -87,6 +92,43 @@ class LayerDependencyTest {
             .should().resideInAPackage("com.serverbe.adapter.in..");
 
     /**
+     * <b>포트를 구현하면 어댑터입니다.</b> 위 규칙이 인바운드에 대해 말하는 것을 아웃바운드에
+     * 대해 말합니다 — 흐름을 바깥에서 시작시키면 인바운드 어댑터이고, 애플리케이션이 바깥에
+     * 무언가를 요청하는 통로면 아웃바운드 어댑터입니다. 둘이 짝을 이뤄 어댑터 경계를
+     * <b>양방향으로</b> 고정합니다.
+     *
+     * @implNote 이 규칙이 켜지기 전까지 아웃바운드 포트 18개 중 3개의 구현체가
+     * {@code infrastructure}에 있었습니다({@code AesGcmEncryptor}, {@code JwtTokenProvider},
+     * {@code JwtTokenResolver}). 동작에는 문제가 없었지만 그 패키지에서 <b>"프레임워크 배선"과
+     * "바깥 세계와의 대화"가 섞여</b>, 무엇이 교체 가능한 부품이고 무엇이 스프링을 붙드는
+     * 접착제인지 구분되지 않았습니다.
+     * @implNote 조건을 <b>이름이 아니라 패키지</b>로 잡은 것이 중요합니다.
+     * {@code application.port.out.security}에는 {@code TokenProvider}·{@code TokenResolver}처럼
+     * {@code Port}로 끝나지 않는 포트가 있어, 이름 기반 규칙이면 하필 위반 셋 중 둘이 빠집니다.
+     */
+    @ArchTest
+    static final ArchRule 아웃바운드_포트_구현체는_어댑터다 = classes()
+            .that().implement(resideInAPackage("com.serverbe.application.port.out.."))
+            .should().resideInAPackage("com.serverbe.adapter.out..");
+
+    /**
+     * 스레드에 바인딩되는 선언적 트랜잭션은 리액티브 파이프라인 위에서 <b>아무 일도 하지 않습니다.</b>
+     * 프록시는 조립된 {@code Mono}가 리턴되는 순간 커밋하고, 실제 DB 작업은 그 뒤
+     * {@code boundedElastic} 스레드에서 일어납니다. 트랜잭션은 DB를 한 번도 건드리지 않고 열렸다 닫힙니다.
+     *
+     * @implNote 이 규칙이 켜지기 전까지 {@code WithdrawService.withdraw}에 무효한 {@code @Transactional}이
+     * 붙어 있었습니다. 실제 쓰기를 자기 트랜잭션을 가진 {@code UserDataCleanupManager}에 맡기고 있어서
+     * 데이터가 깨지지는 않았지만, 애노테이션이 <b>"여기는 트랜잭션 안이다"라고 잘못 말하고</b> 있었습니다.
+     * 리액티브 흐름에서 트랜잭션이 필요하면 {@code AiGenerationService}처럼 {@code TransactionTemplate}을
+     * 실행 스레드 안에서 씁니다.
+     */
+    @ArchTest
+    static final ArchRule 트랜잭션_메서드는_리액티브_타입을_반환하지_않는다 = noMethods()
+            .that().areAnnotatedWith(Transactional.class)
+            .or().areDeclaredInClassesThat().areAnnotatedWith(Transactional.class)
+            .should().haveRawReturnType(beReactiveType());
+
+    /**
      * 메서드에 붙은 애노테이션까지 봐야 하므로 ArchUnit 기본 술어로는 표현되지 않습니다.
      * 클래스 단위 애노테이션과 달리 {@code @SqsListener}·{@code @Scheduled}는 메서드에 붙습니다.
      */
@@ -98,6 +140,21 @@ class LayerDependencyTest {
                 return javaClass.getMethods().stream()
                         .flatMap(method -> method.getAnnotations().stream())
                         .anyMatch(annotation -> names.contains(annotation.getRawType().getName()));
+            }
+        };
+    }
+
+    /**
+     * 반환 타입을 <b>이름으로</b> 비교합니다. {@code @AnalyzeClasses}가 {@code DoNotIncludeJars}이므로
+     * Reactor 타입은 스텁으로 들어오고, {@code isAssignableTo(Publisher.class)} 같은 계층 질의는
+     * 풀리지 않을 수 있습니다.
+     */
+    private static DescribedPredicate<JavaClass> beReactiveType() {
+        Set<String> names = Set.of(Mono.class.getName(), Flux.class.getName());
+        return new DescribedPredicate<>("Mono 또는 Flux") {
+            @Override
+            public boolean test(JavaClass javaClass) {
+                return names.contains(javaClass.getName());
             }
         };
     }

@@ -1,4 +1,4 @@
-package com.serverbe.infrastructure.crypto;
+package com.serverbe.adapter.out.crypto;
 
 import com.serverbe.infrastructure.config.properties.EncryptionProperties;
 import org.junit.jupiter.api.BeforeEach;

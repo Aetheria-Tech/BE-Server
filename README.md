@@ -418,7 +418,7 @@ spring.cloud.aws.sqs.enabled: ${AWS_SQS_ENABLED:true}
 - **트랜잭션 커밋 이후 Redis 반영** — 러닝 아트 삭제 시 DB 삭제와 Redis GEO 삭제를 함께 수행하면, DB가 롤백되어도 Redis 데이터는 이미 사라져 정합성이 깨집니다. `TransactionSynchronization#afterCommit`으로 커밋 성공 이후에만 GEO를 갱신하도록 분리했습니다. ([`RunningArtService.java`](src/main/java/com/serverbe/application/service/RunningArtService.java), 커밋 `14d73c1`)
 - **좀비 태스크 실패 알림도 커밋 이후에** — 타임아웃 정리 스케줄러는 상태를 `FAILED`로 바꾸기만 하고 알림을 보내지 않았습니다. 이미 `SseEmitter`를 열고 결과를 기다리던 클라이언트는 아무 이벤트도 받지 못한 채 **자신의 SSE 타임아웃까지 무한 로딩**에 머물렀습니다. S3 임시 자원 정리와 **같은 `afterCommit` 블록**에 실패 알림을 묶었습니다. 커밋 이후여야 하는 이유는 위와 같습니다 — 상태 갱신이 롤백됐는데 클라이언트만 실패 알림을 받으면 SSE 연결이 터미널 상태로 닫혀 되돌릴 수 없습니다. 반대로 알림 발송 실패는 로그만 남기고 삼킵니다. 상태는 이미 커밋되어 되돌릴 수 없고, 한 건의 알림 실패가 나머지 태스크의 마무리까지 중단시켜서는 안 되기 때문입니다. ([`AiTaskCleanupService.java`](src/main/java/com/serverbe/application/service/AiTaskCleanupService.java))
 - **서킷 브레이커 오작동 방지** — 외부 API의 4xx는 *우리 요청이 잘못된 것*이고 5xx는 *상대 서버 장애*입니다. 이를 `ExternalApiClientException` / `ExternalApiException`으로 분리하고 4xx를 `ignoreExceptions`에 등록해, 잘못된 주소 입력이 반복될 때 회로가 열려버리는 문제를 막았습니다. 응답 지연으로 인한 스레드 고갈에 대비해 `slowCallRateThreshold`도 함께 설정했습니다. ([`application.yml`](src/main/resources/application.yml))
-- **PII 필드 암호화와 무중단 키 교체** — 이메일 등 민감 정보를 JPA `AttributeConverter`로 **AES-GCM 자동 암복호화**합니다. 암호문에 키 버전을 새겨두고, 구버전 키로 암호화된 데이터를 읽으면 마이그레이션 대상으로 표시해 점진적으로 재암호화합니다. ([`CryptoConverter.java`](src/main/java/com/serverbe/adapter/out/persistence/converter/CryptoConverter.java), [`AesGcmEncryptor.java`](src/main/java/com/serverbe/infrastructure/crypto/AesGcmEncryptor.java))
+- **PII 필드 암호화와 무중단 키 교체** — 이메일 등 민감 정보를 JPA `AttributeConverter`로 **AES-GCM 자동 암복호화**합니다. 암호문에 키 버전을 새겨두고, 구버전 키로 암호화된 데이터를 읽으면 마이그레이션 대상으로 표시해 점진적으로 재암호화합니다. ([`CryptoConverter.java`](src/main/java/com/serverbe/adapter/out/persistence/converter/CryptoConverter.java), [`AesGcmEncryptor.java`](src/main/java/com/serverbe/adapter/out/crypto/AesGcmEncryptor.java))
 - **DB 커넥션 풀 보호** — AI 결과 처리는 S3 다운로드·삭제, SSE 발송 등 긴 네트워크 I/O를 포함합니다. 메서드 전체에 `@Transactional`을 걸면 그동안 커넥션을 점유해 풀이 고갈됩니다. `TransactionTemplate`으로 **DB 쓰기 구간만** 원자적으로 감싸고 외부 I/O는 트랜잭션 밖으로 뺐습니다. ([`AiResultRetrievalService.java`](src/main/java/com/serverbe/application/service/AiResultRetrievalService.java))
 - **준영속 엔티티가 부른 불필요한 SELECT** — 도메인 모델이 불변이라 상태 전이는 항상 "조회 → 값 이관 → 저장"으로 이뤄집니다. 이때 트랜잭션 없이 저장을 호출하면 어댑터의 `findById`가 자기 트랜잭션을 열고 닫아 엔티티가 **준영속** 상태가 되고, 이어지는 저장이 merge를 유발해 **SELECT 두 번 + UPDATE 한 번**이 나갑니다. 상태 전이 구간을 `TransactionTemplate`으로 묶어 조회 결과가 관리 상태로 남도록 했습니다. 반대로 **신규 생성(INSERT) 경로에는 일부러 적용하지 않았습니다** — 그쪽은 `active_user_id` 유니크 위반을 어댑터의 `catch`에서 `DUPLICATE_AI_REQUEST`로 변환하는데, 바깥 트랜잭션이 있으면 위반이 **커밋 시점으로 밀려** 그 `catch`를 그대로 빠져나가기 때문입니다. ([`AiGenerationService.java`](src/main/java/com/serverbe/application/service/AiGenerationService.java))
 - **다중 인스턴스 SSE** — SSE 연결은 특정 인스턴스에 고정되지만 완료 이벤트는 다른 인스턴스에서 발생할 수 있습니다. Redis Pub/Sub으로 이벤트를 브로드캐스트해 어느 인스턴스가 받든 올바른 클라이언트에게 전달되도록 했습니다. ([`SseRedisPublishAdapter.java`](src/main/java/com/serverbe/adapter/out/notification/SseRedisPublishAdapter.java), [`SseRedisMessageListener.java`](src/main/java/com/serverbe/adapter/in/messaging/SseRedisMessageListener.java), [`SseEmitterRegistry.java`](src/main/java/com/serverbe/adapter/in/web/sse/SseEmitterRegistry.java))
@@ -480,33 +480,39 @@ spring.cloud.aws.sqs.enabled: ${AWS_SQS_ENABLED:true}
 
 ```
 src/main/java/com/serverbe
-├── adapter                      # 외부 세계와의 접점
-│   ├── in/web                   # REST 컨트롤러, JWT 필터, 요청·응답 DTO
-│   │   ├── filter               # JwtAuthenticationFilter
-│   │   └── support              # @ExtractIp, @ExtractDeviceId 등 ArgumentResolver
-│   └── out
+├── adapter                      # 외부 세계와의 접점 — 방향이 자리를 정한다
+│   ├── in                       # 흐름을 바깥에서 시작시키는 것 (트리거 종류와 무관)
+│   │   ├── web                  # REST 컨트롤러, 요청·응답 DTO
+│   │   │   ├── filter           # JwtAuthenticationFilter
+│   │   │   ├── sse              # SSE Emitter 레지스트리
+│   │   │   └── support          # @ExtractIp, @ExtractDeviceId 등 ArgumentResolver
+│   │   ├── messaging            # SQS 리스너, Redis Pub/Sub 구독자
+│   │   ├── event                # 기동 시점 GEO 인덱스 웜업
+│   │   └── scheduler            # 좀비 태스크 정리 스케줄러
+│   └── out                      # 애플리케이션이 바깥에 요청하는 통로 (= 포트 구현체)
 │       ├── persistence          # JPA 엔티티 · Querydsl · Redis 어댑터 · 매퍼
 │       ├── external             # Kakao / Google OAuth·지오코딩, S3, SageMaker
-│       └── notification         # SSE Emitter, Redis Pub/Sub 구독자
+│       ├── notification         # Discord 알림, SSE Redis 발행
+│       ├── security             # JwtTokenProvider / JwtTokenResolver / JwtKeyManager
+│       └── crypto               # AES-GCM 암호화, 키 버저닝
 │
 ├── application                  # 유스케이스 계층
 │   ├── port/in                  # 인바운드 포트 (UseCase 인터페이스)
 │   ├── port/out                 # 아웃바운드 포트 (Repository·External 인터페이스)
+│   ├── config                   # 정책 레코드 — 프로퍼티를 프레임워크 없이 받는다
 │   ├── service                  # 유스케이스 구현 — 비즈니스 오케스트레이션
-│   │   ├── fallback             # 서킷 브레이커 폴백 핸들러
 │   │   └── helper               # 보조 컴포넌트
 │   └── annotation               # @RateLimit
 │
-├── domain                       # 순수 도메인 — 프레임워크 의존 없음
+├── domain                       # 순수 도메인 — JDK와 Lombok 외 의존 없음
 │   ├── model                    # User, RunningArt, AiTask, Address + VO (전부 Record)
 │   ├── exception                # 도메인별 ErrorCode / BusinessException 계층
 │   └── util                     # PolylineUtils
 │
-└── infrastructure               # 기술 관심사
-    ├── config                   # Bean 설정, @ConfigurationProperties, SQS 리스너
-    ├── security                 # SecurityConfig, JwtTokenProvider, JwtKeyManager
-    ├── crypto                   # AES-GCM 암호화, 키 버저닝
-    ├── scheduler                # 좀비 태스크 정리 스케줄러
+└── infrastructure               # 어댑터도 애플리케이션도 아닌 것 — 프레임워크 배선
+    ├── config                   # Bean 설정, @ConfigurationProperties, AOP
+    ├── security                 # SecurityConfig, TokenExtractor, 인증 실패 훅
+    ├── crypto                   # 암호화 컨텍스트 전파 (ThreadLocal + 인터셉터)
     ├── error                    # 전역 예외 핸들러
     └── common                   # 공통 응답 포맷, @Trace / @Timer 로깅 AOP
 

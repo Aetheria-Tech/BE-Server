@@ -1,7 +1,6 @@
 package com.serverbe.application.port.out.oauth;
 
 import com.serverbe.application.port.out.dto.oauth.OAuthUserInfoResult;
-import com.serverbe.application.port.out.dto.oauth.SocialTokenRefreshResult;
 import com.serverbe.domain.model.user.vo.OAuthProvider;
 import reactor.core.publisher.Mono;
 
@@ -27,14 +26,6 @@ public interface OAuthClientPort {
      * @return 연동 해제 성공 시 true, 실패 시 false를 담은 {@link Mono<Boolean>}
      */
     Mono<Boolean> unlink(OAuthProvider provider, String oauthId, String oauthRefreshToken);
-
-    /**
-     * @responsibility 저장된 소셜 리프레시 토큰을 사용하여 만료된 소셜 액세스 토큰 세트를 새롭게 갱신합니다.
-     * @param provider 토큰을 갱신할 소셜 제공자 {@link OAuthProvider}
-     * @param refreshToken 소셜 플랫폼에서 발급했던 리프레시 토큰
-     * @return 새롭게 발급된 소셜 토큰 정보들을 담은 {@link Mono<SocialTokenRefreshResult>}
-     */
-    Mono<SocialTokenRefreshResult> refreshSocialToken(OAuthProvider provider, String refreshToken);
 
     /**
      * @responsibility 현재 어댑터 인스턴스가 인자로 전달된 특정 소셜 제공자를 지원하는지 확인합니다.

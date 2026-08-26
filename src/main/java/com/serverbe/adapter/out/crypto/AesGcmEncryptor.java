@@ -1,4 +1,4 @@
-package com.serverbe.infrastructure.crypto;
+package com.serverbe.adapter.out.crypto;
 
 import com.serverbe.application.port.out.crypto.EncryptPort;
 import com.serverbe.domain.exception.crypto.CryptoErrorCode;

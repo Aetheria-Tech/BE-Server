@@ -1,4 +1,4 @@
-package com.serverbe.infrastructure.security;
+package com.serverbe.adapter.out.security;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;

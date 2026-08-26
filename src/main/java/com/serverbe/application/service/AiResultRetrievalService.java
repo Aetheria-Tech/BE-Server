@@ -23,9 +23,10 @@ import org.springframework.transaction.support.TransactionTemplate;
  * </p>
  * <p>
  * <b>호출 맥락에 대한 주의:</b><br>
- * 이 서비스의 유일한 실질 호출자인 SQS 리스너는 비관적 락 유지를 위해 {@code @Transactional}로 감싸여 있습니다.
+ * 이 유스케이스를 호출하는 쪽이 비관적 락을 유지하기 위해 트랜잭션을 열어 둡니다
+ * (지금은 {@link AiNotificationService#handleNotification}).
  * {@link TransactionTemplate}의 기본 전파 속성은 {@code REQUIRED}이므로 {@link #handleSuccess}의 트랜잭션은
- * <b>리스너의 트랜잭션에 합류</b>합니다. 따라서 그 안에서 예외가 발생하면 바깥 트랜잭션이 rollback-only로 마킹되고,
+ * <b>그 바깥 트랜잭션에 합류</b>합니다. 따라서 그 안에서 예외가 발생하면 바깥 트랜잭션이 rollback-only로 마킹되고,
  * 이후의 어떤 DB 쓰기도 최종적으로 롤백됩니다. 실패를 기록하는 {@link #handleFailure}가 바로 그 함정에 빠지므로,
  * 실패 기록만은 별도의 신규 트랜잭션({@code REQUIRES_NEW})에서 수행해 반드시 살아남도록 분리했습니다.
  * </p>
@@ -112,7 +113,7 @@ public class AiResultRetrievalService implements RetrieveAiResultUseCase {
      * 실패 파이프라인: 결과물 등록 도중 예외가 발생했을 때 상태를 FAILED로 확정하고 클라이언트에 알립니다.
      * <p>
      * 상태 갱신을 신규 트랜잭션({@code REQUIRES_NEW})에서 수행하는 것이 핵심입니다.
-     * 바깥(리스너) 트랜잭션은 이미 rollback-only로 마킹되어 있을 수 있어, 그 트랜잭션에 합류해 저장하면
+     * 바깥 트랜잭션(호출하는 쪽이 연 것)은 이미 rollback-only로 마킹되어 있을 수 있어, 그 트랜잭션에 합류해 저장하면
      * 커밋 시점에 전부 롤백되어 <b>실패가 아무 데도 기록되지 않은 채 사라집니다.</b>
      * </p>
      * <p>

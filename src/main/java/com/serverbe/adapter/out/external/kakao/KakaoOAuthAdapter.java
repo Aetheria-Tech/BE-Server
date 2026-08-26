@@ -3,7 +3,6 @@ package com.serverbe.adapter.out.external.kakao;
 import com.serverbe.adapter.out.external.kakao.dto.KakaoTokenResponse;
 import com.serverbe.adapter.out.external.kakao.dto.KakaoUserInfoResponse;
 import com.serverbe.application.port.out.dto.oauth.OAuthUserInfoResult;
-import com.serverbe.application.port.out.dto.oauth.SocialTokenRefreshResult;
 import com.serverbe.application.port.out.oauth.OAuthClientPort;
 import com.serverbe.domain.exception.external.ExternalApiClientException;
 import com.serverbe.domain.exception.external.ExternalApiErrorCode;
@@ -166,34 +165,6 @@ public class KakaoOAuthAdapter implements OAuthClientPort {
                 .timeout(Duration.ofSeconds(2))
                 .transformDeferred(CircuitBreakerOperator.of(kakaoApiCircuitBreaker))
                 .onErrorResume(throwable -> fallbackHandler.fallbackUnlink(provider, oauthId, oauthRefreshToken, throwable));
-    }
-
-    @Override
-    public Mono<SocialTokenRefreshResult> refreshSocialToken(OAuthProvider provider, String refreshToken) {
-        MultiValueMap<String, String> formData = new LinkedMultiValueMap<>();
-        formData.add("grant_type", "refresh_token");
-        formData.add("client_id", clientId);
-        formData.add("refresh_token", refreshToken);
-
-        return webClient.post()
-                .uri(kauthUrl + "/oauth/token")
-                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
-                .body(BodyInserters.fromFormData(formData))
-                .retrieve()
-                .onStatus(HttpStatusCode::is4xxClientError, res -> res.bodyToMono(String.class)
-                        .flatMap(body -> {
-                            log.warn("Kakao Token Refresh API Client Error (4xx): status={}, body={}", res.statusCode(), body);
-                            return Mono.error(new ExternalApiClientException(ExternalApiErrorCode.FAILED_SOCIAL_API, "잘못된 토큰 갱신 요청입니다.: " + body));
-                        }))
-                .onStatus(HttpStatusCode::is5xxServerError, res -> res.bodyToMono(String.class)
-                        .flatMap(body -> {
-                            log.error("Kakao Token Refresh API Server Error (5xx): status={}, body={}", res.statusCode(), body);
-                            return Mono.error(new ExternalApiException(ExternalApiErrorCode.FAILED_SOCIAL_API, "Kakao 서버 에러: " + body));
-                        }))
-                .bodyToMono(SocialTokenRefreshResult.class)
-                .timeout(Duration.ofSeconds(2))
-                .transformDeferred(CircuitBreakerOperator.of(kakaoTokenCircuitBreaker))
-                .onErrorResume(throwable -> fallbackHandler.fallbackRefreshSocialToken(provider, refreshToken, throwable));
     }
 
     @Override
