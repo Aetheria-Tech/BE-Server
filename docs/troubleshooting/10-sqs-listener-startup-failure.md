@@ -6,8 +6,9 @@
 
 ## 1. 상황 — 왜 배포 전에 띄워 봤나
 
-ECS 배포 파이프라인을 붙이기 직전이었습니다. `.github/workflows/deploy.yml`은 `master` 푸시 한 번에
-**테스트 → 이미지 빌드 → ECR push → ECS 롤링 배포**까지 자동으로 갑니다.
+ECS 배포 파이프라인을 붙이기 직전이었습니다. 당시 `.github/workflows/deploy.yml`은 `master` 푸시 한 번에
+**테스트 → 이미지 빌드 → ECR push → ECS 롤링 배포**까지 자동으로 갔습니다.
+(자동 트리거는 이후 껐고, 지금은 `workflow_dispatch` 수동 실행만 열려 있습니다.)
 
 여기서 기동이 실패하면 실패 지점이 **CI 로그와 CloudWatch로 흩어집니다.** ECS는 헬스체크 유예(180초)
 안에 readiness가 올라오지 않으면 태스크를 죽이고, 배포 서킷 브레이커가 롤백합니다. 로그를 찾을 때쯤

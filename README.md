@@ -350,7 +350,7 @@ BEGINNER=1, EXPERT=2, INTRODUCTION=3, MASTER=4, SKILLED=5
 
 ### 10. 배포하기 전에 잡은 기동 실패 — 자격증명이 없으면 뜨지 않는 SQS 리스너
 
-**계기** · ECS 배포를 붙이기 전에, 운영에 올라갈 것과 **똑같은 `Dockerfile` 이미지**를 로컬에서 먼저 띄워 봤습니다. GitHub Actions는 `master` 푸시 한 번에 ECR push → ECS 롤링 배포까지 가므로, 기동이 안 되면 실패 지점이 CI 로그와 CloudWatch로 흩어집니다.
+**계기** · ECS 배포를 붙이기 전에, 운영에 올라갈 것과 **똑같은 `Dockerfile` 이미지**를 로컬에서 먼저 띄워 봤습니다. 당시 GitHub Actions는 `master` 푸시 한 번에 ECR push → ECS 롤링 배포까지 가도록 되어 있었으므로(자동 트리거는 이후 껐습니다), 기동이 안 되면 실패 지점이 CI 로그와 CloudWatch로 흩어집니다.
 
 **문제** · 컨테이너는 Flyway 마이그레이션까지 마친 뒤 **컨텍스트 refresh의 마지막 단계에서** 죽었습니다.
 
@@ -509,10 +509,15 @@ AWS 인프라는 같은 저장소의 [`infra/`](infra) 에 AWS CDK 로 정의되
 구성도와 백엔드-인프라 간 환경변수 계약은 [`infra/docs/architecture.md`](infra/docs/architecture.md),
 실행 방법은 [`infra/README.md`](infra/README.md) 에 있습니다.
 
-**앱 배포와 인프라 배포는 트리거가 분리되어 있습니다.** 앱 코드를 `master` 에 푸시하면
-GitHub Actions 가 테스트 → 이미지 빌드 → ECR push → ECS 롤링 배포까지 자동으로 수행하고,
-VPC·RDS 같은 인프라 변경은 `infra/` 에서 사람이 직접 `cdk deploy` 를 실행합니다.
-되돌리기 어려운 리소스를 push 하나로 바꾸지 않기 위한 구분이며, 각 워크플로우의 경로 필터가 이를 강제합니다.
+**앱 배포와 인프라 배포는 트리거가 분리되어 있습니다.** 앱 배포 워크플로우는 테스트 → 이미지 빌드 →
+ECR push → ECS 롤링 배포까지 한 번에 수행하고, VPC·RDS 같은 인프라 변경은 `infra/` 에서 사람이 직접
+`cdk deploy` 를 실행합니다. 되돌리기 어려운 리소스를 push 하나로 바꾸지 않기 위한 구분이며,
+각 워크플로우의 경로 필터가 이를 강제합니다.
+
+다만 **`master` 푸시 자동 트리거는 현재 꺼 두었습니다.** 실제 추론 엔드포인트가 아직 붙지 않은 단계라
+푸시마다 ECS 롤링 배포를 돌릴 이유가 없고, 그만큼 과금만 발생하기 때문입니다. 지금은 Actions 탭에서
+`workflow_dispatch` 로 수동 실행만 가능하며, 다시 켜려면 [`deploy.yml`](.github/workflows/deploy.yml) 의
+`push:` 블록 주석만 풀면 됩니다.
 
 ---
 
