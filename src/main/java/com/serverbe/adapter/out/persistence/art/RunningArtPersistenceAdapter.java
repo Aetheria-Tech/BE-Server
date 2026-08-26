@@ -4,13 +4,13 @@ import com.querydsl.jpa.impl.JPAQueryFactory;
 import com.serverbe.adapter.out.persistence.mapper.RunningArtMapper;
 import com.serverbe.adapter.out.persistence.user.JpaUserRepository;
 import com.serverbe.adapter.out.persistence.user.UserEntity;
-import com.serverbe.application.port.in.dto.art.QRunningArtLocationDto;
 import com.serverbe.application.port.in.dto.art.RunningArtLocationDto;
 import com.serverbe.application.port.in.dto.art.RunningArtUpdateCommand;
 import com.serverbe.application.port.out.jpa.RunningArtRepositoryPort;
 import com.serverbe.domain.model.art.RunningArt;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import com.querydsl.core.types.Projections;
 import com.serverbe.application.port.dto.PageQuery;
 import com.serverbe.application.port.dto.PageResult;
 import org.springframework.data.domain.Page;
@@ -129,7 +129,9 @@ public class RunningArtPersistenceAdapter implements RunningArtRepositoryPort {
     public List<RunningArtLocationDto> findAllLocations() {
         return queryFactory
                 // QDto를 사용해 Type-safe하게 데이터 매핑
-                .select(new QRunningArtLocationDto(
+                // 포트 DTO에 @QueryProjection을 달지 않기 위해 생성자 프로젝션을 쓴다.
+                .select(Projections.constructor(
+                        RunningArtLocationDto.class,
                         runningArtEntity.id,
                         runningArtEntity.startLat,
                         runningArtEntity.startLon
