@@ -42,9 +42,11 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 /**
- * {@link AiGenerationService}는 {@link com.serverbe.application.port.in.art.InitiateAiGenerationUseCase}와
- * {@link com.serverbe.application.port.in.task.GetTaskStatusUseCase}를 구현하는 요청 진입점이므로,
- * 두 UseCase 메서드 각각에 대해 성공 케이스와 대표적인 실패 케이스를 모두 검증합니다.
+ * {@link AiGenerationService}는 {@link com.serverbe.application.port.in.art.InitiateAiGenerationUseCase}를
+ * 구현하는 리액티브 사가이므로, 성공 경로와 각 단계의 실패·보상 경로를 함께 검증합니다.
+ * <p>
+ * 작업 상태 조회는 {@link AiTaskStatusServiceTest}가 맡습니다.
+ * </p>
  */
 @ExtendWith(MockitoExtension.class)
 class AiGenerationServiceTest {
@@ -224,50 +226,6 @@ class AiGenerationServiceTest {
         ArgumentCaptor<AiTask> captor = ArgumentCaptor.forClass(AiTask.class);
         verify(taskUpdatePort, times(2)).save(captor.capture());
         assertThat(captor.getAllValues().get(1).status()).isEqualTo(TaskStatus.FAILED);
-    }
-
-    // ================= getTaskStatus =================
-
-    @Test
-    @DisplayName("성공: 본인의 Task를 조회하면 상태 정보를 반환한다")
-    void getTaskStatus_Success() {
-        // given
-        AiTask task = AiTask.createPending(USER_ID, "HEART", Proficiency.BEGINNER);
-        given(taskQueryPort.findById(GENERATED_TASK_ID)).willReturn(Optional.of(task));
-
-        // when
-        TaskStatusResult response = aiGenerationService.getTaskStatus(GENERATED_TASK_ID, USER_ID);
-
-        // then
-        assertThat(response).isNotNull();
-        assertThat(response.status()).isEqualTo(TaskStatus.PENDING);
-    }
-
-    @Test
-    @DisplayName("실패: 존재하지 않는 Task ID로 조회하면 NOT_FOUND_AITASK 예외가 발생한다")
-    void getTaskStatus_Fail_NotFound() {
-        // given
-        given(taskQueryPort.findById(GENERATED_TASK_ID)).willReturn(Optional.empty());
-
-        // when & then
-        org.assertj.core.api.Assertions.assertThatThrownBy(() -> aiGenerationService.getTaskStatus(GENERATED_TASK_ID, USER_ID))
-                .isInstanceOf(AiException.class)
-                .hasFieldOrPropertyWithValue("errorCode", AiErrorCode.NOT_FOUND_AITASK);
-    }
-
-    @Test
-    @DisplayName("실패: 타인의 Task를 조회하려고 하면 USER_IS_NOT_OWNER_OF_TASK 예외가 발생한다")
-    void getTaskStatus_Fail_NotOwner() {
-        // given
-        Long ownerId = USER_ID;
-        Long strangerId = 999L;
-        AiTask task = AiTask.createPending(ownerId, "HEART", Proficiency.BEGINNER);
-        given(taskQueryPort.findById(GENERATED_TASK_ID)).willReturn(Optional.of(task));
-
-        // when & then
-        org.assertj.core.api.Assertions.assertThatThrownBy(() -> aiGenerationService.getTaskStatus(GENERATED_TASK_ID, strangerId))
-                .isInstanceOf(AiException.class)
-                .hasFieldOrPropertyWithValue("errorCode", AiErrorCode.USER_IS_NOT_OWNER_OF_TASK);
     }
 
     @Test

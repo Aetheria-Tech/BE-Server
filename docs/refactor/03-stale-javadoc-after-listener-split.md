@@ -27,7 +27,7 @@ grep -n "Transactional" src/main/java/com/serverbe/application/service/LoginServ
 | `AiResultRetrievalService` 클래스 javadoc | "이 서비스의 유일한 실질 호출자인 **SQS 리스너**는 비관적 락 유지를 위해 `@Transactional`로 감싸여 있습니다" | 호출자는 `AiNotificationService`. 리스너에는 `@Transactional`이 없습니다 |
 | 같은 javadoc | "`handleSuccess`의 트랜잭션은 **리스너의 트랜잭션에 합류**합니다" | 합류 대상은 `AiNotificationService.handleNotification`의 트랜잭션 |
 | `AiResultRetrievalService#handleFailure` 주변 주석 | "바깥(**리스너**) 트랜잭션은 이미 rollback-only로" | 같음 |
-| `RunningArtService#registerFromPolyline` | `.block(); // SQS 리스너 워커 스레드이므로` | 스레드는 여전히 리스너 워커가 맞지만, 호출 경로에 서비스가 하나 끼었습니다 |
+| `RunningArtService#registerFromPolyline`(지금은 `RunningArtRegistrationService`) | `.block(); // SQS 리스너 워커 스레드이므로` | 스레드는 여전히 리스너 워커가 맞지만, 호출 경로에 서비스가 하나 끼었습니다 |
 | `LoginService.login` javadoc | "서비스 레이어에서의 `@Transactional`은 헬퍼 컴포넌트 내부로 전파되어 원자성을 보장받습니다" | **`LoginService`에는 `@Transactional`이 없습니다** |
 | `LoginService` import 목록 | `org.springframework.transaction.annotation.Transactional` | **어디에도 쓰이지 않습니다.** 착수 후에 찾았습니다 |
 
@@ -78,7 +78,8 @@ grep -n "Transactional" src/main/java/com/serverbe/application/service/LoginServ
 **`.block()` 주석은 성격이 조금 달랐습니다.** "SQS 리스너 워커 스레드이므로"는 지금도 사실입니다 —
 틀린 것은 문장이 아니라, **왜 안전한지의 근거를 특정 전송 수단에 묶어 둔 것**이었습니다. 큐가
 바뀌면 근거가 통째로 흔들립니다. 그래서 인라인 주석은 짧게 남기고
-([`RunningArtService`](../../src/main/java/com/serverbe/application/service/RunningArtService.java)),
+([`RunningArtRegistrationService`](../../src/main/java/com/serverbe/application/service/RunningArtRegistrationService.java) —
+[08번](08-fat-service-runningart.md)에서 `RunningArtService`에서 갈라져 나왔습니다),
 근거는 메서드 javadoc `@implNote`로 올렸습니다 — 진짜 전제는 SQS가 아니라 **"이벤트 루프가 아닌
 블로킹 워커 스레드에서 호출된다"** 는 것이고, 그 전제가 깨지는 조건까지 함께 적었습니다.
 **지우지 않고 올린 이유는 6절에 있습니다.**

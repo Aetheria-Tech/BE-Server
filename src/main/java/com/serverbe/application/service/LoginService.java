@@ -18,12 +18,14 @@ import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
-import java.util.List;
+import java.util.Map;
 
 /**
  * @author Duskafka
  * @responsibility 외부 소셜 인증 결과를 시스템 내부 사용자 정보와 동기화하고, 보안 세션을 생성하는 총괄 지휘자 역할을 수행합니다.
- * @implSpec 1. <b>전략 패턴</b>: {@link OAuthClientPort}를 통해 다중 소셜 플랫폼을 지원합니다.<br>
+ * @implSpec 1. <b>제공자별 디스패치</b>: {@link OAuthClientPort} 구현체를 제공자로 찾아 다중 소셜 플랫폼을
+ * 지원합니다. 조회표는 기동 시점에 {@code infrastructure.config.OAuthClientConfig}가 조립하므로
+ * 이 서비스는 <b>고르지 않고 꺼내 쓰기만 합니다.</b><br>
  * 2. <b>책임 분리</b>: DB 트랜잭션은 {@link UserDataSyncManager}에게, Redis 세션 관리는 {@link AuthSessionManager}에게 위임합니다.
  */
 @Slf4j
@@ -31,7 +33,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class LoginService implements LoginUseCase {
 
-    private final List<OAuthClientPort> oAuthClients;
+    private final Map<OAuthProvider, OAuthClientPort> oAuthClients;
     private final UserDataSyncManager userDataSyncManager;
     private final AuthSessionManager authSessionManager;
     private final TokenProvider tokenProvider;
@@ -99,15 +101,16 @@ public class LoginService implements LoginUseCase {
 
     /**
      * @throws BusinessException 지원하지 않는 플랫폼 요청 시 발생
-     * @responsibility 제공된 {@link OAuthProvider}를 지원하는 클라이언트 어댑터를 검색합니다.
+     * @responsibility 제공된 {@link OAuthProvider}를 담당하는 클라이언트 어댑터를 조회표에서 꺼냅니다.
+     * @implNote {@code null}이 나오는 경우는 남습니다 — 요청에 실린 문자열이 {@link OAuthProvider}로
+     * 변환은 됐는데 그 제공자를 담당하는 어댑터가 아직 없는 경우입니다.
      */
     private OAuthClientPort getClient(OAuthProvider provider) {
-        return oAuthClients.stream()
-                .filter(client -> client.supports(provider))
-                .findFirst()
-                .orElseThrow(() -> {
-                    log.warn("[SECURITY ALERT] 미지원 인증 요청: Provider={}", provider);
-                    return new AuthException(AuthErrorCode.UNSUPPORTED_SOCIAL_LOGIN);
-                });
+        OAuthClientPort client = oAuthClients.get(provider);
+        if (client == null) {
+            log.warn("[SECURITY ALERT] 미지원 인증 요청: Provider={}", provider);
+            throw new AuthException(AuthErrorCode.UNSUPPORTED_SOCIAL_LOGIN);
+        }
+        return client;
     }
 }

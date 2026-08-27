@@ -117,6 +117,11 @@ WHERE t.status IN ('PENDING', 'PROCESSING');
 제약이 생기면 경합에서 진 쪽은 `DataIntegrityViolationException`을 받습니다. 그대로 두면 사용자에게
 500이 갑니다. 하지만 **그 시점에는 이긴 쪽의 행이 이미 커밋되어 있으므로**, 다시 조회하면 반드시 찾습니다.
 
+> 여기서 받는 것은 **도메인** `DataIntegrityViolationException`입니다. DB가 제약 위반을 알려 주는
+> 방식(스프링의 같은 이름 예외)을 도메인 언어로 옮기는 일은 `UserPersistenceAdapter.save`가 하고,
+> 애플리케이션 계층은 "무결성 위반이 있었다"까지만 받습니다. 그 경계를 세운 경위는
+> [리팩터링 06번](../refactor/06-framework-exception-leak.md)에 있습니다.
+
 문제는 **재조회를 할 수 있느냐**입니다.
 
 ```java

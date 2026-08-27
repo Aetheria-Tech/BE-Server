@@ -1,17 +1,18 @@
 # 06. 애플리케이션이 스프링 예외를 잡는다
 
-> 상태 · 대기
+> 상태 · **완료** (커밋 전, 워킹 트리)
 > 성격 · 경계 | 난이도 · 낮음 | 선행 항목 · 없음
-> 이 항목의 절반은 **왜 지금까지 잡히지 않았는가**입니다. ArchUnit 규칙에 사각지대가 있습니다.
+> 이 항목의 절반은 **왜 지금까지 잡히지 않았는가**였습니다. 그리고 **착수 전에 세운 규칙도
+> 이걸 잡지 못했습니다** — 4절이 이 문서의 진짜 내용입니다.
 
-## 1. 무엇이 문제인가
+## 1. 무엇이 문제였는가
 
 [`UserDataSyncManager`](../../src/main/java/com/serverbe/application/service/helper/UserDataSyncManager.java)가
-스프링의 `org.springframework.dao.DataIntegrityViolationException`을 import하고 catch합니다.
+스프링의 `org.springframework.dao.DataIntegrityViolationException`을 import하고 catch했습니다.
 
 애플리케이션 계층은 프레임워크를 몰라야 하고, 도메인에는 이미 같은 뜻의 예외가 있습니다 —
 `com.serverbe.domain.exception.server.DataIntegrityViolationException`. **이름이 같은 두 예외가
-서로 다른 계층에서 공존합니다.**
+서로 다른 계층에서 공존했습니다.**
 
 ## 2. 근거
 
@@ -19,26 +20,19 @@
 grep -rn "org.springframework.dao" src/main/java/
 ```
 
-네 줄이 나옵니다. 셋은 `adapter/out/persistence/...`이라 정상이고, **나머지 하나가
-`application/service/helper/UserDataSyncManager.java`** 입니다.
+네 줄이 나왔습니다. 셋은 `adapter/out/persistence/...`이라 정상이고, **나머지 하나가
+`application/service/helper/UserDataSyncManager.java`** 였습니다.
 
 ```java
-// UserDataSyncManager#registerOrRecover — 애플리케이션 계층인데 스프링 예외를 잡는다
+// UserDataSyncManager#registerOrRecover — 애플리케이션 계층인데 스프링 예외를 잡았다
 } catch (DataIntegrityViolationException e) {
-    log.warn("[REGISTER] 동시 최초 로그인 경합 감지, 기존 회원으로 복구합니다: Provider={}", oauthInfo.provider());
-
-    return userRepositoryPort.findByOauthId(oauthInfo.oauthId(), oauthInfo.provider())
-            .map(existingUser -> refresh(existingUser, oauthInfo))
-            .orElseThrow(() -> e);
-}
 ```
 
-여기서 잡는 `DataIntegrityViolationException`은 **스프링 것**입니다. 파일 머리의 import를 봐야만
-알 수 있습니다.
+여기서 잡는 것이 **스프링 것**이라는 사실은 파일 머리의 import를 봐야만 알 수 있었습니다.
 
 ## 3. 왜 지금까지 잡히지 않았나 — 규칙의 사각지대
 
-`LayerDependencyTest`의 규칙은 이렇게 되어 있습니다.
+`LayerDependencyTest`의 애플리케이션 규칙은 **차단 목록**이었습니다.
 
 ```java
 애플리케이션은_어댑터와_인프라를_모른다 = noClasses()
@@ -48,98 +42,190 @@ grep -rn "org.springframework.dao" src/main/java/
 ```
 
 **막는 대상이 우리 패키지 두 개뿐입니다.** `org.springframework..`는 목록에 없으므로 통과합니다.
+바로 위의 도메인 규칙은 정반대로 **허용 목록**이라, 도메인은 새 프레임워크가 들어와도 막힙니다.
 
-바로 위에 있는 도메인 규칙은 정반대 방식으로 쓰여 있습니다.
+**규칙이 덮지 않는 경계는 반드시 샙니다.** 이 저장소가 `LayerDependencyTest`를 도입한 이유가
+여기서 절반만 실현되어 있었습니다.
 
-```java
-도메인은_JDK와_Lombok에만_의존한다 = noClasses()
-        .that().resideInAPackage("com.serverbe.domain..")
-        .should().dependOnClassesThat()
-        .resideOutsideOfPackages("com.serverbe.domain..", "java..", "lombok..");
+## 4. 예상 못 한 것 — 허용 목록 규칙도 이걸 잡지 못했습니다
+
+**이 항목에서 실제로 배운 것은 이겁니다.**
+
+착수 전 계획은 "허용 목록 규칙을 켜는 순간 이 위반이 잡힌다"였습니다. 04·05번이 규칙을 확인하려고
+고친 것을 일부러 되돌려야 했던 것과 달리, 이번엔 **위반이 아직 살아 있으니 규칙만 켜면 빨간
+줄을 볼 수 있다**고 봤습니다. 그래서 규칙을 먼저 넣고 돌렸습니다.
+
+```
+BUILD SUCCESSFUL
+9 tests completed, 0 failed
 ```
 
-이쪽은 **허용 목록**입니다. 그래서 도메인은 새 프레임워크가 들어와도 막히지만, **애플리케이션은
-차단 목록이라 목록에 없는 것이 전부 통과합니다.**
+**통과했습니다.** 위반은 그대로 있는데 규칙이 조용했습니다.
 
-이것이 이 문서의 핵심입니다 — **규칙이 덮지 않는 경계는 반드시 샙니다.** 이 저장소가
-`LayerDependencyTest`를 도입한 이유("규약이 아니라 테스트가 경계를 지키게 한다")가 여기서 절반만
-실현되어 있었습니다.
+### 왜인가
 
-## 4. 왜 고쳐야 하는가
+ArchUnit이 의존으로 세는 것은 필드 타입·파라미터·반환 타입·메서드 호출·애노테이션 같은
+것들입니다. **잡는 예외의 타입은 그중에 없습니다.** 바이트코드에서 catch 대상은 예외 테이블에만
+적히고, 지역 변수 타입은 디버그 정보일 뿐이라 `dependOnClassesThat`의 시야 밖입니다.
 
-두 가지입니다.
+`UserDataSyncManager`의 의존 목록을 직접 찍어 확인했습니다.
 
-**첫째, 번역이 일어나야 할 곳에서 일어나지 않았습니다.** 유니크 제약 위반을 도메인 언어로 옮기는
-일은 영속성 어댑터의 몫입니다. 실제로 옆에 있는
-[`AiTaskPersistenceAdapter`](../../src/main/java/com/serverbe/adapter/out/persistence/task/AiTaskPersistenceAdapter.java)는
-그 일을 하고 있습니다 — 같은 스프링 예외를 어댑터 안에서 잡습니다. **같은 저장소 안에서 두 방식이
-공존합니다.**
+```
+### DIRECT DEPENDENCIES FROM SELF ###
+org.slf4j.Logger                                        [Field ... has type ...]
+org.springframework.stereotype.Component                [Class ... is annotated with ...]
+org.springframework.transaction.PlatformTransactionManager  [Constructor ... has parameter of type ...]
+org.springframework.transaction.support.TransactionTemplate [Field ... has type ...]
+...
+### TRY-CATCH BLOCKS ###
+registerOrRecover catches [org.springframework.dao.DataIntegrityViolationException]   ← 의존 목록엔 없다
+```
 
-**둘째, 이름이 같은 두 예외가 있습니다.** `UserDataSyncManager`를 읽는 사람은 import를 확인하기
-전까지 어느 쪽인지 알 수 없고, IDE 자동 import는 둘 중 아무거나 고릅니다. 도메인 예외를 던져야 할
-자리에 스프링 예외가 들어가도 컴파일은 통과합니다.
+**규칙의 사각지대를 메우려고 만든 규칙에 같은 종류의 사각지대가 있었습니다.** 3절이 진단한
+것과 정확히 같은 실수를 한 번 더 한 셈이고, **실제로 돌려 보지 않았다면 "규칙을 세웠다"고
+믿으며 넘어갔을 것입니다.** 04번에서 "항상 통과하는 규칙은 규칙이 아니다"라며 일부러 깨뜨려
+본 절차가, 여기서는 계획 자체를 구해 냈습니다.
 
-이 마찰은 이미 코드에 흔적을 남겼습니다. `AiTaskPersistenceAdapter`는 catch 절에 **패키지 전체
-이름을 그대로 씁니다.**
+### 그래서 규칙이 둘입니다
+
+하나는 **쓰는 타입**을, 하나는 **잡는 타입**을 봅니다. 후자는 `getTryCatchBlocks()`로 직접
+훑어야 하므로 커스텀 `ArchCondition`이 필요합니다(5절).
+
+## 5. 어떻게 — 한 일
+
+### 번역을 어댑터로 내렸습니다
+
+[`UserPersistenceAdapter.save`](../../src/main/java/com/serverbe/adapter/out/persistence/user/UserPersistenceAdapter.java)가
+스프링 예외를 잡아 도메인 예외로 바꿔 던집니다. **본보기가 옆에 있었습니다** —
+`AiTaskPersistenceAdapter`가 이미 같은 일을 하고 있었고, 그 관용구(스프링 예외를 import하지 않고
+catch 절에 패키지 전체 이름을 쓰기)를 그대로 따랐습니다.
 
 ```java
 } catch (org.springframework.dao.DataIntegrityViolationException e) {
-    // active_user_id 유니크 제약 위반 = 이 사용자에게 이미 진행 중인 작업이 있다는 뜻입니다.
-    log.warn("[Concurrency] 유저 {} 의 동시 AI 작업 생성이 DB 유니크 제약에서 차단되었습니다.", aiTask.userId(), e);
-    throw new AiException(AiErrorCode.DUPLICATE_AI_REQUEST);
+    // 어댑터는 "DB가 무결성 이유로 거부했다"까지만 말합니다. 그것이 동시 최초 로그인 경합인지는
+    // 재조회에 성공해 봐야 알 수 있고, 그 판단은 호출자(UserDataSyncManager)의 몫입니다.
+    log.warn("[Integrity] 사용자 저장이 DB 무결성 제약에서 거부되었습니다.", e);
+    throw new DataIntegrityViolationException(
+            ServerErrorCode.INTERNAL_SERVER_ERROR, e.getMostSpecificCause().getMessage());
 }
 ```
 
-짧게 쓸 수 있는데 길게 쓴 이유는 하나뿐입니다 — **짧게 쓰면 어느 예외인지 알 수 없기 때문입니다.**
-이름 충돌이 실제로 코드를 불편하게 만들고 있다는 증거입니다.
+**착수 전에 확인한 전제가 하나 있었습니다** — `UserEntity`의 식별자가
+`@GeneratedValue(strategy = IDENTITY)`라 `persist` 시점에 INSERT가 즉시 실행됩니다. 그래서 제약
+위반이 커밋까지 미뤄지지 않고 **`save()` 안에서** 잡힙니다. 지연 flush였다면 예외는
+`TransactionTemplate`이 커밋할 때, 즉 어댑터 바깥에서 터졌을 것이고 **이 계획 자체가 성립하지
+않았습니다.**
 
-## 5. 어떻게
+`ErrorCode`로 `INTERNAL_SERVER_ERROR`를 골랐습니다. 착수 전에도 복구 실패 시 스프링 예외가
+`handleException(Exception)`으로 떨어져 500(COMMON_003)이 나갔고,
+`BusinessExceptionHandler`의 도메인 핸들러도 `errorCode`를 무시하고 항상 500을 냅니다.
+**응답이 한 글자도 바뀌지 않습니다** — 이 항목은 경계 리팩터링이지 응답 변경이 아닙니다.
+"경합"이라는 해석은 어댑터가 내릴 수 있는 것이 아니어서 `ASYNC_RACE_CONDITION`(409)은 쓰지
+않았습니다. 어댑터는 어떤 제약이 깨졌는지 모릅니다.
 
-1. **번역을 어댑터로 내립니다.** `UserPersistenceAdapter.save`가 스프링의
-   `DataIntegrityViolationException`을 잡아 도메인
-   `DataIntegrityViolationException`(또는 경합 상황에 더 맞는 도메인 예외)으로 바꿔 던집니다.
-   `AiTaskPersistenceAdapter`가 이미 하고 있는 것과 같은 모양이므로 **본보기가 옆에 있습니다.**
-2. `UserDataSyncManager`는 도메인 예외만 잡습니다. import 한 줄이 사라집니다.
-3. 복구 로직(재조회 후 기존 회원으로 이어 가기)은 **그대로 둡니다.** 그건 애플리케이션의 판단이고,
-   이 항목이 바꾸려는 것이 아닙니다.
+### 애플리케이션은 도메인 예외만 잡습니다
 
-**주의** — 던지는 예외 종류가 바뀌면 이 경합 시나리오를 덮는 테스트가 함께 움직여야 합니다.
-`UserDataSyncManagerTest`와 `UserPersistenceAdapterTest`가 모두 있으므로, **어느 쪽이 무엇을
-검증하는지가 이 리팩터링으로 더 선명해져야 합니다** — 어댑터 테스트가 "번역이 일어나는가", 매니저
-테스트가 "번역된 예외를 받으면 복구하는가"를 맡습니다.
+`UserDataSyncManager`는 import 한 줄이 바뀌었고 **복구 로직은 그대로**입니다. 재조회 후 기존
+회원으로 이어 가는 판단은 애플리케이션의 몫이고 이 항목이 바꾸려던 것이 아닙니다.
+`registerOrRecover`의 Javadoc에 **어디서 번역되는지**를 적었습니다 — 코드가 말하지 않는 사실을
+주석이 말해야 합니다.
 
-## 6. 재발 방지
+### 테스트가 두 층으로 갈렸습니다
 
-`LayerDependencyTest`의 애플리케이션 규칙을 **차단 목록에서 허용 목록으로** 바꿉니다. 도메인
-규칙과 같은 형태가 됩니다.
+문서가 요구한 선명함이 이것입니다.
+
+- `UserPersistenceAdapterTest` — **번역이 일어나는가.** `save` 경로 테스트가 아예 없던 파일이라
+  둘을 새로 넣었습니다(제약 위반 번역, 정상 저장 통과)
+- `UserDataSyncManagerTest` — **번역된 예외를 받으면 복구하는가.** stub이 던지는 타입만 도메인
+  것으로 바뀌었고 시나리오는 그대로입니다
+
+도메인 클래스에는 String 단일 생성자가 없어(1-arg 생성자가 `protected`) stub이
+`new DataIntegrityViolationException(ServerErrorCode.INTERNAL_SERVER_ERROR, "...")`로 바뀌었습니다.
+`hasMessageContaining`은 그대로 통과합니다 — `BusinessException(ErrorCode, String)`이
+`super(message)`를 호출하기 때문입니다.
+
+### 확인한 것
+
+- **`gradlew build` 통과**(전체 재실행). 두 테스트 모두 순수 Mockito라 기본 `test` 태스크에서 돕니다
+- **누수가 사라졌습니다.** `org.springframework.dao`는 이제 `adapter/out/persistence/` 네 줄뿐입니다
+- **애플리케이션에 남은 스프링은 `stereotype`과 `transaction`뿐입니다** — 정확히 허용 목록 그대로
+
+## 6. 재발 방지 — 규칙 둘
+
+### 하나 — 허용 목록
+
+`애플리케이션은_어댑터와_인프라를_모른다`는 **남겼습니다.** 새 규칙이 포함하지만, 어댑터나
+인프라를 import했을 때 이름부터 그것을 말하는 규칙이 함께 터져야 원인이 바로 읽힙니다.
+
+```java
+static final ArchRule 애플리케이션은_포트와_도메인_안에서만_논다 = noClasses()
+        .that().resideInAPackage("com.serverbe.application..")
+        .should().dependOnClassesThat()
+        .resideOutsideOfPackages(
+                "com.serverbe.application..",
+                "com.serverbe.domain..",
+                "java..",
+                "lombok..",                          // @Slf4j·@RequiredArgsConstructor 와 lombok.Generated
+                "org.slf4j..",                       // @Slf4j 가 만드는 Logger 필드. import 없이 들어온다
+                "org.springframework.stereotype..",  // @Service·@Component — 빈 선언
+                "org.springframework.transaction..", // 트랜잭션 경계를 정하는 곳이 이 계층이다
+                "reactor.."                          // 10번 문서에서 남기기로 결정한 것
+        );
+```
+
+**허용 목록은 import가 아니라 ArchUnit이 실제로 보는 의존을 세어서 정했습니다.** 애플리케이션
+92개 클래스의 의존을 전부 찍어 보니 **import 한 줄 없이 들어오는 것들**이 있었습니다.
+
+| import 없이 들어오는 것 | 경로 |
+| --- | --- |
+| `org.slf4j.Logger` · `LoggerFactory` | Lombok `@Slf4j`가 만드는 필드와 static 초기화 |
+| `reactor.util.function.Tuple2` | `AiGenerationService`의 `zipWhen` |
+| `transaction.annotation.Isolation` · `Propagation` | `@Transactional`의 애노테이션 멤버 타입 |
+
+둘째 것 때문에 `reactor.core..`가 아니라 **`reactor..`** 로 잡아야 합니다. 소스의 import만 보고
+목록을 짰다면 규칙이 첫 실행에서 깨졌을 것입니다.
+
+**목록에 `org.springframework.dao`는 없습니다.** 그것이 요점입니다. 그리고 목록에 무엇을 넣느냐가
+곧 선언입니다 — 트랜잭션과 Reactor를 허용한다는 것은 그 둘이 이 계층의 어휘라는 뜻이고,
+**목록 자체가 "애플리케이션이 프레임워크에 얼마나 묶여 있는가"를 한 화면에 드러냅니다.**
+
+### 둘 — 잡는 예외
+
+```java
+static final ArchRule 애플리케이션은_프레임워크_예외를_잡지_않는다 = noClasses()
+        .that().resideInAPackage("com.serverbe.application..")
+        .should(catchThrowablesOutsideOf(
+                "com.serverbe.application..", "com.serverbe.domain..", "java.."));
+```
+
+`java..`를 허용하는 이유는 애플리케이션이 실제로 `Exception`을 잡기 때문입니다(비동기 흐름의
+최후 방어선 여섯 곳). 도메인 예외도 잡습니다(`AiNotificationService`의
+`AsyncRaceConditionException`). **프레임워크 예외만 잡던 곳이 정확히 하나였습니다.**
+
+### 규칙이 정말 잡는지 확인했습니다
+
+이번엔 되돌릴 필요가 없었습니다. 고치기 **전에** 규칙을 켜서 실패를 봤습니다.
 
 ```
-애플리케이션은_포트와_도메인_안에서만_논다
-  application.. 의 클래스는
-  application.. / domain.. / java.. / lombok.. / (허용한 몇 가지) 밖에 의존하지 않는다
+LayerDependencyTest > 애플리케이션은_프레임워크_예외를_잡지_않는다 FAILED
+10 tests completed, 1 failed
+
+Architecture Violation [Priority: MEDIUM] - Rule 'no classes that reside in a package
+'com.serverbe.application..' should 허용된 패키지 밖의 예외를 catch 한다' was violated (1 times):
+Class <com.serverbe.application.service.helper.UserDataSyncManager> catches
+<org.springframework.dao.DataIntegrityViolationException> in (UserDataSyncManager.java:64)
 ```
 
-**허용해야 할 것을 미리 정합니다.** 지금 애플리케이션 계층이 실제로 쓰는 프레임워크 타입은 조사로
-확인되어 있습니다.
-
-- `org.springframework.stereotype.Service` / `Component` — 빈 선언
-- `org.springframework.transaction..` — `@Transactional`, `TransactionTemplate`,
-  `TransactionSynchronization`
-- `reactor.core..` — [10번 문서](10-reactive-types-in-ports.md)에서 남기기로 결정한 것
-- `org.slf4j..`
-
-이 목록에 **`org.springframework.dao`는 없습니다.** 그래서 규칙을 켜는 순간 이 항목이 잡히고,
-고친 뒤에는 새로 새는 것도 잡힙니다.
-
-허용 목록을 정하는 일 자체가 **"애플리케이션이 프레임워크에 얼마나 묶여 있는가"를 한 화면에
-드러내는 문서**가 됩니다. 트랜잭션과 Reactor를 허용한다는 것은 그 둘이 이 계층의 어휘라는 선언이고,
-그 선언은 명시적일수록 좋습니다.
+고친 뒤 10개 전부 통과합니다.
 
 ## 7. 하지 않기로 한 것
 
-- **`@Transactional`과 Reactor를 걷어내지 않습니다.** 허용 목록에 넣습니다. 전자는 이 계층이
+- **`@Transactional`과 Reactor를 걷어내지 않았습니다.** 허용 목록에 넣었습니다. 전자는 이 계층이
   트랜잭션 경계를 정하는 곳이기 때문이고, 후자의 근거는 [10번 문서](10-reactive-types-in-ports.md)에
   있습니다.
-- **도메인 예외의 이름을 바꾸지 않습니다.** `DataIntegrityViolationException`이라는 이름이 스프링
-  것과 겹치는 게 혼란의 원인 중 하나지만, 애플리케이션에서 스프링 쪽이 사라지면 겹칠 일도
-  사라집니다. 이름을 바꾸는 것은 더 큰 변경이고 얻는 게 적습니다.
+- **도메인 예외의 이름을 바꾸지 않았습니다.** 애플리케이션에서 스프링 쪽이 사라졌으므로 겹칠 일도
+  사라졌습니다. 어댑터에는 여전히 둘 다 보이지만, 거기서 FQN을 쓰는 것은 이미 확립된 관용구입니다.
+- **복구 로직을 바꾸지 않았습니다.** 재조회 후 기존 회원으로 이어 가는 판단은 그대로입니다.
+- **`AiTaskPersistenceAdapter`를 손대지 않았습니다.** 이미 올바른 자리에서 번역하고 있습니다.
+- **어댑터의 `DataAccessException` import는 그대로입니다.** 어댑터가 스프링 예외를 아는 것은
+  문제가 아니라 어댑터의 일입니다.

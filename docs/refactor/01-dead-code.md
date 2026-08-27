@@ -138,6 +138,7 @@ grep -rn "SocialTokenService\|RunningArtAiResponse\|refreshSocialToken\|SocialTo
 - **`User.oauthRefreshToken` 필드는 남겼습니다.** 구글 `unlink`가 이 값을 직접 폐기하고,
   `createNew`·`updateFromOAuth`도 씁니다. 지운 것은 **`renewOauthRefreshToken` 메서드 하나뿐**입니다.
 - **`supports()`와 남은 `getClient` 중복 두 벌은 건드리지 않았습니다.**
-  [07번](07-oauth-client-selection-duplication.md) 몫입니다.
+  [07번](07-oauth-client-selection-duplication.md) 몫이었고, **거기서 닫혔습니다** — `supports()`는
+  `provider()` 선언으로 바뀌었고 선택 코드 자체가 사라졌습니다.
 - **`WithdrawService`의 `@Transactional`은 그대로입니다.**
   [02번](02-transactional-on-mono.md) 몫이고, 이 작업으로 그 문서의 대상이 하나 줄었을 뿐입니다.

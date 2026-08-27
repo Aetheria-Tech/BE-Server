@@ -168,8 +168,8 @@ public class KakaoOAuthAdapter implements OAuthClientPort {
     }
 
     @Override
-    public boolean supports(OAuthProvider provider) {
-        return provider == OAuthProvider.KAKAO;
+    public OAuthProvider provider() {
+        return OAuthProvider.KAKAO;
     }
 
     @Override

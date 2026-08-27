@@ -660,7 +660,7 @@ POST /api/v1/test/ai/tasks/{taskId}/mock-sqs-receive
 | --- | --- |
 | **서비스 단위 테스트** | 로그인·로그아웃·재발급·탈퇴, AI 생성/결과 수신/좀비 정리, 러닝 아트 CRUD와 소유권 검증 — 성공 경로뿐 아니라 각 단계의 예외 분기와 보상 로직 동작을 함께 검증. 좀비 정리는 실패 알림 발송과 알림 실패 시의 견고성까지 확인 |
 | **쿼리 비용 회귀 방지** | `AiTaskCleanupServiceTest` — 좀비 정리가 건별 저장이 아니라 **벌크 UPDATE를 정확히 1회** 호출하고 대상 id가 빠짐없이 담기는지, 정리 대상이 없으면 DB 호출 자체가 발생하지 않는지 검증. 성능 개선이 다음 리팩터링에서 조용히 되돌아가는 것을 막는 장치 |
-| **경합 복구 테스트** | `UserDataSyncManagerTest` — 동시 최초 로그인으로 유니크 제약에 걸린 요청이 500이 아니라 재조회를 통해 정상 로그인으로 마무리되는지, 복구 불가능한 무결성 위반은 그대로 전파되는지 검증 |
+| **경합 복구 테스트** | 검증이 계층별로 나뉘어 있음. `UserPersistenceAdapterTest` — DB 제약 위반이 **어댑터 경계에서 도메인 예외로 번역**되어 애플리케이션 계층에 프레임워크 예외가 새지 않는지. `UserDataSyncManagerTest` — 그 예외를 받은 뒤 동시 최초 로그인 요청이 500이 아니라 재조회를 통해 정상 로그인으로 마무리되는지, 복구 불가능한 무결성 위반은 그대로 전파되는지 |
 | **외부 연동 테스트** | OkHttp `MockWebServer`로 Kakao·Google OAuth와 지오코딩 API의 정상 응답, 4xx, 5xx, 타임아웃 시나리오를 재현 |
 | **동시성 테스트** | `RateLimiterServiceConcurrencyTest` — 다중 스레드가 동시에 요청할 때 Lua 토큰 버킷이 한도를 초과 허용하지 않는지 검증 |
 | **성능 측정** | `BlacklistPerformanceTest`, `WebClientPerformanceTest` — 토큰 블랙리스트 조회 및 WebClient 커넥션 풀 동작 특성 측정 |

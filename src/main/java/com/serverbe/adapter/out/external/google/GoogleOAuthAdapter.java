@@ -160,8 +160,8 @@ public class GoogleOAuthAdapter implements OAuthClientPort {
     }
 
     @Override
-    public boolean supports(OAuthProvider provider) {
-        return provider == OAuthProvider.GOOGLE;
+    public OAuthProvider provider() {
+        return OAuthProvider.GOOGLE;
     }
 
     @Override

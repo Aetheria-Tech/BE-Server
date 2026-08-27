@@ -15,7 +15,7 @@ import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
-import java.util.List;
+import java.util.Map;
 
 /**
  * @author Duskafka
@@ -28,7 +28,7 @@ import java.util.List;
 public class WithdrawService implements WithdrawUseCase {
 
     private final UserRepositoryPort userRepositoryPort;
-    private final List<OAuthClientPort> oAuthClients;
+    private final Map<OAuthProvider, OAuthClientPort> oAuthClients;
     private final UserDataCleanupManager userDataCleanupManager;
 
     /**
@@ -72,15 +72,17 @@ public class WithdrawService implements WithdrawUseCase {
     }
 
     /**
-     * @responsibility 요청된 {@link OAuthProvider}에 대응하는 {@link OAuthClientPort} 구현체를 전략적으로 선택합니다.
+     * @responsibility 요청된 {@link OAuthProvider}를 담당하는 {@link OAuthClientPort} 구현체를 조회표에서 꺼냅니다.
+     * @implNote 조회표는 기동 시점에 {@code infrastructure.config.OAuthClientConfig}가 조립합니다.
+     * 탈퇴는 이미 가입되어 있던 사용자의 {@code provider}로 조회하므로, 여기서 {@code null}이 나오면
+     * 가입 이후 해당 어댑터가 사라졌다는 뜻입니다 — 로그를 {@code SECURITY/CONFIG ERROR}로 남기는 이유입니다.
      */
     private OAuthClientPort getClient(OAuthProvider provider) {
-        return oAuthClients.stream()
-                .filter(client -> client.supports(provider))
-                .findFirst()
-                .orElseThrow(() -> {
-                    log.warn("[SECURITY/CONFIG ERROR] 지원하지 않는 소셜 로그인 방식 요청: {}", provider);
-                    return new AuthException(AuthErrorCode.UNSUPPORTED_SOCIAL_LOGIN);
-                });
+        OAuthClientPort client = oAuthClients.get(provider);
+        if (client == null) {
+            log.warn("[SECURITY/CONFIG ERROR] 지원하지 않는 소셜 로그인 방식 요청: {}", provider);
+            throw new AuthException(AuthErrorCode.UNSUPPORTED_SOCIAL_LOGIN);
+        }
+        return client;
     }
 }

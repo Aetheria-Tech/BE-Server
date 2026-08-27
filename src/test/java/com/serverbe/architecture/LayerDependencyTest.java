@@ -5,7 +5,10 @@ import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
+import com.tngtech.archunit.lang.ArchCondition;
 import com.tngtech.archunit.lang.ArchRule;
+import com.tngtech.archunit.lang.ConditionEvents;
+import com.tngtech.archunit.lang.SimpleConditionEvent;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.RestController;
@@ -16,6 +19,7 @@ import reactor.core.publisher.Mono;
 import java.util.Set;
 
 import static com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAPackage;
+import static com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAnyPackage;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noMethods;
@@ -65,6 +69,67 @@ class LayerDependencyTest {
             .that().resideInAPackage("com.serverbe.application..")
             .should().dependOnClassesThat()
             .resideInAnyPackage("com.serverbe.adapter..", "com.serverbe.infrastructure..");
+
+    /**
+     * 위 규칙과 <b>같은 경계를 반대 방식으로</b> 잡습니다. 위가 "이것만 안 된다"는 차단 목록이라면
+     * 이것은 "이것만 된다"는 허용 목록입니다. <b>차단 목록은 목록에 없는 것이 전부 통과합니다</b> —
+     * 우리 패키지 둘만 막고 있었으므로 {@code org.springframework..}은 처음부터 자유로웠습니다.
+     * 바로 위의 도메인 규칙({@code 도메인은_JDK와_Lombok에만_의존한다})은 애초에 허용 목록이라
+     * 새 프레임워크가 들어와도 막히는데, 애플리케이션만 절반이 열려 있었습니다.
+     *
+     * @implNote 이 규칙이 켜지기 전까지 {@code UserDataSyncManager}가 스프링의
+     * {@code org.springframework.dao.DataIntegrityViolationException}을 잡았습니다. 도메인에
+     * <b>이름이 같은</b> 예외가 이미 있어서, 어느 쪽인지는 파일 머리의 import를 봐야만 알 수
+     * 있었습니다. 유니크 제약 위반을 도메인 언어로 옮기는 일은 영속성 어댑터의 몫이고,
+     * 지금은 {@code UserPersistenceAdapter.save}가 합니다.
+     * @implNote 허용 목록은 <b>import가 아니라 ArchUnit이 실제로 보는 의존</b>을 세어서 정했습니다.
+     * {@code dependOnClassesThat}은 필드 타입·애노테이션 멤버 타입·람다 대상 타입까지 보므로
+     * import 한 줄 없이 들어오는 것들이 있습니다 — {@code org.slf4j.Logger}(Lombok
+     * {@code @Slf4j}가 만드는 필드), {@code reactor.util.function.Tuple2}({@code zipWhen}),
+     * {@code transaction.annotation.Isolation}·{@code Propagation}({@code @Transactional}의 멤버).
+     * 첫째 것 때문에 {@code org.slf4j..}가, 둘째 것 때문에 {@code reactor.core..}가 아니라
+     * <b>{@code reactor..}</b> 가 필요합니다.
+     * @implNote <b>목록에 무엇을 넣느냐가 곧 선언입니다.</b> 트랜잭션과 Reactor를 허용한다는 것은
+     * 그 둘이 이 계층의 어휘라는 뜻이고, 목록 자체가 "애플리케이션이 프레임워크에 얼마나 묶여
+     * 있는가"를 한 화면에 드러냅니다. 새 항목을 넣을 때는 <b>왜 허용하는지 주석을 답니다.</b>
+     */
+    @ArchTest
+    static final ArchRule 애플리케이션은_포트와_도메인_안에서만_논다 = noClasses()
+            .that().resideInAPackage("com.serverbe.application..")
+            .should().dependOnClassesThat()
+            .resideOutsideOfPackages(
+                    "com.serverbe.application..",
+                    "com.serverbe.domain..",
+                    "java..",
+                    "lombok..",                          // @Slf4j·@RequiredArgsConstructor 와 lombok.Generated
+                    "org.slf4j..",                       // @Slf4j 가 만드는 Logger 필드. import 없이 들어온다
+                    "org.springframework.stereotype..",  // @Service·@Component — 빈 선언
+                    "org.springframework.transaction..", // 트랜잭션 경계를 정하는 곳이 이 계층이다
+                    "reactor.."                          // 10번 문서에서 남기기로 결정한 것
+            );
+
+    /**
+     * <b>catch 절은 위 규칙에 잡히지 않습니다.</b> ArchUnit이 의존으로 세는 것은 필드·파라미터·
+     * 반환 타입·호출·애노테이션 같은 것들이고, <b>잡는 예외의 타입은 그중에 없습니다.</b>
+     * 바이트코드에서 catch 대상은 예외 테이블에만 적히기 때문입니다. 그래서 잡는 예외는
+     * {@code getTryCatchBlocks()}로 따로 봐야 합니다.
+     *
+     * @implNote 이 규칙이 켜지기 전까지 {@code UserDataSyncManager}가 스프링의
+     * {@code org.springframework.dao.DataIntegrityViolationException}을 잡았습니다. 도메인에
+     * <b>이름이 같은</b> 예외가 이미 있어서 어느 쪽인지는 파일 머리의 import를 봐야만 알 수
+     * 있었고, IDE 자동 import는 둘 중 아무거나 골랐습니다.
+     * @implNote <b>위 허용 목록 규칙을 먼저 켜 봤지만 이 위반을 잡지 못했습니다.</b> 잡는 예외가
+     * 의존으로 세어지지 않아서입니다. 규칙의 사각지대를 메우려던 규칙에 같은 종류의 사각지대가
+     * 있었던 셈이고, 그래서 둘이 필요합니다 — 하나는 <b>쓰는 타입</b>을, 하나는 <b>잡는 타입</b>을
+     * 봅니다.
+     */
+    @ArchTest
+    static final ArchRule 애플리케이션은_프레임워크_예외를_잡지_않는다 = noClasses()
+            .that().resideInAPackage("com.serverbe.application..")
+            .should(catchThrowablesOutsideOf(
+                    "com.serverbe.application..",
+                    "com.serverbe.domain..",
+                    "java.."));
 
     /**
      * 인바운드 어댑터가 아웃바운드 어댑터를 직접 부르면 애플리케이션 계층을 건너뛰게 됩니다.
@@ -170,6 +235,32 @@ class LayerDependencyTest {
                 return javaClass.getMethods().stream()
                         .flatMap(method -> method.getAnnotations().stream())
                         .anyMatch(annotation -> names.contains(annotation.getRawType().getName()));
+            }
+        };
+    }
+
+    /**
+     * 잡는 예외의 타입은 ArchUnit이 의존으로 세지 않으므로 {@code dependOnClassesThat}으로는
+     * 표현되지 않습니다. {@code getTryCatchBlocks()}로 직접 훑습니다.
+     *
+     * @implNote {@code noClasses().should(...)}는 조건을 <b>뒤집어</b> 읽습니다 — 여기서
+     * {@code satisfied}로 보고한 것이 곧 위반입니다.
+     */
+    private static ArchCondition<JavaClass> catchThrowablesOutsideOf(String... allowedPackages) {
+        DescribedPredicate<JavaClass> allowed = resideInAnyPackage(allowedPackages);
+        return new ArchCondition<>("허용된 패키지 밖의 예외를 catch 한다") {
+            @Override
+            public void check(JavaClass javaClass, ConditionEvents events) {
+                javaClass.getCodeUnits().forEach(codeUnit ->
+                        codeUnit.getTryCatchBlocks().forEach(tryCatchBlock ->
+                                tryCatchBlock.getCaughtThrowables().stream()
+                                        .filter(caught -> !allowed.test(caught))
+                                        .forEach(caught -> events.add(SimpleConditionEvent.satisfied(
+                                                javaClass,
+                                                String.format("Class <%s> catches <%s> in %s",
+                                                        javaClass.getName(),
+                                                        caught.getName(),
+                                                        tryCatchBlock.getSourceCodeLocation()))))));
             }
         };
     }
