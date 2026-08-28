@@ -4,10 +4,15 @@ import java.time.Duration;
 import java.util.Set;
 
 /**
- * @responsibility 멀티 디바이스 환경에서의 리프레시 토큰 관리 및 액세스 토큰 블랙리스트를 담당합니다.
- * Redis의 Sorted Set을 활용하여 세션의 순서(로그인 시간 등)를 관리하고 세션 개수 제한을 지원합니다.
+ * @responsibility 멀티 디바이스 환경의 <b>리프레시 토큰 세션</b>을 관리합니다.
+ * @implSpec 이 포트의 모든 메서드는 <b>{@code userId + deviceId}로 세션을 찾습니다.</b> 키의 주인이
+ * 사용자이므로 "1인 N기기" 정책 — 세션 개수 세기, 가장 오래된 세션 축출, 전역 로그아웃 — 이 전부
+ * 여기 삽니다.
+ * @implNote 토큰 문자열 자체를 키로 삼는 무효화는 {@link TokenBlacklistPort}의 몫입니다.
+ * 둘은 같은 저장소를 쓸 뿐 데이터 모델도 수명 정책도 다릅니다. 유일하게 두 갈래가 만나는 지점은
+ * {@link #rotateRefreshToken}으로, 구 토큰 무효화와 신 토큰 발급을 한 번에 처리해야 하기 때문입니다.
  */
-public interface TokenPersistencePort {
+public interface RefreshTokenSessionPort {
 
     /**
      * @param userId       사용자 식별자
@@ -19,8 +24,8 @@ public interface TokenPersistencePort {
     void saveRefreshToken(Long userId, String deviceId, String refreshToken, Duration expiry);
 
     /**
-     * @param deviceId 리프레시 토큰 조회를 요청한 기기의 식별자
      * @param userId   리프레시 토큰 조회를 요청한 사용자의 식별자
+     * @param deviceId 리프레시 토큰 조회를 요청한 기기의 식별자
      * @responsibility 특정 기기에 할당된 리프레시 토큰을 조회합니다.
      */
     String getRefreshToken(Long userId, String deviceId);
@@ -57,42 +62,19 @@ public interface TokenPersistencePort {
 
     /**
      * @responsibility 신규 토큰 저장과 기존 토큰 블랙리스트 등록을 하나의 원자적 작업으로 수행합니다.
+     * @implNote <b>이 메서드만 두 갈래에 걸칩니다.</b> 구 토큰의 블랙리스트 등록을 애플리케이션이
+     * 따로 호출하면 그 사이에 프로세스가 죽었을 때 어중간한 상태가 남고, 그 상태가 전부 보안
+     * 사고입니다. 그래서 무효화가 세션 쪽 계약 안에 있습니다.
      */
     void rotateRefreshToken(Long userId, String deviceId, String oldRefreshToken, String newRefreshToken, Duration expiry);
-
-    /**
-     * @param accessToken   블랙리스트에 등록할 액세스 토큰
-     * @param remainingTime 리프레시 토큰의 남은 시간(이는 곧 블랙리스트로 저장될 시간을 의미합니다.)
-     * @responsibility 액세스 토큰을 블랙리스트 처리합니다.
-     */
-    void blacklistAccessToken(String accessToken, Duration remainingTime);
-
-    /**
-     * @param refreshToken  블랙리스트에 등록할 리프레시 토큰
-     * @param remainingTime 리프레시 토큰의 남은 시간(이는 곧 블랙리스트로 저장될 시간을 의미합니다.)
-     * @responsibility 리프레시 토큰을 블랙리스트 처리합니다.
-     */
-    void blacklistRefreshToken(String refreshToken, Duration remainingTime);
-
-
-    /**
-     * @param accessToken 블랙리스트에 등록되었는지 확인할 액세스 토큰
-     * @return 블랙리스트 되었다면 true, 아니면 false
-     * @responsibility Redis의 액세스 토큰 블랙리스트에 액세스 토큰이 블랙리스트 되어있는지 확인할 책임.
-     */
-    boolean isAccessTokenBlacklisted(String accessToken);
-
-    /**
-     * @param refreshToken 블랙리스트에 등록되었는지 확인할 리프레시 토큰
-     * @return 블랙리스트 되었다면 true, 아니면 false
-     * @responsibility Redis의 리프레시 토큰 블랙리스트에 리프레시 토큰이 블랙리스트 되어있는지 확인할 책임.
-     */
-    boolean isRefreshTokenBlacklisted(String refreshToken);
 
     /**
      * @responsibility 특정 기기의 리프레시 토큰이 저장소에 존재하고 일치하는지 검증합니다.
      */
     boolean existsRefreshToken(Long userId, String deviceId, String refreshToken);
 
+    /**
+     * @responsibility 특정 기기 세션의 남은 수명(밀리초)을 반환합니다. 만료되었거나 없으면 0입니다.
+     */
     long getSessionTtl(Long userId, String deviceId);
 }

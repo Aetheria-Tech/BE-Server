@@ -251,7 +251,7 @@ sequenceDiagram
 - 기기별 세션을 **Redis ZSET**으로 관리해, 최대 동시 로그인 기기 수를 초과하면 가장 오래된 기기부터 자동 만료시킵니다.
 - 토큰은 원문이 아닌 **SHA-256 해시**로만 저장하며, 로그아웃·전역 로그아웃도 각각 전용 Lua 스크립트로 처리합니다.
 
-> 근거 · [`rotate_token.lua`](src/main/resources/scripts/rotate_token.lua), [`global_logout.lua`](src/main/resources/scripts/global_logout.lua), [`TokenPersistenceAdapter.java`](src/main/java/com/serverbe/adapter/out/persistence/token/TokenPersistenceAdapter.java) · 커밋 `68428b8`
+> 근거 · [`rotate_token.lua`](src/main/resources/scripts/rotate_token.lua), [`global_logout.lua`](src/main/resources/scripts/global_logout.lua), [`RefreshTokenSessionAdapter.java`](src/main/java/com/serverbe/adapter/out/persistence/token/RefreshTokenSessionAdapter.java) · 커밋 `68428b8`
 >
 > 자세히 · [Refresh Token Rotation — 원자적 회전과 기기별 세션](docs/troubleshooting/06-refresh-token-rotation.md)
 

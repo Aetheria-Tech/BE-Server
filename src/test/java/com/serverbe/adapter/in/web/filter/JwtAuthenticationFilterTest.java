@@ -2,7 +2,7 @@ package com.serverbe.adapter.in.web.filter;
 
 import com.serverbe.application.port.out.security.TokenResolver;
 import com.serverbe.application.port.out.security.dto.JwtPayloadDto;
-import com.serverbe.application.port.out.token.TokenPersistencePort;
+import com.serverbe.application.port.out.token.TokenBlacklistPort;
 import com.serverbe.domain.exception.auth.AuthErrorCode;
 import com.serverbe.domain.exception.auth.AuthException;
 import com.serverbe.domain.model.user.vo.Role;
@@ -42,7 +42,7 @@ class JwtAuthenticationFilterTest {
     @Mock
     private TokenResolver tokenResolver;
     @Mock
-    private TokenPersistencePort tokenPersistencePort;
+    private TokenBlacklistPort tokenBlacklistPort;
     @Mock
     private TokenExtractor tokenExtractor;
     @Mock
@@ -54,7 +54,7 @@ class JwtAuthenticationFilterTest {
 
     private JwtAuthenticationFilter filter() {
         return new JwtAuthenticationFilter(
-                tokenResolver, tokenPersistencePort, tokenExtractor, handlerExceptionResolver);
+                tokenResolver, tokenBlacklistPort, tokenExtractor, handlerExceptionResolver);
     }
 
     @AfterEach
@@ -70,7 +70,7 @@ class JwtAuthenticationFilterTest {
 
         given(tokenExtractor.extractAccessToken(request)).willReturn(TOKEN);
         given(tokenResolver.validateAccessToken(TOKEN)).willReturn(true);
-        given(tokenPersistencePort.isAccessTokenBlacklisted(TOKEN)).willReturn(false);
+        given(tokenBlacklistPort.isAccessTokenBlacklisted(TOKEN)).willReturn(false);
         given(tokenResolver.resolvePayload(TOKEN)).willReturn(new JwtPayloadDto(42L, Role.USER));
 
         filter().doFilter(request, response, filterChain);
@@ -93,7 +93,7 @@ class JwtAuthenticationFilterTest {
 
         given(tokenExtractor.extractAccessToken(request)).willReturn(TOKEN);
         given(tokenResolver.validateAccessToken(TOKEN)).willReturn(true);
-        given(tokenPersistencePort.isAccessTokenBlacklisted(TOKEN)).willReturn(true);
+        given(tokenBlacklistPort.isAccessTokenBlacklisted(TOKEN)).willReturn(true);
 
         filter().doFilter(request, response, filterChain);
 
@@ -135,7 +135,7 @@ class JwtAuthenticationFilterTest {
         filter().doFilter(request, response, filterChain);
 
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
-        verify(tokenPersistencePort, never()).isAccessTokenBlacklisted(any());
+        verify(tokenBlacklistPort, never()).isAccessTokenBlacklisted(any());
         verify(filterChain).doFilter(request, response);
     }
 }
