@@ -2,6 +2,8 @@ package com.serverbe.application.service.helper;
 
 import com.serverbe.application.port.out.dto.oauth.OAuthUserInfoResult;
 import com.serverbe.application.port.out.jpa.UserRepositoryPort;
+import com.serverbe.domain.exception.server.DataIntegrityViolationException;
+import com.serverbe.domain.exception.server.ServerErrorCode;
 import com.serverbe.domain.model.user.User;
 import com.serverbe.domain.model.user.vo.OAuthProvider;
 import com.serverbe.domain.model.user.vo.Role;
@@ -11,7 +13,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.transaction.PlatformTransactionManager;
 
 import java.util.Optional;
@@ -26,6 +27,12 @@ import static org.mockito.BDDMockito.given;
  * 이 패턴은 두 요청이 동시에 조회 단계를 통과할 수 있어 그 자체로는 중복을 막지 못하며,
  * 실제 방어선은 users(oauth_id, oauth_provider) 유니크 인덱스입니다.
  * 따라서 경합에서 진 요청이 500으로 죽지 않고 복구되는지가 이 클래스의 핵심 계약입니다.
+ * <p>
+ * 여기서 stub이 던지는 것은 <b>도메인</b> {@code DataIntegrityViolationException}입니다.
+ * DB가 제약 위반을 알려 주는 방식(스프링 예외)을 도메인 언어로 옮기는 일은 영속성 어댑터의 몫이고,
+ * 그 번역이 실제로 일어나는지는 {@code UserPersistenceAdapterTest}가 검증합니다.
+ * 이 테스트가 맡는 것은 <b>번역된 예외를 받았을 때 복구하는가</b>입니다.
+ * </p>
  */
 @ExtendWith(MockitoExtension.class)
 class UserDataSyncManagerTest {
@@ -101,7 +108,8 @@ class UserDataSyncManagerTest {
                 .willReturn(Optional.of(existingUser())); // 복구 조회: 이긴 쪽의 행이 커밋되어 있다
 
         given(userRepositoryPort.save(any(User.class)))
-                .willThrow(new DataIntegrityViolationException("Duplicate entry for key 'uk_users_oauth'"))
+                .willThrow(new DataIntegrityViolationException(
+                        ServerErrorCode.INTERNAL_SERVER_ERROR, "Duplicate entry for key 'uk_users_oauth'"))
                 .willAnswer(inv -> inv.getArgument(0));
 
         // when
@@ -118,7 +126,8 @@ class UserDataSyncManagerTest {
         // given: 유니크 제약이 아닌 다른 무결성 위반일 수 있으므로 삼키지 않는다.
         given(userRepositoryPort.findByOauthId(OAUTH_ID, PROVIDER)).willReturn(Optional.empty());
         given(userRepositoryPort.save(any(User.class)))
-                .willThrow(new DataIntegrityViolationException("email 컬럼 제약 위반"));
+                .willThrow(new DataIntegrityViolationException(
+                        ServerErrorCode.INTERNAL_SERVER_ERROR, "email 컬럼 제약 위반"));
 
         // when & then
         assertThatThrownBy(() -> userDataSyncManager.syncUserByOAuth(oauthInfo()))

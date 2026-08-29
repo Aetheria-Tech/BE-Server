@@ -1,8 +1,9 @@
-# 01. 죽은 코드 세 건
+# 01. 죽은 코드 — 세 건으로 시작해 아홉 곳
 
-> 상태 · 대기
+> 상태 · **완료**
 > 성격 · 정리 | 난이도 · 낮음 | 선행 항목 · 없음
-> 이 항목을 닫으면 [02번](02-transactional-on-mono.md)의 대상이 둘에서 하나로, [07번](07-oauth-client-selection-duplication.md)의 중복이 셋에서 둘로 줄어듭니다.
+> 이 항목을 닫으면서 [02번](02-transactional-on-mono.md)의 대상이 둘에서 하나로, [07번](07-oauth-client-selection-duplication.md)의 중복이 셋에서 둘로 줄었습니다.
+> **착수해 보니 연쇄가 있었습니다** — 5절을 보세요. 문서에 적힌 3건이 아니라 9곳을 지웠습니다.
 
 ## 1. 무엇이 문제인가
 
@@ -11,11 +12,17 @@
 
 | 대상 | 종류 |
 | --- | --- |
-| [`application/service/SocialTokenService.java`](../../src/main/java/com/serverbe/application/service/SocialTokenService.java) | `@Service` 빈. 호출처 0건 |
-| [`application/port/out/dto/ai/RunningArtAiResponse.java`](../../src/main/java/com/serverbe/application/port/out/dto/ai/RunningArtAiResponse.java) | 포트 DTO. 참조 0건 |
+| `application/service/SocialTokenService.java` | `@Service` 빈. 호출처 0건 |
+| `application/port/out/dto/ai/RunningArtAiResponse.java` | 포트 DTO. 참조 0건 |
 | `domain/service/` | `package-info.java` 하나만 남은 빈 패키지 |
 
+> 위 셋은 지금 저장소에 없습니다. 그래서 파일 링크를 걸지 않았습니다 — **삭제된 파일은 링크할 수
+> 없고**, 링크를 남겨 두면 문서 링크 검사가 깨집니다. 내용이 필요하면 git 이력에 있습니다.
+
 ## 2. 근거
+
+아래는 **착수 시점의 조사**입니다. 지금은 대상이 사라져 아무것도 출력하지 않습니다 — 삭제 후의
+확인은 5-3절에 따로 있습니다.
 
 ```bash
 # 세 대상 모두 자기 자신 외의 참조가 없다
@@ -34,10 +41,20 @@ ls src/main/java/com/serverbe/domain/service/
 `SocialTokenService.getFreshAccessToken`은 "저장된 소셜 리프레시 토큰으로 소셜 액세스 토큰을 새로
 받아 오고, 갱신된 리프레시 토큰이 함께 오면 DB에 다시 저장한다"는 일을 합니다.
 
-그런데 이 서버가 **소셜 액세스 토큰을 실제로 필요로 하는 곳은 회원 탈퇴 시 연동 해제 한 곳뿐**이고,
-그 경로는 [`WithdrawService`](../../src/main/java/com/serverbe/application/service/WithdrawService.java)가
-`OAuthClientPort.unlink`에 리프레시 토큰을 그대로 넘겨 어댑터 안에서 처리합니다. 즉 갱신 책임이
-어댑터로 흡수되면서 이 서비스가 설 자리가 없어졌고, **삭제되지 않은 채 남았습니다.**
+**처음에 이 문서는 "갱신 책임이 어댑터로 흡수되면서 설 자리가 없어졌다"고 적었는데, 착수 조사에서
+그게 아니라는 것이 드러났습니다.** 흡수된 것이 아니라 **처음부터 소비자가 없었습니다.**
+
+소셜 액세스 토큰이 필요할 법한 곳은 회원 탈퇴 시 연동 해제 하나뿐인데, 두 어댑터의 `unlink`는
+**어느 쪽도 소셜 액세스 토큰을 쓰지 않습니다.**
+
+- **카카오** — `POST /v1/user/unlink`를 **admin key + `target_id`(=`oauthId`)** 로 호출합니다.
+  사용자 토큰이 아예 관여하지 않습니다
+- **구글** — `POST /revoke`에 **리프레시 토큰을 그대로 실어 폐기**합니다. 갱신할 이유가 없습니다
+
+즉 `getFreshAccessToken`은 쓰일 자리를 잃은 것이 아니라 **한 번도 가진 적이 없습니다.** 포트에 미리
+뚫어 둔 능력이 끝내 쓰이지 않은 경우이고,
+[12번 문서](../troubleshooting/12-why-not-kafka.md)가 "가짜 이식성"이라 부른 것과 같은 모양입니다 —
+**쓸 곳이 정해지기 전에 만든 추상화는 쓰이지 않습니다.**
 
 `RunningArtAiResponse`도 같은 종류입니다. AI 응답 역직렬화는 지금
 [`AiGenerationResultDto`](../../src/main/java/com/serverbe/application/port/in/dto/art/AiGenerationResultDto.java)가
@@ -58,17 +75,43 @@ ls src/main/java/com/serverbe/domain/service/
   중복을 세는 눈이 흐려집니다.
 - 빈 패키지는 `package-info.java`의 설명만 남아 **"여기에 도메인 서비스가 있다"고 잘못 안내**합니다.
 
-## 5. 어떻게
+## 5. 어떻게 — 그리고 실제로 무엇을 지웠나
 
-세 건 모두 단순 삭제입니다.
+문서에 적힌 3건으로 시작했지만, **`SocialTokenService`를 지우는 순간 연쇄가 드러났습니다.**
 
-1. `SocialTokenService.java` 삭제. 컴파일이 깨지지 않는 것으로 호출처 없음이 다시 확인됩니다.
-2. `RunningArtAiResponse.java` 삭제.
-3. `domain/service/` 디렉터리를 `package-info.java`째 삭제. 도메인 서비스가 실제로 필요해지는 날
-   그때 만드는 편이, 빈 자리를 남겨 두는 것보다 낫습니다.
+### 5-1. 연쇄 — 포트 메서드 하나가 함께 죽는다
 
-`./gradlew test`가 그대로 통과해야 합니다. 삭제만으로 무언가 깨진다면 그것은 **이 조사가 놓친
-참조**이므로, 깨진 지점을 먼저 문서에 반영하고 판단을 다시 합니다.
+`SocialTokenService`는 `OAuthClientPort.refreshSocialToken`의 **유일한 호출자**였습니다. 서비스가
+사라지면 그 포트 메서드는 호출자가 0이 되고, 그러면 그것을 구현하는 어댑터·fallback·DTO가 줄줄이
+따라옵니다. `User.renewOauthRefreshToken`도 마찬가지였습니다.
+
+**여기서 멈출 수도 있었습니다.** 포트 메서드는 "능력"이니 남겨 둬도 컴파일은 됩니다. 그러나 그러면
+**이 문서가 6절에서 정한 판별 기준에 그대로 걸리는 새 죽은 코드를 만들어 내는 셈**입니다. 게다가
+불필요한 계약이 하나 남아, 앞으로 추가되는 모든 `OAuthClientPort` 구현체가 아무도 부르지 않을
+메서드를 구현해야 합니다. **그래서 끝까지 지웠습니다.**
+
+### 5-2. 최종 삭제 목록 — 9곳
+
+| 층 | 대상 |
+| --- | --- |
+| 문서에 적힌 3건 | `SocialTokenService.java` · `RunningArtAiResponse.java` · `domain/service/`(패키지째) |
+| 포트 | `OAuthClientPort#refreshSocialToken` |
+| 어댑터 | `GoogleOAuthAdapter#refreshSocialToken` · `KakaoOAuthAdapter#refreshSocialToken` |
+| fallback | `GoogleOAuthFallbackHandler#fallbackRefreshSocialToken` · `KakaoOAuthFallbackHandler#fallbackRefreshSocialToken` |
+| 포트 DTO | `SocialTokenRefreshResult.java` |
+| 도메인 | `User#renewOauthRefreshToken` |
+
+### 5-3. 검증
+
+- `./gradlew compileJava compileTestJava` 통과 — **삭제만으로 컴파일이 깨지지 않는 것이 "호출처가
+  없었다"는 사실의 재확인**입니다
+- `./gradlew test` 그대로 그린. `refreshSocialToken`·`SocialTokenRefreshResult`를 다루는 테스트는
+  **애초에 하나도 없었습니다** — 죽은 코드였다는 또 하나의 증거입니다
+- 삭제된 이름 다섯 개로 `src/` 전체를 다시 훑어 0건 확인
+
+```bash
+grep -rn "SocialTokenService\|RunningArtAiResponse\|refreshSocialToken\|SocialTokenRefreshResult\|renewOauthRefreshToken" src/
+```
 
 ## 6. 재발 방지
 
@@ -84,8 +127,18 @@ ls src/main/java/com/serverbe/domain/service/
 
 ## 7. 하지 않기로 한 것
 
-- **`SocialTokenService`의 로직을 어딘가로 옮기지 않습니다.** 옮길 곳이 있었다면 이미 옮겨졌을
+- **`SocialTokenService`의 로직을 어딘가로 옮기지 않았습니다.** 옮길 곳이 있었다면 이미 옮겨졌을
   것입니다. 소셜 액세스 토큰이 다시 필요해지면 그때 필요한 모양으로 새로 씁니다. git 이력에 남아
   있으므로 잃어버리는 것은 없습니다.
-- **빈 패키지를 `package-info.java`만 남겨 두지 않습니다.** "나중에 쓸 자리"라는 표시는 실제로
+- **빈 패키지를 `package-info.java`만 남겨 두지 않았습니다.** "나중에 쓸 자리"라는 표시는 실제로
   쓰이지 않으면 잘못된 안내가 됩니다.
+- **서킷브레이커 `googleTokenApi`·`kakaoTokenApi`는 남겼습니다.** `refreshSocialToken`만 쓰던 것이
+  아니라 `getAccessToken`과 `unlink`도 같은 인스턴스를 씁니다. 죽은 메서드가 쓰던 것이라고 해서
+  자동으로 죽은 것은 아닙니다 — **공유 여부를 확인하고 지워야 합니다.**
+- **`User.oauthRefreshToken` 필드는 남겼습니다.** 구글 `unlink`가 이 값을 직접 폐기하고,
+  `createNew`·`updateFromOAuth`도 씁니다. 지운 것은 **`renewOauthRefreshToken` 메서드 하나뿐**입니다.
+- **`supports()`와 남은 `getClient` 중복 두 벌은 건드리지 않았습니다.**
+  [07번](07-oauth-client-selection-duplication.md) 몫이었고, **거기서 닫혔습니다** — `supports()`는
+  `provider()` 선언으로 바뀌었고 선택 코드 자체가 사라졌습니다.
+- **`WithdrawService`의 `@Transactional`은 그대로입니다.**
+  [02번](02-transactional-on-mono.md) 몫이고, 이 작업으로 그 문서의 대상이 하나 줄었을 뿐입니다.

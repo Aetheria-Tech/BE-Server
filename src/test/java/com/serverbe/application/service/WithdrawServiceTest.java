@@ -19,7 +19,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
-import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -46,7 +46,8 @@ class WithdrawServiceTest {
 
     @BeforeEach
     void setUp() {
-        withdrawService = new WithdrawService(userRepositoryPort, List.of(kakaoClient), userDataCleanupManager);
+        withdrawService = new WithdrawService(
+                userRepositoryPort, Map.of(OAuthProvider.KAKAO, kakaoClient), userDataCleanupManager);
     }
 
     private User withdrawTargetUser() {
@@ -58,7 +59,6 @@ class WithdrawServiceTest {
     void withdraw_Success_UnlinkSucceeds() {
         // given
         given(userRepositoryPort.findById(USER_ID)).willReturn(Optional.of(withdrawTargetUser()));
-        given(kakaoClient.supports(OAuthProvider.KAKAO)).willReturn(true);
         given(kakaoClient.unlink(OAuthProvider.KAKAO, "oauth-1", "social-refresh-token")).willReturn(Mono.just(true));
 
         // when & then
@@ -74,7 +74,6 @@ class WithdrawServiceTest {
     void withdraw_Success_UnlinkRejected_DoesNotCleanUpData() {
         // given
         given(userRepositoryPort.findById(USER_ID)).willReturn(Optional.of(withdrawTargetUser()));
-        given(kakaoClient.supports(OAuthProvider.KAKAO)).willReturn(true);
         given(kakaoClient.unlink(OAuthProvider.KAKAO, "oauth-1", "social-refresh-token")).willReturn(Mono.just(false));
 
         // when & then
@@ -100,11 +99,12 @@ class WithdrawServiceTest {
     }
 
     @Test
-    @DisplayName("실패: 사용자의 소셜 제공자를 지원하는 클라이언트가 없으면 UNSUPPORTED_SOCIAL_LOGIN 예외가 발생한다")
+    @DisplayName("실패: 사용자의 소셜 제공자를 담당하는 클라이언트가 없으면 UNSUPPORTED_SOCIAL_LOGIN 예외가 발생한다")
     void withdraw_Fail_UnsupportedProvider() {
-        // given
-        given(userRepositoryPort.findById(USER_ID)).willReturn(Optional.of(withdrawTargetUser()));
-        given(kakaoClient.supports(OAuthProvider.KAKAO)).willReturn(false);
+        // given: 구글로 가입한 사용자인데 조회표에는 카카오 어댑터뿐이다.
+        User googleUser = new User(
+                USER_ID, "oauth-2", OAuthProvider.GOOGLE, "test@test.com", "닉네임", Role.USER, null, "social-refresh-token");
+        given(userRepositoryPort.findById(USER_ID)).willReturn(Optional.of(googleUser));
 
         // when & then
         StepVerifier.create(withdrawService.withdraw(USER_ID))

@@ -7,7 +7,7 @@ import com.serverbe.adapter.in.web.dto.art.RunningArtResponse;
 import com.serverbe.application.annotation.RateLimit;
 import com.serverbe.application.port.in.art.*;
 import com.serverbe.adapter.in.web.dto.art.UpdateRunningArtRequest;
-import com.serverbe.infrastructure.common.response.RestApiResponse;
+import com.serverbe.adapter.in.web.response.RestApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;

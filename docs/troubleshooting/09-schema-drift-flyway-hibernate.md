@@ -2,7 +2,6 @@
 
 > 요약 · [README — 9. Hibernate가 만든 스키마와 Flyway가 선언한 스키마의 드리프트](../../README.md#9-hibernate가-만든-스키마와-flyway가-선언한-스키마의-드리프트)
 > 근거 · [`V5__drop_master_proficiency_and_normalize_art_keys.sql`](../../src/main/resources/db/migration/V5__drop_master_proficiency_and_normalize_art_keys.sql) · [`Proficiency.java`](../../src/main/java/com/serverbe/domain/model/art/vo/Proficiency.java) · [`RunningArtEntity.java`](../../src/main/java/com/serverbe/adapter/out/persistence/art/RunningArtEntity.java)
-> 커밋 · `64d83ae`
 
 ## 1. 문제의 뿌리
 

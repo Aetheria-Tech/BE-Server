@@ -2,9 +2,9 @@ package com.serverbe.application.service.helper;
 
 import com.serverbe.application.port.out.dto.oauth.OAuthUserInfoResult;
 import com.serverbe.application.port.out.jpa.UserRepositoryPort;
+import com.serverbe.domain.exception.server.DataIntegrityViolationException;
 import com.serverbe.domain.model.user.User;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
@@ -57,6 +57,12 @@ public class UserDataSyncManager {
      * 중복을 실제로 거부하는 것은 {@code users(oauth_id, oauth_provider)} 유니크 인덱스이며,
      * 경합에서 진 쪽은 여기서 예외를 받습니다. 그 시점에는 이긴 쪽의 행이 이미 커밋되어 있으므로
      * 다시 조회하면 반드시 찾을 수 있고, 사용자는 500 대신 정상 로그인을 받습니다.
+     * </p>
+     * <p>
+     * 여기서 받는 {@link DataIntegrityViolationException}은 <b>도메인 예외</b>입니다. DB가 제약 위반을
+     * 알려 주는 방식(스프링의 같은 이름 예외)은 영속성 어댑터가 이미 번역해 주었고, 이 계층은 "무결성
+     * 위반이 있었다"까지만 받습니다. <b>그것을 "동시 최초 로그인 경합"으로 해석하는 것이 여기의 판단</b>이고,
+     * 재조회에 실패하면 해석이 틀렸다는 뜻이므로 삼키지 않고 그대로 전파합니다.
      * </p>
      */
     private User registerOrRecover(OAuthUserInfoResult oauthInfo) {

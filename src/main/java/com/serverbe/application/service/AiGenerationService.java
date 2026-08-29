@@ -1,8 +1,6 @@
 package com.serverbe.application.service;
 
 import com.serverbe.application.port.in.art.InitiateAiGenerationUseCase;
-import com.serverbe.application.port.in.dto.task.TaskStatusResult;
-import com.serverbe.application.port.in.task.GetTaskStatusUseCase;
 import com.serverbe.application.port.out.dto.geocoding.GeocodeResult;
 import com.serverbe.application.port.out.geocode.GeocodePort;
 import com.serverbe.application.port.out.sagemaker.SageMakerAsyncPort;
@@ -34,11 +32,15 @@ import reactor.core.scheduler.Schedulers;
  * {@link Schedulers#boundedElastic()} 스레드 풀로 작업을 완벽히 격리</b>하여 실행합니다.
  * 또한, 인프라 비용 최적화를 위해 다중 레이어의 Rate Limit 정책을 적용하여 중복 요청을 방어합니다.
  * </p>
+ * <p>
+ * <b>작업 상태 조회는 여기 없습니다.</b> {@link AiTaskStatusService}가 맡습니다 — DB에서 한 건
+ * 읽어 반환하는 동기 조회라 이 사가와 협력자도 실행 모델도 공유하지 않습니다.
+ * </p>
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class AiGenerationService implements InitiateAiGenerationUseCase, GetTaskStatusUseCase {
+public class AiGenerationService implements InitiateAiGenerationUseCase {
     private final TaskQueryPort taskQueryPort;
     private final TaskUpdatePort taskUpdatePort;
     private final GeocodePort geocodePort;
@@ -268,28 +270,6 @@ public class AiGenerationService implements InitiateAiGenerationUseCase, GetTask
                     return Mono.empty();
                 })
                 .then(Mono.error(new AiException(AiErrorCode.AI_PIPELINE_ERROR)));
-    }
-
-    /**
-     * 특정 AI 작업의 현재 진행 상태를 조회합니다.
-     * <p>
-     * 보안을 위해 해당 작업을 요청한 사용자(Owner)와 현재 조회하려는 사용자가 일치하는지 검증합니다.
-     * </p>
-     *
-     * @param taskId 조회할 AI 작업의 고유 ID
-     * @param userId 조회를 요청한 사용자의 ID
-     * @return 작업의 현재 상태(상태 코드, S3 결과물 경로 등)를 담은 애플리케이션 계층의 결과 객체
-     * @throws AiException 작업 ID가 존재하지 않거나, 본인의 작업이 아닌 경우 발생
-     */
-    @Override
-    public TaskStatusResult getTaskStatus(String taskId, Long userId) {
-        AiTask task = taskQueryPort.findById(taskId)
-                .orElseThrow(() -> new AiException(AiErrorCode.NOT_FOUND_AITASK));
-
-        // 타인의 작업을 조회할 수 없도록 소유권 검증 로직 수행
-        task.validateOwner(userId);
-
-        return TaskStatusResult.from(task);
     }
 
     /**

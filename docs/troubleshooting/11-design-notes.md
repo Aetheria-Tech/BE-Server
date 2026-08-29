@@ -9,7 +9,7 @@
 
 ## 1. 트랜잭션 커밋 이후에 Redis를 반영한다
 
-> [`RunningArtService.java`](../../src/main/java/com/serverbe/application/service/RunningArtService.java) · 커밋 `14d73c1`
+> [`RunningArtService.java`](../../src/main/java/com/serverbe/application/service/RunningArtService.java)
 
 러닝 아트를 삭제할 때 DB 삭제와 Redis GEO 삭제를 **같은 자리에서** 수행하면, DB 트랜잭션이 롤백되어도
 Redis 데이터는 이미 사라진 뒤입니다. 러닝 아트는 살아 있는데 **주변 검색에서만 보이지 않는** 상태가 됩니다.
@@ -124,7 +124,7 @@ AI 결과 처리는 S3 다운로드, S3 삭제, SSE 발송 등 **긴 네트워�
 
 ## 6. PII 필드 암호화와 무중단 키 교체
 
-> [`CryptoConverter.java`](../../src/main/java/com/serverbe/adapter/out/persistence/converter/CryptoConverter.java) · [`AesGcmEncryptor.java`](../../src/main/java/com/serverbe/infrastructure/crypto/AesGcmEncryptor.java)
+> [`CryptoConverter.java`](../../src/main/java/com/serverbe/adapter/out/persistence/converter/CryptoConverter.java) · [`AesGcmEncryptor.java`](../../src/main/java/com/serverbe/adapter/out/crypto/AesGcmEncryptor.java)
 
 이메일 등 민감 정보를 JPA `AttributeConverter`로 **AES-GCM 자동 암복호화**합니다.
 서비스 코드는 평문을 다루고, 영속화 경계에서만 암호화가 일어납니다.
@@ -227,7 +227,7 @@ Hibernate의 `update`는 컬럼 추가는 해 주지만 **기존 테이블에 �
 
 ## 9. 표준화된 에러 응답
 
-> [`BusinessExceptionHandler.java`](../../src/main/java/com/serverbe/infrastructure/error/BusinessExceptionHandler.java) · [`RestApiResponse.java`](../../src/main/java/com/serverbe/infrastructure/common/response/RestApiResponse.java)
+> [`BusinessExceptionHandler.java`](../../src/main/java/com/serverbe/adapter/in/web/error/BusinessExceptionHandler.java) · [`RestApiResponse.java`](../../src/main/java/com/serverbe/adapter/in/web/response/RestApiResponse.java)
 
 도메인별 `ErrorCode` enum과 `BusinessException` 계층을 정의하고 `@RestControllerAdvice`에서 일괄
 변환해, 모든 API가 동일한 응답 포맷을 갖도록 했습니다.

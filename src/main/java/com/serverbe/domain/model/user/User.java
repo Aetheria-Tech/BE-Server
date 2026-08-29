@@ -27,24 +27,6 @@ public record User(
         String oauthRefreshToken
 ) {
     /**
-     * @responsibility 소셜 서비스의 리프레시 토큰을 갱신한 새로운 유저 객체를 반환합니다.
-     * @param newToken 새로 발급받은 소셜 리프레시 토큰
-     * @return 토큰이 갱신된 {@link User} 인스턴스
-     */
-    public User renewOauthRefreshToken(String newToken) {
-        return new User(
-                this.id,
-                this.oauthId,
-                this.provider,
-                this.email,
-                this.nickname,
-                this.role,
-                this.statusMessage,
-                newToken
-        );
-    }
-
-    /**
      * @responsibility Spring Security 등 인증 프레임워크와의 호환을 위해 권한 리스트를 반환합니다.
      * @return 사용자의 권한 명칭 리스트
      */

@@ -2,7 +2,6 @@
 
 > 요약 · [README — 8. 5분마다 도는 스케줄러의 숨은 비용](../../README.md#8-5분마다-도는-스케줄러의-숨은-비용--풀-스캔과-쓰기-증폭)
 > 근거 · [`V4__add_ai_task_sweep_index.sql`](../../src/main/resources/db/migration/V4__add_ai_task_sweep_index.sql) · [`JpaAiTaskRepository.java`](../../src/main/java/com/serverbe/adapter/out/persistence/task/JpaAiTaskRepository.java) · [`AiTaskCleanupService.java`](../../src/main/java/com/serverbe/application/service/AiTaskCleanupService.java)
-> 커밋 · `64d83ae`
 
 ## 1. 상황
 

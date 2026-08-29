@@ -3,7 +3,6 @@
 > 요약 · [README — 3. SQS 콜백 경합 조건](../../README.md#3-sqs-콜백-경합-조건--비관적-락과-재시도-유도)
 > 근거 · [`AiNotificationService.java`](../../src/main/java/com/serverbe/application/service/AiNotificationService.java) ·
 > [`AiNotificationSqsListener.java`](../../src/main/java/com/serverbe/adapter/in/messaging/AiNotificationSqsListener.java) · [`JpaAiTaskRepository.java`](../../src/main/java/com/serverbe/adapter/out/persistence/task/JpaAiTaskRepository.java) · [`AsyncRaceConditionException.java`](../../src/main/java/com/serverbe/domain/exception/server/AsyncRaceConditionException.java)
-> 커밋 · `51cf87f`, `cae72bf`
 
 ## 1. 상황
 

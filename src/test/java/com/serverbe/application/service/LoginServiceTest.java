@@ -25,7 +25,7 @@ import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
 import java.time.Instant;
-import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -59,14 +59,14 @@ class LoginServiceTest {
 
     @BeforeEach
     void setUp() {
-        loginService = new LoginService(List.of(kakaoClient), userDataSyncManager, authSessionManager, tokenProvider);
+        loginService = new LoginService(
+                Map.of(OAuthProvider.KAKAO, kakaoClient), userDataSyncManager, authSessionManager, tokenProvider);
     }
 
     @Test
     @DisplayName("성공: 지원하는 소셜 제공자로 로그인하면 유저를 동기화하고 토큰을 발급하며 세션을 저장한다")
     void login_Success() {
         // given
-        given(kakaoClient.supports(OAuthProvider.KAKAO)).willReturn(true);
         OAuthUserInfoResult oauthInfo = new OAuthUserInfoResult("kakao-123", OAuthProvider.KAKAO, "test@kakao.com", "닉네임", "social-refresh-token");
         given(kakaoClient.getUserInfo(AUTH_CODE, OAuthProvider.KAKAO)).willReturn(Mono.just(oauthInfo));
 
@@ -96,8 +96,7 @@ class LoginServiceTest {
     @Test
     @DisplayName("실패: 지원하지 않는 소셜 제공자로 로그인을 시도하면 UNSUPPORTED_SOCIAL_LOGIN 예외가 발생한다")
     void login_Fail_UnsupportedProvider() {
-        // given: 등록된 클라이언트가 KAKAO만 지원하고, GOOGLE 요청이 들어온 상황
-        given(kakaoClient.supports(OAuthProvider.GOOGLE)).willReturn(false);
+        // given: 조회표에는 KAKAO 어댑터뿐인데 GOOGLE 요청이 들어온 상황
 
         // when & then
         assertThatThrownBy(() -> loginService.login(AUTH_CODE, OAuthProvider.GOOGLE, DEVICE_ID))
@@ -112,7 +111,6 @@ class LoginServiceTest {
     @DisplayName("실패: 외부 소셜 API 호출이 실패하면 해당 예외가 그대로 전파되고 세션은 생성되지 않는다")
     void login_Fail_ExternalApiError_Propagates() {
         // given
-        given(kakaoClient.supports(OAuthProvider.KAKAO)).willReturn(true);
         given(kakaoClient.getUserInfo(AUTH_CODE, OAuthProvider.KAKAO))
                 .willReturn(Mono.error(new ExternalApiException(ExternalApiErrorCode.FAILED_SOCIAL_API, "카카오 서버 응답 지연")));
 
@@ -129,7 +127,6 @@ class LoginServiceTest {
     @DisplayName("성공: 지원하는 제공자의 로그인 URL을 정상적으로 반환한다")
     void getSocialLoginUrl_Success() {
         // given
-        given(kakaoClient.supports(OAuthProvider.KAKAO)).willReturn(true);
         given(kakaoClient.getLoginUrl()).willReturn("https://kauth.kakao.com/oauth/authorize?...");
 
         // when
@@ -142,8 +139,7 @@ class LoginServiceTest {
     @Test
     @DisplayName("실패: 지원하지 않는 제공자의 로그인 URL을 요청하면 UNSUPPORTED_SOCIAL_LOGIN 예외가 발생한다")
     void getSocialLoginUrl_Fail_UnsupportedProvider() {
-        // given
-        given(kakaoClient.supports(OAuthProvider.GOOGLE)).willReturn(false);
+        // given: 조회표에는 KAKAO 어댑터뿐이다.
 
         // when & then
         assertThatThrownBy(() -> loginService.getSocialLoginUrl(OAuthProvider.GOOGLE))

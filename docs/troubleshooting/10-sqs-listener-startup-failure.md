@@ -2,7 +2,6 @@
 
 > 요약 · [README — 10. 배포하기 전에 잡은 기동 실패](../../README.md#10-배포하기-전에-잡은-기동-실패--자격증명이-없으면-뜨지-않는-sqs-리스너)
 > 근거 · [`AiNotificationSqsListener.java`](../../src/main/java/com/serverbe/adapter/in/messaging/AiNotificationSqsListener.java) · [`application.yml`](../../src/main/resources/application.yml) · [`docker-compose.yml`](../../docker-compose.yml) · [`build.gradle`](../../build.gradle)
-> 커밋 · `7d983bc`
 
 ## 1. 상황 — 왜 배포 전에 띄워 봤나
 
