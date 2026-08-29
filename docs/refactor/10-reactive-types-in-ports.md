@@ -61,7 +61,7 @@ grep -rln "Mono<\|Flux<" src/main/java/com/serverbe/application/port | sort
 grep -rn "reactor" src/main/java/com/serverbe/domain
 ```
 
-Spring Security 타입과 Spring Data 타입을 포트에서 걷어낸 것은(커밋 `8345984`, `ff9c2f5`)
+Spring Security 타입과 Spring Data 타입을 포트에서 걷어낸 것은
 그것들이 **특정 프레임워크의 실행 환경을 요구**했기 때문입니다. `Mono`는 그렇지 않습니다.
 
 ### 인바운드 포트의 `Mono`는 계약입니다

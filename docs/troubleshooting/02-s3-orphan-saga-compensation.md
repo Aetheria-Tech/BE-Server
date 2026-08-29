@@ -2,7 +2,6 @@
 
 > 요약 · [README — 2. S3 고아 파일](../../README.md#2-s3-고아-파일--saga-보상-트랜잭션)
 > 근거 · [`AiGenerationService.java`](../../src/main/java/com/serverbe/application/service/AiGenerationService.java) · [`AiTaskResourceCleaner.java`](../../src/main/java/com/serverbe/application/service/helper/AiTaskResourceCleaner.java) · [`S3LifecyclePolicyInitializer.java`](../../src/main/java/com/serverbe/infrastructure/config/S3LifecyclePolicyInitializer.java)
-> 커밋 · `826fe6a`
 
 ## 1. 상황
 

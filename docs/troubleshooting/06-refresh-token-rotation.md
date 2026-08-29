@@ -2,7 +2,6 @@
 
 > 요약 · [README — 6. Refresh Token Rotation](../../README.md#6-refresh-token-rotation--lua-원자적-회전과-기기별-세션-관리)
 > 근거 · [`rotate_token.lua`](../../src/main/resources/scripts/rotate_token.lua) · [`save_token.lua`](../../src/main/resources/scripts/save_token.lua) · [`delete_token.lua`](../../src/main/resources/scripts/delete_token.lua) · [`global_logout.lua`](../../src/main/resources/scripts/global_logout.lua) · [`RefreshTokenSessionAdapter.java`](../../src/main/java/com/serverbe/adapter/out/persistence/token/RefreshTokenSessionAdapter.java)
-> 커밋 · `68428b8`
 
 ## 1. 상황
 

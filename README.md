@@ -183,7 +183,7 @@ sequenceDiagram
 
 **해결** · Saga 패턴의 보상 트랜잭션을 적용했습니다. SageMaker 호출 단계에 `onErrorResume`을 걸어 실패 시 방금 올린 S3 객체를 삭제합니다. 이때 **보상 로직 자체가 실패하더라도 원본 예외를 우선 전파**하도록 설계했습니다 — 삭제 실패로 원인 예외가 가려지면 디버깅이 불가능해지기 때문입니다. 삭제 실패 건은 수동 정리가 가능하도록 별도 `ERROR` 로그로 남기고, 추가 안전망으로 S3 Lifecycle 정책(임시 경로 1일 후 자동 만료)을 애플리케이션 기동 시 등록합니다.
 
-> 근거 · [`AiGenerationService.java`](src/main/java/com/serverbe/application/service/AiGenerationService.java) `compensateS3Upload`, [`S3LifecyclePolicyInitializer.java`](src/main/java/com/serverbe/infrastructure/config/S3LifecyclePolicyInitializer.java) · 커밋 `826fe6a`
+> 근거 · [`AiGenerationService.java`](src/main/java/com/serverbe/application/service/AiGenerationService.java) `compensateS3Upload`, [`S3LifecyclePolicyInitializer.java`](src/main/java/com/serverbe/infrastructure/config/S3LifecyclePolicyInitializer.java)
 >
 > 자세히 · [S3 고아 파일 — Saga 보상 트랜잭션](docs/troubleshooting/02-s3-orphan-saga-compensation.md)
 
@@ -201,7 +201,7 @@ sequenceDiagram
 - 상태가 아직 `PENDING`이면 예외를 던져 **SQS 가시성 타임아웃 후 자연스럽게 재시도**되도록 유도했습니다. 이미 `COMPLETED`면 멱등하게 스킵합니다.
 - 최종적으로 처리에 실패한 메시지는 예외를 그대로 전파해 **DLQ로 이동**시켜 유실을 방지했습니다.
 
-> 근거 · [`AiNotificationService.java`](src/main/java/com/serverbe/application/service/AiNotificationService.java) · [`AiNotificationSqsListener.java`](src/main/java/com/serverbe/adapter/in/messaging/AiNotificationSqsListener.java) · 커밋 `51cf87f`, `cae72bf`
+> 근거 · [`AiNotificationService.java`](src/main/java/com/serverbe/application/service/AiNotificationService.java) · [`AiNotificationSqsListener.java`](src/main/java/com/serverbe/adapter/in/messaging/AiNotificationSqsListener.java)
 >
 > 자세히 · [SQS 콜백 경합 조건 — 비관적 락과 재시도 유도](docs/troubleshooting/03-sqs-callback-race-condition.md)
 
@@ -218,7 +218,7 @@ sequenceDiagram
 - `lockAtLeastFor = 4m` — 작업이 1초 만에 끝나 락이 즉시 풀리면, **서버 간 NTP 시계 오차(1~2초)** 로 뒤늦게 트리거된 다른 인스턴스가 중복 실행합니다. 실행 주기(5분)보다 약간 짧게 잡아 이를 차단했습니다.
 - `lockAtMostFor = 10m` — 락을 쥔 서버가 OOM 등으로 죽었을 때 **락이 영구히 남는 데드락**을 방지하는 안전장치입니다.
 
-> 근거 · [`TaskTimeoutScheduler.java`](src/main/java/com/serverbe/adapter/in/scheduler/TaskTimeoutScheduler.java) · 커밋 `9423dbb`, `db03584`
+> 근거 · [`TaskTimeoutScheduler.java`](src/main/java/com/serverbe/adapter/in/scheduler/TaskTimeoutScheduler.java)
 >
 > 자세히 · [스케줄러 중복 실행 — ShedLock 분산 락](docs/troubleshooting/04-scheduler-duplicate-shedlock.md)
 
@@ -235,7 +235,7 @@ sequenceDiagram
 - **선언적 적용** — `@RateLimit(target = IP, capacity = 10, refillRate = 5)` 형태의 반복 가능(`@Repeatable`) 애노테이션과 AOP로, 엔드포인트마다 IP·USER 정책을 동시에 걸 수 있게 했습니다.
 - **Redis 장애 대응** — Rate Limiter가 죽었다고 서비스 전체가 멈춰선 안 됩니다. Resilience4j 서킷 브레이커로 감싸고, 폴백에서는 **Caffeine 로컬 캐시로 축소된 방어선**을 유지합니다. 사용자 단위는 로컬 카운팅으로 계속 차단하고, IP 단위는 Fail-Open으로 가용성을 우선합니다.
 
-> 근거 · [`token_bucket.lua`](src/main/resources/scripts/token_bucket.lua), [`RateLimiterService.java`](src/main/java/com/serverbe/application/service/RateLimiterService.java), [`RateLimitAspect.java`](src/main/java/com/serverbe/infrastructure/config/aop/RateLimitAspect.java), [`RateLimitFallbackHandler.java`](src/main/java/com/serverbe/adapter/out/persistence/ratelimit/RateLimitFallbackHandler.java) · 커밋 `2ad20c4`
+> 근거 · [`token_bucket.lua`](src/main/resources/scripts/token_bucket.lua), [`RateLimiterService.java`](src/main/java/com/serverbe/application/service/RateLimiterService.java), [`RateLimitAspect.java`](src/main/java/com/serverbe/infrastructure/config/aop/RateLimitAspect.java), [`RateLimitFallbackHandler.java`](src/main/java/com/serverbe/adapter/out/persistence/ratelimit/RateLimitFallbackHandler.java)
 >
 > 자세히 · [Rate Limiting — Lua 원자적 토큰 버킷](docs/troubleshooting/05-rate-limit-lua-token-bucket.md)
 
@@ -251,7 +251,7 @@ sequenceDiagram
 - 기기별 세션을 **Redis ZSET**으로 관리해, 최대 동시 로그인 기기 수를 초과하면 가장 오래된 기기부터 자동 만료시킵니다.
 - 토큰은 원문이 아닌 **SHA-256 해시**로만 저장하며, 로그아웃·전역 로그아웃도 각각 전용 Lua 스크립트로 처리합니다.
 
-> 근거 · [`rotate_token.lua`](src/main/resources/scripts/rotate_token.lua), [`global_logout.lua`](src/main/resources/scripts/global_logout.lua), [`RefreshTokenSessionAdapter.java`](src/main/java/com/serverbe/adapter/out/persistence/token/RefreshTokenSessionAdapter.java) · 커밋 `68428b8`
+> 근거 · [`rotate_token.lua`](src/main/resources/scripts/rotate_token.lua), [`global_logout.lua`](src/main/resources/scripts/global_logout.lua), [`RefreshTokenSessionAdapter.java`](src/main/java/com/serverbe/adapter/out/persistence/token/RefreshTokenSessionAdapter.java)
 >
 > 자세히 · [Refresh Token Rotation — 원자적 회전과 기기별 세션](docs/troubleshooting/06-refresh-token-rotation.md)
 
@@ -306,7 +306,7 @@ sequenceDiagram
 
 도메인 상태 전이(`markAsFailed`) 자체는 그대로 수행합니다. 커밋 이후의 S3 임시 자원 정리와 SSE 실패 알림이 그 결과를 사용하기 때문입니다. 실패 사유 문구는 상수 하나로 모아, 도메인 전이와 벌크 `UPDATE`가 서로 다른 문구를 기록하는 일이 없게 했습니다.
 
-> 근거 · [`V4__add_ai_task_sweep_index.sql`](src/main/resources/db/migration/V4__add_ai_task_sweep_index.sql), [`JpaAiTaskRepository.java`](src/main/java/com/serverbe/adapter/out/persistence/task/JpaAiTaskRepository.java) `markFailedInBulk`, [`AiTaskCleanupService.java`](src/main/java/com/serverbe/application/service/AiTaskCleanupService.java) · 커밋 `64d83ae`
+> 근거 · [`V4__add_ai_task_sweep_index.sql`](src/main/resources/db/migration/V4__add_ai_task_sweep_index.sql), [`JpaAiTaskRepository.java`](src/main/java/com/serverbe/adapter/out/persistence/task/JpaAiTaskRepository.java) `markFailedInBulk`, [`AiTaskCleanupService.java`](src/main/java/com/serverbe/application/service/AiTaskCleanupService.java)
 >
 > 자세히 · [스케줄러의 숨은 비용 — 풀 스캔과 쓰기 증폭](docs/troubleshooting/08-scheduler-full-scan-and-write-amplification.md)
 
@@ -344,7 +344,7 @@ BEGINNER=1, EXPERT=2, INTRODUCTION=3, MASTER=4, SKILLED=5
 
 **재발 방지** · 엔티티 쪽에도 이름을 못 박았습니다. `@Index(name = "idx_running_arts_user")`와 `@JoinColumn(foreignKey = @ForeignKey(name = "fk_running_arts_user"))`를 명시해, 앞으로 만들어지는 스키마는 처음부터 표준 이름을 갖습니다. 드리프트는 한 번 정리하는 것보다 **다시 생기지 않게 막는 쪽**이 중요합니다.
 
-> 근거 · [`V5__drop_master_proficiency_and_normalize_art_keys.sql`](src/main/resources/db/migration/V5__drop_master_proficiency_and_normalize_art_keys.sql), [`RunningArtEntity.java`](src/main/java/com/serverbe/adapter/out/persistence/art/RunningArtEntity.java), [`Proficiency.java`](src/main/java/com/serverbe/domain/model/art/vo/Proficiency.java) · 커밋 `64d83ae`
+> 근거 · [`V5__drop_master_proficiency_and_normalize_art_keys.sql`](src/main/resources/db/migration/V5__drop_master_proficiency_and_normalize_art_keys.sql), [`RunningArtEntity.java`](src/main/java/com/serverbe/adapter/out/persistence/art/RunningArtEntity.java), [`Proficiency.java`](src/main/java/com/serverbe/domain/model/art/vo/Proficiency.java)
 >
 > 자세히 · [스키마 드리프트 — ENUM 순번과 조건부 DDL](docs/troubleshooting/09-schema-drift-flyway-hibernate.md)
 
@@ -415,7 +415,7 @@ spring.cloud.aws.sqs.enabled: ${AWS_SQS_ENABLED:true}
 
 > 각 항목의 배경과 기각한 대안은 [설계 기록 상세](docs/troubleshooting/11-design-notes.md)에 있습니다.
 
-- **트랜잭션 커밋 이후 Redis 반영** — 러닝 아트 삭제 시 DB 삭제와 Redis GEO 삭제를 함께 수행하면, DB가 롤백되어도 Redis 데이터는 이미 사라져 정합성이 깨집니다. `TransactionSynchronization#afterCommit`으로 커밋 성공 이후에만 GEO를 갱신하도록 분리했습니다. ([`RunningArtService.java`](src/main/java/com/serverbe/application/service/RunningArtService.java), 커밋 `14d73c1`)
+- **트랜잭션 커밋 이후 Redis 반영** — 러닝 아트 삭제 시 DB 삭제와 Redis GEO 삭제를 함께 수행하면, DB가 롤백되어도 Redis 데이터는 이미 사라져 정합성이 깨집니다. `TransactionSynchronization#afterCommit`으로 커밋 성공 이후에만 GEO를 갱신하도록 분리했습니다. ([`RunningArtService.java`](src/main/java/com/serverbe/application/service/RunningArtService.java))
 - **좀비 태스크 실패 알림도 커밋 이후에** — 타임아웃 정리 스케줄러는 상태를 `FAILED`로 바꾸기만 하고 알림을 보내지 않았습니다. 이미 `SseEmitter`를 열고 결과를 기다리던 클라이언트는 아무 이벤트도 받지 못한 채 **자신의 SSE 타임아웃까지 무한 로딩**에 머물렀습니다. S3 임시 자원 정리와 **같은 `afterCommit` 블록**에 실패 알림을 묶었습니다. 커밋 이후여야 하는 이유는 위와 같습니다 — 상태 갱신이 롤백됐는데 클라이언트만 실패 알림을 받으면 SSE 연결이 터미널 상태로 닫혀 되돌릴 수 없습니다. 반대로 알림 발송 실패는 로그만 남기고 삼킵니다. 상태는 이미 커밋되어 되돌릴 수 없고, 한 건의 알림 실패가 나머지 태스크의 마무리까지 중단시켜서는 안 되기 때문입니다. ([`AiTaskCleanupService.java`](src/main/java/com/serverbe/application/service/AiTaskCleanupService.java))
 - **서킷 브레이커 오작동 방지** — 외부 API의 4xx는 *우리 요청이 잘못된 것*이고 5xx는 *상대 서버 장애*입니다. 이를 `ExternalApiClientException` / `ExternalApiException`으로 분리하고 4xx를 `ignoreExceptions`에 등록해, 잘못된 주소 입력이 반복될 때 회로가 열려버리는 문제를 막았습니다. 응답 지연으로 인한 스레드 고갈에 대비해 `slowCallRateThreshold`도 함께 설정했습니다. ([`application.yml`](src/main/resources/application.yml))
 - **PII 필드 암호화와 무중단 키 교체** — 이메일 등 민감 정보를 JPA `AttributeConverter`로 **AES-GCM 자동 암복호화**합니다. 암호문에 키 버전을 새겨두고, 구버전 키로 암호화된 데이터를 읽으면 마이그레이션 대상으로 표시해 점진적으로 재암호화합니다. ([`CryptoConverter.java`](src/main/java/com/serverbe/adapter/out/persistence/converter/CryptoConverter.java), [`AesGcmEncryptor.java`](src/main/java/com/serverbe/adapter/out/crypto/AesGcmEncryptor.java))

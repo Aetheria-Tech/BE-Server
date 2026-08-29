@@ -9,7 +9,7 @@
 
 ## 1. 트랜잭션 커밋 이후에 Redis를 반영한다
 
-> [`RunningArtService.java`](../../src/main/java/com/serverbe/application/service/RunningArtService.java) · 커밋 `14d73c1`
+> [`RunningArtService.java`](../../src/main/java/com/serverbe/application/service/RunningArtService.java)
 
 러닝 아트를 삭제할 때 DB 삭제와 Redis GEO 삭제를 **같은 자리에서** 수행하면, DB 트랜잭션이 롤백되어도
 Redis 데이터는 이미 사라진 뒤입니다. 러닝 아트는 살아 있는데 **주변 검색에서만 보이지 않는** 상태가 됩니다.
