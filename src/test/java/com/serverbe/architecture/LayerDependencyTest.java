@@ -20,6 +20,7 @@ import java.util.Set;
 
 import static com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAPackage;
 import static com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAnyPackage;
+import static com.tngtech.archunit.lang.conditions.ArchConditions.be;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noMethods;
@@ -224,6 +225,91 @@ class LayerDependencyTest {
             .should().haveRawReturnType(beReactiveType());
 
     /**
+     * 포트가 Reactor 타입을 노출하는 것은 <b>고치지 않기로 결정한 항목</b>이고, 그 근거는
+     * {@code docs/refactor/10-reactive-types-in-ports.md}에 있습니다. 아래 세 규칙은 그 결정을
+     * 뒤집는 것이 아니라 <b>결정의 전제가 조용히 무너지지 않게</b> 지킵니다.
+     *
+     * @implNote 목록을 테스트에 박는 방식은 이 클래스가 도입될 때 쓴 것과 같습니다 —
+     * <b>현재 지켜지고 있는 사실을 고정</b>합니다(커밋 {@code 60943b5}). 여기에 이름을 더하거나
+     * 빼려면 10번 문서의 표도 함께 고쳐야 하고, <b>그 강제가 이 상수의 존재 이유입니다.</b>
+     */
+    private static final Set<String> 리액티브를_노출하는_포트 = Set.of(
+            // 인바운드 — Mono 가 "논블로킹으로 호출해도 된다"는 계약이다
+            "com.serverbe.application.port.in.art.GetNearbyRunningArtUseCase",
+            "com.serverbe.application.port.in.art.InitiateAiGenerationUseCase",
+            "com.serverbe.application.port.in.geocode.GeocodeAddressUseCase",
+            "com.serverbe.application.port.in.oauth.LoginUseCase",
+            "com.serverbe.application.port.in.oauth.WithdrawUseCase",
+            // 아웃바운드 — Mono 가 어댑터 사정일 수 있어 아래 세 번째 규칙이 함께 본다
+            "com.serverbe.application.port.out.art.RunningArtRedisPort",
+            "com.serverbe.application.port.out.geocode.GeocodePort",
+            "com.serverbe.application.port.out.oauth.OAuthClientPort"
+    );
+
+    /**
+     * 리액티브 아웃바운드 포트의 구현체가 <b>실제로 논블로킹인지</b>를 가리는 기준입니다.
+     *
+     * @implNote 새 항목을 넣을 때는 <b>왜 허용하는지 주석을 답니다</b> —
+     * {@code 애플리케이션은_포트와_도메인_안에서만_논다}의 허용 목록과 같은 규약입니다.
+     * 목록에 없는 리액티브 클라이언트를 쓰면 규칙이 실패하는데, 그 실패도 <b>"10번을 다시 보라"는
+     * 신호로 맞습니다</b> — 그때 이 목록에 넣을지 판단하면 됩니다.
+     */
+    private static final Set<String> 리액티브_클라이언트 = Set.of(
+            "org.springframework.web.reactive.function.client.WebClient",           // 카카오·구글 어댑터
+            "org.springframework.data.redis.core.ReactiveRedisTemplate",            // GEO 인덱스 어댑터
+            "org.springframework.data.redis.core.ReactiveRedisOperations"           // 위 템플릿의 인터페이스
+    );
+
+    /**
+     * <b>Reactor를 노출하는 포트가 몰래 늘어나지 못하게 합니다.</b> 새 포트에 {@code Mono}를 다는
+     * 것 자체는 옳을 수 있지만, 그때 반드시 물어야 하는 질문이 있습니다 —
+     * <b>계약인가, 어댑터 사정이 새어 나온 것인가.</b> 규칙이 없으면 아무도 묻지 않고 통과합니다.
+     *
+     * @implNote 10번 문서 4절이 인바운드와 아웃바운드를 갈라 놓은 이유가 이 질문입니다. 인바운드의
+     * {@code Mono}는 "논블로킹으로 호출해도 된다"는 <b>약속</b>이고, 아웃바운드의 {@code Mono}는
+     * 구현이 WebClient라서 생긴 <b>결과</b>일 수 있습니다.
+     */
+    @ArchTest
+    static final ArchRule 리액티브를_노출하는_포트는_열거된_여덟_개다 = classes()
+            .that().resideInAPackage("com.serverbe.application.port..")
+            .and(haveMethodReturning(beReactiveType()))
+            .should(be(haveFullNameIn(리액티브를_노출하는_포트)));
+
+    /**
+     * 위 규칙과 <b>같은 목록을 반대 방향으로</b> 잡습니다. 여덟 중 하나가 {@code Mono}를 잃으면
+     * 10번 문서의 표가 <b>조용히 낡습니다</b> — 위 규칙은 그 경우 아무 말도 하지 않습니다.
+     *
+     * @implNote 06번에서 배운 것을 그대로 적용했습니다 — <b>한 방향만 보는 규칙은 반대쪽이 전부
+     * 통과합니다.</b> 목록을 고정한다는 것은 "이 여덟 개다"와 "이 여덟 개뿐이다"를 둘 다 말하는
+     * 일이고, ArchUnit 규칙은 클래스 단위로 평가되므로 두 규칙이 필요합니다.
+     */
+    @ArchTest
+    static final ArchRule 열거된_여덟_포트는_여전히_리액티브를_노출한다 = classes()
+            .that(haveFullNameIn(리액티브를_노출하는_포트))
+            .should(be(haveMethodReturning(beReactiveType())));
+
+    /**
+     * <b>10번 문서의 재검토 트리거 그 자체입니다.</b> 문서는 이렇게 적어 두었습니다 —
+     * "아웃바운드 포트 셋 중 하나라도 <b>리액티브가 아닌 구현체가 생기면</b> 그때 다시 봅니다.
+     * 그 시점에는 {@code Mono}가 계약이 아니라 우연이라는 게 드러납니다."
+     * <p>
+     * 그 조건이 <b>산문으로만 있으면 발화하지 않습니다.</b> 블로킹 HTTP 클라이언트로 지오코딩
+     * 어댑터를 새로 쓰는 사람이 10번 문서를 다시 읽을 이유가 없기 때문입니다. 그래서 조건을
+     * 실패하는 테스트로 옮겼습니다. <b>이 규칙의 빨간불은 "고쳐라"가 아니라 "지금 다시 판단하라"는
+     * 뜻입니다.</b>
+     *
+     * @implNote 대상을 <b>이름으로 박지 않고 유도합니다</b> — "{@code port.out..}에 있으면서
+     * 리액티브를 노출하는 포트를 구현하는 클래스". 리액티브 아웃바운드 포트가 하나 더 생겨도
+     * 규칙이 저절로 따라갑니다. 인바운드 포트 다섯은 대상이 아닙니다. 그쪽 {@code Mono}는
+     * 애플리케이션이 호출자에게 하는 약속이라 <b>구현 기술과 무관</b>합니다.
+     */
+    @ArchTest
+    static final ArchRule 리액티브_아웃바운드_포트의_구현체는_리액티브_클라이언트를_쓴다 = classes()
+            .that().implement(resideInAPackage("com.serverbe.application.port.out..")
+                    .and(haveMethodReturning(beReactiveType())))
+            .should().dependOnClassesThat(haveFullNameIn(리액티브_클라이언트));
+
+    /**
      * 메서드에 붙은 애노테이션까지 봐야 하므로 ArchUnit 기본 술어로는 표현되지 않습니다.
      * 클래스 단위 애노테이션과 달리 {@code @SqsListener}·{@code @Scheduled}는 메서드에 붙습니다.
      */
@@ -261,6 +347,40 @@ class LayerDependencyTest {
                                                         javaClass.getName(),
                                                         caught.getName(),
                                                         tryCatchBlock.getSourceCodeLocation()))))));
+            }
+        };
+    }
+
+    /**
+     * 클래스가 <b>어떤 반환 타입을 가진 메서드를 하나라도</b> 가졌는지 봅니다. ArchUnit 기본 술어는
+     * 메서드 단위({@code noMethods()...haveRawReturnType})로만 반환 타입을 보므로, 그 사실을
+     * 클래스 조건으로 되돌리려면 직접 훑어야 합니다.
+     *
+     * @implNote 인터페이스에도 그대로 동작합니다 — 포트는 전부 인터페이스이고
+     * {@code getMethods()}는 선언된 메서드를 돌려줍니다.
+     */
+    private static DescribedPredicate<JavaClass> haveMethodReturning(DescribedPredicate<JavaClass> returnType) {
+        return new DescribedPredicate<>("반환 타입이 " + returnType.getDescription() + " 인 메서드를 가진다") {
+            @Override
+            public boolean test(JavaClass javaClass) {
+                return javaClass.getMethods().stream()
+                        .anyMatch(method -> returnType.test(method.getRawReturnType()));
+            }
+        };
+    }
+
+    /**
+     * 완전한 클래스 이름이 목록에 있는지 봅니다.
+     *
+     * @implNote {@code beReactiveType()}과 같은 이유로 <b>이름</b>을 씁니다 —
+     * {@code @AnalyzeClasses}가 {@code DoNotIncludeJars}라 라이브러리 타입은 스텁으로 들어오고,
+     * {@code WebClient.class} 같은 리터럴로 비교하면 같은 타입인데도 어긋날 수 있습니다.
+     */
+    private static DescribedPredicate<JavaClass> haveFullNameIn(Set<String> names) {
+        return new DescribedPredicate<>("다음 " + names.size() + "개 중 하나다: " + names) {
+            @Override
+            public boolean test(JavaClass javaClass) {
+                return names.contains(javaClass.getName());
             }
         };
     }

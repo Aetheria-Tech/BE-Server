@@ -1,9 +1,9 @@
 # 11. 영속성 어댑터 테스트 공백
 
-> 상태 · **부분 완료** — 토큰 어댑터만 닫았습니다. 남은 셋은 대기
+> 상태 · **완료** (커밋 전, 워킹 트리)
 > 성격 · 테스트 | 난이도 · 중간 | 선행 항목 · 없음
 > **[09번](09-fat-port-token-persistence.md)의 조건이었습니다.** 테스트 없이 나누면 나눈 것이 맞는지 알 방법이 없습니다.
-> 09번이 요구한 만큼만 먼저 쳤습니다 — **Lua 원자성을 어디까지 덮을지에 대한 판단은 4절에 있습니다.**
+> **문서가 센 범위가 틀렸습니다** — 테스트 없는 아웃바운드 구현체는 셋이 아니라 열이었고, 나머지는 [12번](12-test-gaps-outbound-adapters.md)으로 열었습니다.
 
 ## 1. 무엇이 문제인가
 
@@ -12,15 +12,29 @@
 | 어댑터 | 줄 수 | 테스트 |
 | --- | --- | --- |
 | ~~`TokenPersistenceAdapter`~~ → `RefreshTokenSessionAdapter` · `TokenBlacklistAdapter` | 221 · 93 | ✔ **생김** (12개 · 7개) — 09번에서 |
-| `RunningArtPersistenceAdapter` | 206 | **없음** |
-| `AiTaskPersistenceAdapter` | 105 | **없음** |
-| `RunningArtRedisAdapter` | 88 | **없음** |
+| `RunningArtPersistenceAdapter` | 206 | ✔ **생김** (11개) |
+| `AiTaskPersistenceAdapter` | 105 | ✔ **생김** (10개) |
+| `RunningArtRedisAdapter` | 88 | ✔ **생김** (6개) |
 | `UserPersistenceAdapter` | — | 있음 |
 | `RateLimitPersistenceAdapter` | — | 있음 |
 | `AiTaskRedisAdapter` | — | 있음 |
 
 토큰 어댑터가 365줄 한 덩어리에서 둘로 갈린 것은 09번의 결과입니다. **그물을 먼저 치고 잘랐고,
 같은 단언이 자르기 전과 후에 모두 통과했습니다.**
+
+### 그런데 이 표가 세는 범위가 틀렸습니다
+
+이 문서는 **"영속성 어댑터"만** 셌지만, 5절에서 켜자고 한 규칙은 `adapter.out..` **전체**를 덮습니다.
+실제로 세어 보니 테스트가 없는 아웃바운드 포트 구현체는 셋이 아니라 **열**이었습니다.
+
+| 이 항목이 덮은 것 | 남은 것 → [12번](12-test-gaps-outbound-adapters.md) | 규칙에서 제외 |
+| --- | --- | --- |
+| 위 표의 셋 | `JwtTokenResolver` 226 · `S3AiOutputAdapter` 151 · `JwtTokenProvider` 137 · `SageMakerAsyncAdapter` 72 | `@Profile` 페이크 셋 |
+
+**`JwtTokenResolver`(226줄)가 이제 저장소에서 가장 큰 무테스트 클래스입니다.** 놓친 이유가
+분명합니다 — [04번](04-outbound-adapter-location.md)이 그 둘을 `infrastructure`에서
+`adapter.out.security`로 옮겼는데, **이 문서는 "영속성"만 세고 있었습니다.** 05번이 배운
+*"착수 전 문서가 센 범위를 믿으면 안 된다"* 가 그대로 반복됐습니다.
 
 ## 2. 근거
 
@@ -100,36 +114,96 @@ done
 **09번은 이 판단을 받고 진행했습니다.** 어디까지 덮이는지 모르는 채로 포트를 나누지 않았고,
 왼쪽 열이 분할 전후로 똑같이 초록인 것을 근거로 삼았습니다.
 
-### `RunningArtPersistenceAdapter`
+### `RunningArtPersistenceAdapter` ✔ 11개
 
 Querydsl 동적 쿼리와 페이징이 들어 있어 목 기반으로는 얕게밖에 못 덮습니다. 다만
 `RunningArtPageJsonContractTest`와 `PageQueryMapperTest`가 페이징 계약의 일부를 이미 잡고 있으므로,
-**그 둘이 덮지 못하는 것**부터 채웁니다 — 소유자 필터가 실제로 쿼리에 들어가는지, `findAllByIdIn`이
+**그 둘이 덮지 못하는 것**부터 채웠습니다 — 소유자 필터가 실제로 쿼리에 들어가는지, `findAllByIdIn`이
 빈 리스트를 받았을 때 어떻게 되는지.
 
-### `AiTaskPersistenceAdapter`
+**그리고 문서가 예상하지 못한 것이 하나 더 있었습니다 — `toPageable`입니다.** 페이징 계약이 세
+곳으로 나뉘어 있는데, `PageQueryMapperTest`는 **웹 요청 → `PageQuery`** 를,
+`RunningArtPageJsonContractTest`는 **응답 JSON 모양**을 봅니다. 그 사이의
+**`PageQuery` → `Pageable` → `PageResult`** 구간은 이 어댑터 안에만 있어 **아무도 보지 않고
+있었습니다.** 포트가 `Pageable`을 모른다는 결정이 실제로 지켜지는 지점이 바로 거기입니다.
 
-가장 작고 가장 값이 큽니다. `save`가 스프링의 `DataIntegrityViolationException`을
+정렬 방향이 뒤집혀도 컴파일되고 예외도 나지 않습니다 — **목록의 순서만 조용히 바뀝니다.**
+그래서 두 방향을 모두 고정했습니다.
+
+### `AiTaskPersistenceAdapter` ✔ 10개
+
+가장 작고 가장 값이 컸습니다. `save`가 스프링의 `DataIntegrityViolationException`을
 `AiException(DUPLICATE_AI_REQUEST)`으로 번역하는 분기가 **동시 요청 차단의 마지막 방어선**인데
-지금 아무것도 검증하지 않습니다. [06번 문서](06-framework-exception-leak.md)가 이 번역 패턴을
+아무것도 검증하지 않고 있었습니다. [06번 문서](06-framework-exception-leak.md)가 이 번역 패턴을
 `UserPersistenceAdapter`에도 적용하자고 하므로, **여기 테스트가 그 본보기가 됩니다.**
 
-## 5. 재발 방지
+갱신 분기도 함께 고정했습니다 — **새 엔티티를 만들지 않고 조회한 엔티티에 덮어쓴다**는 것.
+`toEntity`로 새로 만들어 저장하면 영속성 컨텍스트가 관리하던 인스턴스와 분리되어 dirty checking이
+어긋납니다. `markFailedInBulk`가 `updatedAt`을 직접 채우는 것도 봅니다 — 빠뜨리면 **다음 스윕이
+같은 행을 또 집습니다.**
+
+### `RunningArtRedisAdapter` ✔ 6개 — 이 문서에 소절이 없던 것
+
+표에는 있었는데 "어떻게" 절에는 빠져 있었습니다. 실제로 열어 보니 **가장 위험한 단언이 여기
+있었습니다.**
+
+```java
+.add(geoKey, new Point(lon, lat), id.toString())   // 경도가 먼저다
+```
+
+Redis GEO는 **경도-위도** 순으로 받는데 우리가 쓰는 도메인 언어는 늘 **위도-경도**입니다. 누가
+"위도가 먼저가 자연스럽다"며 뒤집으면 **컴파일도 테스트도 통과하면서 모든 위치가 조용히
+틀립니다** — 서울에서 검색하면 남극이 나오는 종류의 실패이고, 예외가 없어 로그에도 안 남습니다.
+`saveLocation`과 `findNearbyIds` 양쪽의 좌표 순서를 `ArgumentCaptor`로 고정했습니다.
+
+**테스트를 쓰다가 알게 된 것 하나** — `geoKey`가 `@Value` **필드 주입**이라 생성자로 넣을 수 없어
+`ReflectionTestUtils`로 채워야 했습니다. **그 어색함 자체가 필드 주입의 비용입니다.** 생성자
+주입이었다면 테스트가 값을 그냥 넘겼을 것입니다. 프로덕션 코드를 바꾸는 것은 이 항목의 범위가
+아니라 사실만 적어 둡니다.
+
+## 5. 재발 방지 — 규칙을 켰습니다, 초록인 범위에서
 
 "모든 클래스에 테스트가 있어야 한다"는 규칙은 두지 않습니다. DTO와 매퍼까지 걸려 소음이 됩니다.
-
-대신 좁은 규칙 하나를 검토합니다.
+대신 좁은 규칙 하나를 켰습니다.
 
 ```
-아웃바운드_포트_구현체는_테스트를_가진다
-  adapter.out.. 에서 application.port.out.. 을 구현하는 클래스는
+영속성_어댑터는_대응하는_테스트를_가진다
+  adapter.out.persistence.. 에서 application.port.out.. 을 구현하는 클래스는
   대응하는 *Test 가 존재해야 한다
 ```
 
-**단, 이 항목을 닫은 뒤에 켭니다. 아직 아닙니다** — 토큰 어댑터 둘은 초록이 되었지만
-`RunningArtPersistenceAdapter`·`AiTaskPersistenceAdapter`·`RunningArtRedisAdapter`가 남아
-있어 지금 켜면 셋이 빨간불입니다. 빨간 채로 두는 규칙은 아무도 믿지 않게 됩니다. 규칙은 초록일 때 켜야 의미가 있습니다 — 기존 `LayerDependencyTest`가
-"현재 지켜지고 있는 규칙을 고정한다"는 방식으로 도입된 것과 같습니다(커밋 `60943b5`).
+**범위를 `adapter.out..`에서 `adapter.out.persistence..`로 좁혔습니다.** 원래 적어 둔 규칙 그대로
+켜면 지금 즉시 빨간불이기 때문입니다 — 1절에서 드러난 넷이 남아 있습니다.
+**빨간 채로 두는 규칙은 아무도 믿지 않게 됩니다.** 규칙은 초록일 때 켜야 의미가 있습니다 —
+기존 `LayerDependencyTest`가 "현재 지켜지고 있는 규칙을 고정한다"는 방식으로 도입된 것과
+같습니다(커밋 `60943b5`).
+
+**좁힌 것을 숨기지 않는 것이 중요합니다.** 넓히는 일은 [12번](12-test-gaps-outbound-adapters.md)의
+종료 조건으로 적어 두었고, 테스트 상수 옆 주석에도 같은 말을 남겼습니다.
+
+> **✔ 12번이 닫히면서 범위가 `adapter.out..` 전체로 넓어졌습니다.** 규칙 이름도
+> `아웃바운드_포트_구현체는_대응하는_테스트를_가진다`가 되었고, `@Profile`이 붙은 대역 셋은
+> 제외됩니다. **좁게 켜고 넓히는 방식이 실제로 굴러갔습니다** — 규칙이 한 번도 빨간 채로
+> 방치되지 않았고, 넓히는 조건이 문서와 코드 양쪽에 적혀 있어 다음 사람이 다시 발견할 필요가
+> 없었습니다.
+
+`LayerDependencyTest`에 넣지 않고 **`AdapterTestCoverageTest`를 새로 만들었습니다.** 그 클래스는
+`@AnalyzeClasses(DoNotIncludeTests)`라 테스트 클래스를 아예 임포트하지 않는데,
+"대응하는 테스트가 있는가"는 **테스트 클래스를 봐야 답할 수 있는 질문**이라 임포트 설정이
+정반대입니다. 성격도 계층 의존이 아니라 커버리지입니다.
+
+### 규칙을 세웠다고 믿기 전에 실패시켜 봤습니다
+
+04·05·06·10번의 절차입니다. 범위를 잠깐 `adapter.out`으로 넓혀 빨간 줄을 봤고, **그때 나온
+목록이 그대로 12번 문서의 근거가 됐습니다.**
+
+```
+Expecting empty but was: ["FakeS3Adapter", "FakeSageMakerAdapter", "JwtTokenProvider",
+    "JwtTokenResolver", "MockS3AiOutputAdapter", "S3AiOutputAdapter", "SageMakerAsyncAdapter"]
+```
+
+**실패시켜 보는 절차가 여기서는 조사까지 대신했습니다.** 규칙을 한 줄 넓혔다 되돌리는 것만으로
+다음 항목의 대상 목록이 나왔습니다.
 
 ## 6. 하지 않기로 한 것
 
@@ -140,3 +214,13 @@ Querydsl 동적 쿼리와 페이징이 들어 있어 목 기반으로는 얕게�
   것을 덮고, 덮을 수 없는 것이 무엇인지 명확히 하는 데까지**입니다.
 - **컨트롤러와 리졸버의 테스트 공백은 다루지 않습니다.** `RunningArtControllerTest`가 있고 나머지
   컨트롤러에는 없지만, 컨트롤러는 대부분 위임 한 줄이라 우선순위가 낮습니다.
+- **Querydsl fluent 체인은 목으로 덮지 않았습니다.** `RunningArtPersistenceAdapter.findAllLocations`와
+  `AiTaskPersistenceAdapter.findZombieTasks`가 그렇습니다. 목으로 흉내 내면 **테스트가 프로덕션
+  코드의 호출 순서를 그대로 베낀 것**이 되어, 쿼리가 틀려도 초록입니다. 4절이 정한 대로
+  **덮을 수 없는 것이 무엇인지 밝히는 데까지**만 했습니다.
+- **`@Profile` 페이크 셋에 테스트를 쓰지 않았습니다.** `FakeS3Adapter`·`MockS3AiOutputAdapter`·
+  `FakeSageMakerAdapter`는 **그 자체가 테스트 대역**입니다. 페이크에 테스트를 요구하는 규칙은
+  소음이 되므로 12번에서 규칙을 넓힐 때 제외 대상입니다.
+- **프로덕션 코드를 한 줄도 바꾸지 않았습니다.** `RunningArtRedisAdapter`의 필드 주입처럼 테스트를
+  쓰다 눈에 띈 것은 **고치지 않고 적어만 두었습니다.** 09번에서 죽은 catch 분기를 고친 것과 다른
+  선택인데, 그건 분기가 명백히 의도와 어긋났고 여기는 취향의 문제이기 때문입니다.

@@ -97,9 +97,13 @@ public class JwtTokenResolver implements TokenResolver {
 
     /**
      * @param refreshToken 검증할 리프레시 토큰
-     * @return 유효성 여부
-     * @responsibility <b>리프레시 토큰(Opaque)</b>의 형식적 유효성을 검증합니다.
-     * @implNote 리프레시 토큰은 정보를 담지 않는 무작위 문자열이므로, 설정된 길이와 일치하는지를 우선적으로 확인합니다.
+     * @return 값이 있으면 true, 비어 있으면 false
+     * @responsibility <b>리프레시 토큰(Opaque)</b>이 비어 있지 않은지만 확인합니다.
+     * @implNote 리프레시 토큰은 정보를 담지 않는 무작위 문자열이라 <b>토큰 자체를 보고 판단할 수 있는
+     * 것이 없습니다.</b> 서명도 만료 클레임도 없으므로 여기서 하는 일은 빈 값 거르기가 전부이고,
+     * <b>실제 유효성은 저장소와의 대조로 판정됩니다</b> —
+     * {@code RefreshTokenSessionPort.existsRefreshToken}과 {@code TokenBlacklistPort}가 그 일을 합니다.
+     * 이 메서드만 보고 "검증되었다"고 읽으면 안 됩니다.
      */
     @Override
     public boolean validateRefreshToken(String refreshToken) {
